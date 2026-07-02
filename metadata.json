@@ -1,0 +1,6 @@
+{
+  "name": "MAS Agency Enterprise Platform",
+  "description": "A world-class luxury enterprise travel booking and management SaaS platform competing with GetYourGuide and Aman Resorts.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

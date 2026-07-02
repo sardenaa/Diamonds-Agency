@@ -1,0 +1,473 @@
+import React, { useState } from 'react';
+import { Award, ShieldCheck, Sparkles, Trophy, CheckCircle2, Lock, ArrowRight, Star, Gem, Compass, ChevronRight, Check } from 'lucide-react';
+import { Booking } from '../types.js';
+import { tokens } from '../theme/tokens.js';
+
+interface LoyaltyTierProps {
+  lang: 'en' | 'ar';
+  bookings: Booking[];
+  totalSpent: number;
+}
+
+// Tier Configurations
+interface TierConfig {
+  nameEn: string;
+  nameAr: string;
+  colorClass: string;
+  badgeBg: string;
+  glowClass: string;
+  bookingsRequired: number;
+  perksEn: string[];
+  perksAr: string[];
+  cardGradient: string;
+  icon: React.ComponentType<any>;
+}
+
+const TIER_DESCRIPTIONS = {
+  Bronze: {
+    en: 'Welcome to the inner circle of MAS travelers. Your premium voyage begins here.',
+    ar: 'مرحباً بك في الدائرة الداخلية لمسافري ماس. رحلتك المتميزة تبدأ من هنا.'
+  },
+  Silver: {
+    en: 'Stepping into enhanced hospitality. Experience elevated comfort and premium touches on every transfer.',
+    ar: 'خطوة نحو ضيافة محسنة. استمتع براحة فائقة ولمسات ممتازة في كل جولة.'
+  },
+  Gold: {
+    en: 'Distinguished status for avid explorers. Enjoy dedicated assistance, premium guides, and high-tier flexibility.',
+    ar: 'مكانة مميزة للمستكشفين الشغوفين. استمتع بمساعدة مخصصة ومرشدين متميزين ومرونة عالية المستوى.'
+  },
+  Platinum: {
+    en: 'The premium executive tier. Complete luxury upgrades across all vehicle fleets and accommodations.',
+    ar: 'فئة التوقيع التنفيذي المتميز. ترقيات فاخرة كاملة عبر جميع أساطيل السيارات وأماكن الإقامة.'
+  },
+  Diamond: {
+    en: 'The absolute pinnacle of Sovereign Luxury. Your own round-the-clock dedicated butler, customized VIP access, and elite dining.',
+    ar: 'القمة المطلقة للفخامة السيادية. خادمك الشخصي المخصص على مدار الساعة، ودخول VIP مخصص، وعشاء فاخر.'
+  }
+};
+
+export const TIER_CONFIGS: Record<string, TierConfig> = {
+  Bronze: {
+    nameEn: 'Bronze Elite',
+    nameAr: 'البرونزية النخبة',
+    bookingsRequired: 0,
+    colorClass: 'text-amber-700',
+    badgeBg: 'bg-amber-700/10 text-amber-700 border-amber-700/20',
+    glowClass: 'shadow-amber-900/10 border-amber-900/20',
+    cardGradient: 'from-amber-900/40 via-slate-900 to-slate-950',
+    icon: Compass,
+    perksEn: [
+      'Standard Premium Mercedes V-Class transfer',
+      '24/7 Digital Concierge access',
+      'Access to standard seasonal tour catalog'
+    ],
+    perksAr: [
+      'نقل قياسي متميز بسيارة مرسيدس V-Class',
+      'الوصول إلى المساعد الرقمي على مدار الساعة',
+      'الوصول إلى كتالوج الرحلات الموسمية القياسي'
+    ]
+  },
+  Silver: {
+    nameEn: 'Silver Sovereign',
+    nameAr: 'الفضية السيادية',
+    bookingsRequired: 1,
+    colorClass: 'text-slate-300',
+    badgeBg: 'bg-slate-300/10 text-slate-300 border-slate-300/20',
+    glowClass: 'shadow-slate-400/10 border-slate-400/20',
+    cardGradient: 'from-slate-700/30 via-slate-900 to-slate-950',
+    icon: Award,
+    perksEn: [
+      'Complimentary Egyptian Dates & hibiscus welcoming platter',
+      'Priority airport premium meet-and-assist service',
+      '5% permanent discount on additional bespoke bookings'
+    ],
+    perksAr: [
+      'طبق ترحيبي مجاني من التمور المصرية الفاخرة والكركديه',
+      'أولوية خدمة الاستقبال والمساعدة الممتازة بالمطار',
+      'خصم دائم 5% على الحجوزات الإضافية المخصصة'
+    ]
+  },
+  Gold: {
+    nameEn: 'Gold Majesty',
+    nameAr: 'الذهبية المهيبة',
+    bookingsRequired: 2,
+    colorClass: 'text-amber-400',
+    badgeBg: 'bg-amber-400/10 text-amber-400 border-amber-400/20',
+    glowClass: 'shadow-amber-400/10 border-amber-400/20',
+    cardGradient: 'from-amber-500/20 via-slate-900 to-slate-950',
+    icon: Trophy,
+    perksEn: [
+      'Guaranteed late checkout (up to 4:00 PM) at partner hotels',
+      'Complimentary private expert photographer companion (1 Hour)',
+      '10% permanent discount with coupon code WELCOME10'
+    ],
+    perksAr: [
+      'تسجيل مغادرة متأخر مضمون (حتى الساعة 4:00 مساءً) في الفنادق الشريكة',
+      'مصور محترف خاص مجاني مرافق للرحلة (لمدة ساعة واحدة)',
+      'خصم دائم 10% مع الرمز الترويجي WELCOME10'
+    ]
+  },
+  Platinum: {
+    nameEn: 'Platinum Paramount',
+    nameAr: 'البلاتينية الرفيعة',
+    bookingsRequired: 3,
+    colorClass: 'text-indigo-300',
+    badgeBg: 'bg-indigo-300/10 text-indigo-300 border-indigo-300/20',
+    glowClass: 'shadow-indigo-500/10 border-indigo-500/20',
+    cardGradient: 'from-indigo-950/40 via-slate-900 to-slate-950',
+    icon: ShieldCheck,
+    perksEn: [
+      'Complimentary upgrade to Mercedes S-Class chauffeured fleet',
+      'Skip-the-line Private Temple access authorization permits',
+      'Bespoke culinary catering upgrade during desert safaris'
+    ],
+    perksAr: [
+      'ترقية مجانية إلى أسطول سيارات مرسيدس S-Class مع سائق خاص',
+      'تصاريح دخول حصرية سريعة ومباشرة للمعابد الخاصة والمغلقة',
+      'ترقية قائمة الطعام الفاخرة أثناء رحلات السفاري الصحراوية'
+    ]
+  },
+  Diamond: {
+    nameEn: 'Royal Diamond Executive',
+    nameAr: 'الماسية الملكية التنفيذية',
+    bookingsRequired: 4,
+    colorClass: 'text-emerald-400',
+    badgeBg: 'bg-emerald-400/10 text-emerald-400 border-emerald-400/20',
+    glowClass: 'shadow-emerald-400/20 border-emerald-400/30',
+    cardGradient: 'from-emerald-950/50 via-slate-900 to-slate-950',
+    icon: Gem,
+    perksEn: [
+      '24/7 dedicated personal travel butler and scholar escort',
+      'Bespoke private dinner curated by Michelin-starred chefs at Pyramids',
+      'Unlimited vehicle class selection & private helicopter shuttle privilege'
+    ],
+    perksAr: [
+      'خادم سفر شخصي مخصص على مدار الساعة ومرافق أكاديمي طوال الرحلة',
+      'عشاء خاص مخصص يشرف عليه طهاة حائزون على نجمة ميشلان أمام الأهرامات مباشرة',
+      'حرية اختيار فئة السيارة بلا حدود وميزة النقل بالطائرات المروحية الخاصة'
+    ]
+  }
+};
+
+export default function LoyaltyTier({ lang, bookings, totalSpent }: LoyaltyTierProps) {
+  // Determine actual loyalty tier based on bookings length
+  const bookingCount = bookings.length;
+  
+  let actualTier = 'Bronze';
+  if (bookingCount >= 4) actualTier = 'Diamond';
+  else if (bookingCount === 3) actualTier = 'Platinum';
+  else if (bookingCount === 2) actualTier = 'Gold';
+  else if (bookingCount === 1) actualTier = 'Silver';
+
+  // State to simulate or test other tiers in the dashboard (excellent premium UX)
+  const [selectedTier, setSelectedTier] = useState<string>(actualTier);
+  const [claimedPerk, setClaimedPerk] = useState<string | null>(null);
+  const [prefVehicle, setPrefVehicle] = useState<'V-Class' | 'S-Class' | 'Maybach'>('V-Class');
+
+  const config = TIER_CONFIGS[selectedTier];
+  const IconComponent = config.icon;
+  const isActual = selectedTier === actualTier;
+
+  // Next tier computation
+  const getNextTier = () => {
+    if (selectedTier === 'Bronze') return { name: 'Silver', count: 1 };
+    if (selectedTier === 'Silver') return { name: 'Gold', count: 2 };
+    if (selectedTier === 'Gold') return { name: 'Platinum', count: 3 };
+    if (selectedTier === 'Platinum') return { name: 'Diamond', count: 4 };
+    return null;
+  };
+
+  const nextTier = getNextTier();
+
+  // Translations
+  const trans = {
+    title: { en: 'Sovereign Royal Club', ar: 'نادي السيادة الملكي' },
+    subtitle: { en: 'Your Elite Voyage Ledger & Unlocked Perks', ar: 'سجل رحلات النخبة والمزايا التي تم فتحها' },
+    bookingHistory: { en: 'Voyage Counter', ar: 'عداد الرحلات الفاخرة' },
+    bookingCountLabel: { en: `${bookingCount} Completed or Confirmed Voyages`, ar: `${bookingCount} رحلات مكتملة أو مؤكدة` },
+    spendCounter: { en: 'Total Premium Spend', ar: 'إجمالي الإنفاق المتميز' },
+    actualTierBadge: { en: 'Your Current Status', ar: 'حالتك الحالية' },
+    simulationNotice: { en: 'Connoisseur Sandbox: Select a tier to preview privileges', ar: 'صندوق النخبة: اختر فئة لاستعراض الامتيازات والمزايا' },
+    unlockedPerksTitle: { en: 'Personalized VIP Privileges', ar: 'امتيازات كبار الشخصيات المخصصة لك' },
+    lockedPerksTitle: { en: 'Upcoming Privileges (Locked)', ar: 'الامتيازات القادمة (مغلقة)' },
+    claimButton: { en: 'Dispatch Concierge Notification', ar: 'إرسال إشعار للخادم الشخصي' },
+    claimedSuccess: { en: 'Request sent! Your private travel butler will confirm via WhatsApp shortly.', ar: 'تم إرسال الطلب! سيؤكد خادم السفر الشخصي معك عبر واتساب قريبًا.' },
+    customizeHeader: { en: 'Active VIP Flight & Vehicle Preferences', ar: 'تفضيلات الطيران والسيارات النشطة لكبار الشخصيات' },
+    vehicleLabel: { en: 'Preferred Chauffeur Vehicle', ar: 'سيارة السائق المفضلة' },
+    savePreferences: { en: 'Update Chauffeur Dispatch Order', ar: 'تحديث أمر إرسال السائق' },
+    tierGold: { en: 'Gold', ar: 'الذهبية' },
+    tierPlatinum: { en: 'Platinum', ar: 'البلاتينية' },
+    tierDiamond: { en: 'Diamond', ar: 'الماسية' },
+    pointsText: { en: 'MAS Points Balance', ar: 'رصيد نقاط ماس' }
+  };
+
+  const handleClaim = (perk: string) => {
+    setClaimedPerk(perk);
+    setTimeout(() => {
+      setClaimedPerk(null);
+      alert(lang === 'ar' 
+        ? 'تم التنسيق مع فريق الدعم والخدمة الشخصية الخاص بك لتجهيز هذه الميزة لرحلتك القادمة.'
+        : 'Your Personal Travel Butler has logged this request and will configure it for your next trip.'
+      );
+    }, 2000);
+  };
+
+  return (
+    <div className="space-y-6">
+      
+      {/* Header and Sandbox selector */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 pb-4">
+        <div>
+          <span className={`${tokens.typography.subtitle}`}>{trans.title[lang]}</span>
+          <h3 className={`${tokens.typography.cardTitle} mt-1 text-slate-900`}>{trans.subtitle[lang]}</h3>
+        </div>
+        
+        {/* Connoisseur Sandbox / Simulation Switch */}
+        <div className="bg-slate-100 p-1.5 rounded-xl border border-slate-200 flex flex-wrap gap-1 items-center">
+          <span className="text-[10px] font-bold text-slate-500 uppercase px-2 hidden lg:inline">
+            {trans.simulationNotice[lang]}:
+          </span>
+          {Object.keys(TIER_CONFIGS).map((tKey) => {
+            const isActive = selectedTier === tKey;
+            const isUsersActual = tKey === actualTier;
+            return (
+              <button
+                key={tKey}
+                onClick={() => setSelectedTier(tKey)}
+                className={`px-3 py-1 text-[10px] font-black rounded-lg transition-all cursor-pointer ${
+                  isActive 
+                    ? 'bg-slate-900 text-amber-400 shadow-sm' 
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200'
+                } flex items-center gap-1`}
+              >
+                <span>{lang === 'ar' ? TIER_CONFIGS[tKey].nameAr : TIER_CONFIGS[tKey].nameEn}</span>
+                {isUsersActual && <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full" title="Your Actual Tier" />}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        {/* 1. Sovereign Loyalty Card representation */}
+        <div className="lg:col-span-1 space-y-4">
+          <div className={`bg-gradient-to-br ${config.cardGradient} text-white rounded-3xl p-6 border ${config.glowClass} shadow-xl relative overflow-hidden flex flex-col justify-between min-h-[260px] transform hover:scale-[1.02] transition-all duration-300`}>
+            {/* Holographic glowing emblem backdrop */}
+            <div className="absolute -top-10 -right-10 opacity-10 pointer-events-none">
+              <IconComponent className="w-48 h-48 text-white" />
+            </div>
+
+            {/* Top row */}
+            <div className="flex justify-between items-start">
+              <div className="space-y-1">
+                <span className="text-[9px] bg-white/10 border border-white/20 px-2.5 py-0.5 rounded-full font-bold uppercase tracking-widest text-slate-300">
+                  {trans.actualTierBadge[lang]}
+                </span>
+                <h4 className="text-xl md:text-2xl font-black tracking-wide text-white flex items-center gap-2 mt-2 font-serif">
+                  <IconComponent className={`w-6 h-6 ${config.colorClass}`} />
+                  <span>{lang === 'ar' ? config.nameAr : config.nameEn}</span>
+                </h4>
+              </div>
+              
+              {isActual && (
+                <span className="bg-emerald-500 text-white text-[8px] font-extrabold px-2 py-1 rounded-md uppercase tracking-wider animate-pulse">
+                  ACTIVE
+                </span>
+              )}
+            </div>
+
+            {/* Middle description */}
+            <p className="text-xs text-slate-300 leading-relaxed font-medium mt-4">
+              {TIER_DESCRIPTIONS[selectedTier as keyof typeof TIER_DESCRIPTIONS][lang]}
+            </p>
+
+            {/* Card footer metadata */}
+            <div className="border-t border-white/10 pt-4 mt-6 space-y-3">
+              <div className="flex justify-between items-end">
+                <div>
+                  <span className="block text-[9px] uppercase font-bold text-slate-400 tracking-wider">
+                    {trans.pointsText[lang]}
+                  </span>
+                  <span className="text-base font-bold text-amber-400">
+                    {(bookingCount * 1500).toLocaleString()} pts
+                  </span>
+                </div>
+                
+                <div className="text-right">
+                  <span className="block text-[9px] uppercase font-bold text-slate-400 tracking-wider">
+                    {trans.spendCounter[lang]}
+                  </span>
+                  <span className="text-sm font-bold text-slate-100 font-mono">
+                    ${totalSpent.toLocaleString()} USD
+                  </span>
+                </div>
+              </div>
+
+              {/* Progress Bar to next level */}
+              {nextTier && (
+                <div className="space-y-1.5">
+                  <div className="flex justify-between text-[9px] font-bold text-slate-300 uppercase">
+                    <span>Voyages Completed: {bookingCount} / {nextTier.count}</span>
+                    <span>Next: {nextTier.name}</span>
+                  </div>
+                  <div className="h-1 bg-white/10 rounded-full overflow-hidden">
+                    <div 
+                      className="h-full bg-amber-400 rounded-full transition-all duration-500"
+                      style={{ width: `${Math.min(100, (bookingCount / nextTier.count) * 100)}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* 2. Interactive VIP Preferences customizer (Tailored to Loyalty tier level!) */}
+          <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-sm space-y-4">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-emerald-600" />
+              <h4 className="text-xs font-black uppercase text-slate-800 tracking-wider">
+                {trans.customizeHeader[lang]}
+              </h4>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-[10px] text-slate-400 uppercase font-bold mb-1">
+                  {trans.vehicleLabel[lang]}
+                </label>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {['V-Class', 'S-Class', 'Maybach'].map((veh) => {
+                    // Lock certain vehicles based on actual booking eligibility
+                    const isMaybachLocked = bookingCount < 4 && veh === 'Maybach';
+                    const isSClassLocked = bookingCount < 3 && veh === 'S-Class';
+                    const isLocked = isMaybachLocked || isSClassLocked;
+
+                    return (
+                      <button
+                        key={veh}
+                        disabled={isLocked}
+                        onClick={() => setPrefVehicle(veh as any)}
+                        className={`py-2 px-1 text-[10px] font-bold border rounded-lg transition-all cursor-pointer flex flex-col items-center justify-center gap-1 ${
+                          prefVehicle === veh 
+                            ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm' 
+                            : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed'
+                        }`}
+                      >
+                        <span>{veh}</span>
+                        {isLocked ? <Lock className="w-2.5 h-2.5 text-slate-400" /> : <Check className="w-2.5 h-2.5 text-emerald-400" />}
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="text-[10px] text-slate-400 mt-1.5 font-medium">
+                  {lang === 'ar' 
+                    ? 'أساطيل المرسيدس S-Class و Maybach تتطلب عضوية بلاتينية أو ماسية لتأكيد الطلب تلقائيًا.'
+                    : 'Mercedes S-Class and Maybach fleets require Platinum or Diamond tier status for automatic deployment.'
+                  }
+                </p>
+              </div>
+
+              <button
+                onClick={() => alert(lang === 'ar' ? 'تم تحديث تفضيلات النقل الملكي لك في سجل كبار الشخصيات.' : 'Chauffeur deployment ledger updated with your private preferences.')}
+                className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold text-[10px] uppercase py-2 rounded-lg transition-colors cursor-pointer"
+              >
+                {trans.savePreferences[lang]}
+              </button>
+            </div>
+          </div>
+
+        </div>
+
+        {/* 2. Perks Details list */}
+        <div className="lg:col-span-2 space-y-4">
+          
+          <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm space-y-6">
+            
+            <div>
+              <h4 className="text-sm font-bold text-slate-800 mb-1">
+                {trans.unlockedPerksTitle[lang]}
+              </h4>
+              <p className="text-xs text-slate-400">
+                {lang === 'ar' 
+                  ? `هذه المزايا والامتيازات حصرية لفئة ${lang === 'ar' ? config.nameAr : config.nameEn}.` 
+                  : `These customized benefits are fully operational for ${config.nameEn} tier members.`
+                }
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {(lang === 'ar' ? config.perksAr : config.perksEn).map((perk, idx) => (
+                <div key={idx} className="bg-slate-50/60 hover:bg-slate-50 border border-slate-100 p-4 rounded-2xl flex flex-col justify-between transition-all group">
+                  <div className="space-y-3">
+                    <div className="bg-emerald-100 p-1.5 rounded-lg text-emerald-700 h-7 w-7 flex items-center justify-center">
+                      <CheckCircle2 className="w-4 h-4" />
+                    </div>
+                    <p className="text-xs font-semibold text-slate-700 leading-relaxed">
+                      {perk}
+                    </p>
+                  </div>
+
+                  <div className="pt-4 mt-4 border-t border-slate-200/50">
+                    <button
+                      onClick={() => handleClaim(perk)}
+                      disabled={claimedPerk !== null}
+                      className="text-[10px] text-emerald-600 hover:text-emerald-700 font-bold flex items-center gap-1 transition-colors cursor-pointer"
+                    >
+                      <span>{claimedPerk === perk ? trans.claimedSuccess[lang] : trans.claimButton[lang]}</span>
+                      <ArrowRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Tier Comparison Chart (Extremely professional and clean layout) */}
+            <div className="space-y-3 pt-4 border-t border-slate-100">
+              <h5 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                {lang === 'ar' ? 'مقارنة فئات العضوية السيادية' : 'Sovereign Membership Hierarchy'}
+              </h5>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="border-b border-slate-100 text-slate-400 font-bold">
+                      <th className="py-2 pr-4">{lang === 'ar' ? 'الفئة' : 'Tier'}</th>
+                      <th className="py-2 px-2 text-center">{lang === 'ar' ? 'الحد الأدنى للرحلات' : 'Required Voyages'}</th>
+                      <th className="py-2 px-2">{lang === 'ar' ? 'ميزة النقل الأساسية' : 'Primary Fleet Privilege'}</th>
+                      <th className="py-2 pl-4 text-right">{lang === 'ar' ? 'الخصم الدائم' : 'Permanent Discount'}</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-50 font-medium">
+                    {Object.entries(TIER_CONFIGS).map(([key, value]) => {
+                      const isCurrent = key === selectedTier;
+                      return (
+                        <tr key={key} className={`hover:bg-slate-50 transition-colors ${isCurrent ? 'bg-amber-400/5 text-slate-900 font-bold' : 'text-slate-500'}`}>
+                          <td className="py-3 pr-4 flex items-center gap-1.5">
+                            <span className={`w-2 h-2 rounded-full ${isCurrent ? 'bg-amber-400' : 'bg-slate-300'}`} />
+                            <span>{lang === 'ar' ? value.nameAr : value.nameEn}</span>
+                          </td>
+                          <td className="py-3 px-2 text-center">{value.bookingsRequired}</td>
+                          <td className="py-3 px-2">
+                            {key === 'Diamond' || key === 'Platinum' ? (lang === 'ar' ? 'مرسيدس S-Class / هليكوبتر' : 'Mercedes S-Class / Helicopter') : (lang === 'ar' ? 'مرسيدس V-Class فاخرة' : 'Mercedes V-Class Luxury')}
+                          </td>
+                          <td className="py-3 pl-4 text-right text-emerald-600 font-bold">
+                            {key === 'Diamond' ? '20%' : key === 'Platinum' ? '15%' : key === 'Gold' ? '10%' : key === 'Silver' ? '5%' : '0%'}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+          </div>
+
+        </div>
+
+      </div>
+
+    </div>
+  );
+}
