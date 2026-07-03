@@ -1,20 +1,108 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
-</div>
+# Meryet Amen Sovereignty (MAS)
 
-# Run and deploy your AI Studio app
+Meryet Amen Sovereignty (MAS) is a bespoke, full-stack executive private expedition chartering and enterprise CRM platform tailored for high-net-worth VIP clients exploring Egypt's historic wonders. Combining high-hospitality covenants, elite chauffeur tracking, and sophisticated administrative customer relationship management, MAS bridges the gap between ancient wonders and modern digital sovereignty.
 
-This contains everything you need to run your app locally.
+---
 
-View your app in AI Studio: https://ai.studio/apps/2e50d6bd-adbc-4280-bd40-194d67f54b72
+## 🏛️ Project Overview
 
-## Run Locally
+The MAS platform is designed around two core experiences:
+1. **The VIP Customer Journey**: Allows elite clients to discover customized, high-luxury historic tours, request custom pricing in various global currencies, checkout securely with a digitized touchscreen signature pad, and instantly download print-ready electronic tickets and binding **Luxury Service Agreements (PDF)** directly from their personalized dashboard.
+2. **The Enterprise Admin Console & CRM**: A 100% complete customer relationship management hub that empowers luxury operations committees to monitor analytics, update the tour catalog (CMS), track audit logs, manage support tickets with automated Gemini AI drafting, and broadcast bulk promotional campaigns via simulated WhatsApp channels with customer segmentation.
 
-**Prerequisites:**  Node.js
+---
 
+## 🛠️ Technology Stack
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+The application is built on a modern, high-performance full-stack TypeScript architecture:
+
+### Frontend
+- **React (v18+)**: Component-driven architecture using functional hooks.
+- **Vite**: Rapid, HMR-free local bundling optimized for sandboxed rendering.
+- **Tailwind CSS**: Strict, high-contrast, elegant custom UI design.
+- **Motion (`motion/react`)**: Immersive animations, staggered lists, and smooth tab transitions.
+- **Lucide React**: Clean, modern iconography matching the luxury theme.
+
+### Backend
+- **Express**: Lightweight, robust routing engine for API endpoints and serving build files.
+- **PDFKit**: Server-side, on-the-fly programmatic generation of vector PDF documents (Tickets & Agreements) featuring embedded client base64 signature images.
+- **TypeScript & tsx**: Pure, type-safe development using Node's modern native execution.
+
+### Integrations & Services
+- **Google Sheets API**: Direct integration for automatic synchronization of booking ledgers.
+- **Firebase Auth**: Used for administrative Google Sign-In secure access.
+- **Gemini AI**: High-level generative modeling for draft support replies and marketing templates.
+
+---
+
+## 👑 How It Works
+
+### 1. For Customers
+- **Expedition Booking**: Customers select bespoke historical routes (e.g., *Luxor Secret Tombs*, *Pyramids Sunrise Flight*). They specify traveler counts, special culinary/dietary requirements, select luxury pickup hotels, and request room-specific butler arrangements.
+- **Digital Sign-off**: During checkout, customers execute the **Sovereign Luxury Agreement** by appending their hand-drawn signature directly via a specialized touchscreen canvas.
+- **VIP Guest Dashboard**:
+  - **Download Ticket (PDF)**: Accesses an elegant, print-ready digital boarding pass and security voucher.
+  - **Luxury Agreement (PDF)**: Instantly generates and downloads a legally formal, gold-accented service contract embedding their exact touchscreen signature, electronic timestamp, and binding quality covenants.
+  - **Live Chat**: Allows customers to interact directly with their designated private butler.
+
+### 2. For Admins
+- **Analytics & Operations**: Financial tracking of total gross capital, active expeditions, and guest manifests with status indicators.
+- **100% Complete CRM System**:
+  - **Directory Ledger**: View, search, and filter HNW client profiles by nationality, tags, or name.
+  - **Bespoke Profiles**: Create or edit guest profiles with language preferences, specific concierge flags, and lifetime value trackers.
+  - **WhatsApp Blast Campaign Tool**: Send bulk broadcasts tailored to client segments (e.g., *Summer Soirée*, *Heli-Tour Upgrade*) using automated template placeholders.
+  - **Two-way Communication logs**: Review live WhatsApp logs and support tickets, sending messages directly from the admin dashboard.
+  - **AI Copilot**: Uses Gemini to auto-draft support ticket replies or write brand-new, compelling tour descriptions on-the-fly.
+- **CMS Control**: Dynamically create, edit, or delete bespoke itineraries.
+- **Google Sheets Sync**: Sign in with Google to synchronize the entire bookings ledger into a centralized spreadsheet.
+
+---
+
+## ⚙️ Installation & Setup
+
+MAS runs smoothly inside sandboxed environments and is configured to bind to **Port 3000** under host `0.0.0.0` for perfect ingress routing.
+
+### Prerequisites
+- Node.js (v18 or higher)
+- npm
+
+### 1. Install Dependencies
+```bash
+npm install
+```
+
+### 2. Configure Environment Variables
+Create a `.env` file at the root of your workspace (using `.env.example` as a guide):
+```env
+# .env
+GEMINI_API_KEY=your-google-gemini-api-key
+FIREBASE_CONFIG=your-firebase-client-credentials-json
+```
+
+### 3. Run the Development Server
+```bash
+npm run dev
+```
+The server will boot via `tsx` on `http://localhost:3000`.
+
+### 4. Build and Compile for Production
+To bundle the frontend single-page application and compile the backend Express server into a standalone CJS file:
+```bash
+npm run build
+npm start
+```
+
+---
+
+## 👥 Human Interactions Required
+
+While MAS is heavily automated, the following key touchpoints require human interaction or manual configuration to function fully:
+
+1. **Google Sheets Authentication**:
+   - To utilize the **Bookings Ledger Sync**, an administrator must click "Sign in with Google" inside the **Google Sheets Sync** tab of the Admin Console and grant access. This generates the temporary OAuth client tokens required to write to their Google Drive.
+2. **Concierge Ticket Resolution**:
+   - High-end hospitality demands a human touch. When customers raise support requests or special dietary changes, administrative personnel must read the ticket logs, review the Gemini AI draft reply, customize the message for genuine personal touch, and click **Submit Dispatch**.
+3. **Physical Chauffeur & Escort Coordination**:
+   - The platform registers pickups and matches booking reference IDs. Human dispatchers are required to assign the specific Mercedes-Benz fleet vehicles, coordinate with certified Egyptologists, and coordinate physical access passes to sovereign historic zones.
+4. **Custom API Keys Provisioning**:
+   - Integrations with production WhatsApp APIs and live SMTP email relay servers require manual configuration of verified credentials within the server environment.

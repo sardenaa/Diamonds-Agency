@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { BarChart3, Users, BookOpen, ShieldAlert, Sparkles, Plus, Trash2, Edit2, RotateCcw, Send, Calendar, CheckCircle2, DollarSign, Award, RefreshCw, Layers, Ticket, MessageSquare, Bot, AlertTriangle, ShieldCheck } from 'lucide-react';
+import { BarChart3, Users, BookOpen, ShieldAlert, Sparkles, Plus, Trash2, Edit2, RotateCcw, Send, Calendar, CheckCircle2, DollarSign, Award, RefreshCw, Layers, Ticket, MessageSquare, Bot, AlertTriangle, ShieldCheck, FileSpreadsheet, FileText, Mail } from 'lucide-react';
 import { Tour, Booking, CustomerCRM, AuditLog, CurrencyConfig, SupportTicket, WhatsAppTemplate } from '../types.js';
 import { translations } from '../translations.js';
+import { googleSignIn, logout, initAuth, getAccessToken } from '../lib/firebase.js';
+import { exportBookingsToSheets } from '../lib/googleSheets.js';
 
 interface AdminDashboardProps {
   lang: 'en' | 'ar';
@@ -19,11 +21,22 @@ export default function AdminDashboard({
   const t = translations[lang];
   const activeCurrency = currencies.find(c => c.code === currency) || currencies[0];
 
-  const [activeTab, setActiveTab] = useState<'analytics' | 'operations' | 'crm' | 'cms' | 'logs' | 'ai' | 'ticketing'>('analytics');
+  const [activeTab, setActiveTab] = useState<'analytics' | 'operations' | 'crm' | 'cms' | 'logs' | 'ai' | 'ticketing' | 'sheets'>('analytics');
   const [analytics, setAnalytics] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [tours, setTours] = useState<Tour[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
+
+  // Google Sheets integration state declarations
+  const [googleUser, setGoogleUser] = useState<any>(null);
+  const [googleToken, setGoogleToken] = useState<string | null>(null);
+  const [exportTitle, setExportTitle] = useState('MAS Agency - Sovereign Bookings Ledger');
+  const [exportStatus, setExportStatus] = useState<'idle' | 'exporting' | 'success' | 'failed'>('idle');
+  const [exportedSheet, setExportedSheet] = useState<{ id: string; url: string } | null>(null);
+  const [exportError, setExportError] = useState<string | null>(null);
+  const [autoSync, setAutoSync] = useState<boolean>(() => {
+    return localStorage.getItem('googleSheets_autoSync') === 'true';
+  });
 
   // Support Ticketing & WhatsApp Automation states
   const [tickets, setTickets] = useState<SupportTicket[]>([]);
@@ -46,9 +59,32 @@ export default function AdminDashboard({
   const [editingTemplateText, setEditingTemplateText] = useState('');
 
   // CRM manual triggers
+  const [crmProfiles, setCrmProfiles] = useState<CustomerCRM[]>([]);
   const [selectedCrmEmail, setSelectedCrmEmail] = useState('');
   const [crmWhatsappInput, setCrmWhatsappInput] = useState('');
   const [crmSupportInput, setCrmSupportInput] = useState('');
+
+  // CRM Search, Filter, Modal states
+  const [crmSearch, setCrmSearch] = useState('');
+  const [crmFilterTag, setCrmFilterTag] = useState('all');
+  const [isCrmModalOpen, setIsCrmModalOpen] = useState(false);
+  const [crmModalMode, setCrmModalMode] = useState<'create' | 'edit'>('create');
+
+  // CRM Form fields
+  const [crmFormEmail, setCrmFormEmail] = useState('');
+  const [crmFormName, setCrmFormName] = useState('');
+  const [crmFormPhone, setCrmFormPhone] = useState('');
+  const [crmFormNationality, setCrmFormNationality] = useState('');
+  const [crmFormLanguage, setCrmFormLanguage] = useState('en');
+  const [crmFormTagsString, setCrmFormTagsString] = useState('');
+  const [crmFormNotes, setCrmFormNotes] = useState('');
+
+  // Bulk WhatsApp Blast states
+  const [isBulkBlastOpen, setIsBulkBlastOpen] = useState(false);
+  const [bulkBlastSegment, setBulkBlastSegment] = useState('all');
+  const [bulkBlastTemplateId, setBulkBlastTemplateId] = useState('custom');
+  const [bulkBlastText, setBulkBlastText] = useState('');
+  const [isBlasting, setIsBlasting] = useState(false);
 
   // CMS new tour creation state
   const [editingTourId, setEditingTourId] = useState<string | null>(null);
@@ -90,6 +126,16 @@ export default function AdminDashboard({
       const templatesRes = await fetch('/api/whatsapp-templates');
       const templatesData = await templatesRes.json();
       setWhatsappTemplates(templatesData);
+
+      const crmRes = await fetch('/api/crm');
+      if (crmRes.ok) {
+        const crmData = await crmRes.json();
+        setCrmProfiles(crmData);
+        // Automatically select the first customer profile if none is selected
+        if (crmData.length > 0 && !selectedCrmEmail) {
+          setSelectedCrmEmail(crmData[0].email);
+        }
+      }
     } catch (e) {
       console.error(e);
     } finally {
@@ -100,6 +146,81 @@ export default function AdminDashboard({
   useEffect(() => {
     fetchAdminData();
   }, []);
+
+  useEffect(() => {
+    const unsubscribe = initAuth(
+      (user, token) => {
+        setGoogleUser(user);
+        setGoogleToken(token);
+      },
+      () => {
+        setGoogleUser(null);
+        setGoogleToken(null);
+      }
+    );
+    return () => {
+      if (typeof unsubscribe === 'function') {
+        unsubscribe();
+      }
+    };
+  }, []);
+
+  const handleGoogleLogin = async () => {
+    setExportStatus('idle');
+    setExportError(null);
+    try {
+      const res = await googleSignIn();
+      if (res) {
+        setGoogleUser(res.user);
+        setGoogleToken(res.accessToken);
+      }
+    } catch (err: any) {
+      console.error(err);
+      setExportError(err.message || 'Google Sign-In failed.');
+    }
+  };
+
+  const handleGoogleLogout = async () => {
+    try {
+      await logout();
+      setGoogleUser(null);
+      setGoogleToken(null);
+      setExportedSheet(null);
+      setExportStatus('idle');
+    } catch (err: any) {
+      console.error(err);
+    }
+  };
+
+  const handleRunExport = async () => {
+    if (!googleToken) return;
+    setExportStatus('exporting');
+    setExportError(null);
+    setExportedSheet(null);
+
+    try {
+      const sheet = await exportBookingsToSheets(googleToken, bookings, exportTitle);
+      setExportedSheet(sheet);
+      setExportStatus('success');
+
+      // Save to server audit logs!
+      await fetch('/api/audit-logs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'EXPORT_COMPLETED',
+          user: googleUser?.email || 'Sovereign Admin',
+          details: `Exported ${bookings.length} reservations to Google Sheet "${exportTitle}"`
+        })
+      });
+      fetchAdminData();
+      onRefreshAll();
+    } catch (err: any) {
+      console.error(err);
+      setExportStatus('failed');
+      setExportError(err.message || 'Export failed.');
+    }
+  };
 
   // Convert USD to local currency
   const toLocalPrice = (usdPrice: number) => {
@@ -183,6 +304,143 @@ export default function AdminDashboard({
       }
     } catch (e) {
       console.error(e);
+    }
+  };
+
+  // CRM: Handle submit manually created or edited profile
+  const handleSaveCrmProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!crmFormEmail || !crmFormName) return;
+    
+    const tagsArray = crmFormTagsString
+      .split(',')
+      .map(t => t.trim())
+      .filter(t => t.length > 0);
+      
+    const payload = {
+      email: crmFormEmail,
+      name: crmFormName,
+      phone: crmFormPhone,
+      nationality: crmFormNationality,
+      language: crmFormLanguage,
+      tags: tagsArray,
+      notes: crmFormNotes
+    };
+    
+    try {
+      if (crmModalMode === 'create') {
+        const res = await fetch('/api/crm', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        if (res.ok) {
+          setIsCrmModalOpen(false);
+          alert('CRM Profile successfully generated.');
+          fetchAdminData();
+          onRefreshAll();
+        } else {
+          const err = await res.json();
+          alert(err.error || 'Failed to generate CRM profile.');
+        }
+      } else {
+        const res = await fetch(`/api/crm/${crmFormEmail}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        if (res.ok) {
+          setIsCrmModalOpen(false);
+          alert('CRM Profile successfully updated.');
+          fetchAdminData();
+          onRefreshAll();
+        } else {
+          const err = await res.json();
+          alert(err.error || 'Failed to update CRM profile.');
+        }
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleOpenCreateCrm = () => {
+    setCrmModalMode('create');
+    setCrmFormEmail('');
+    setCrmFormName('');
+    setCrmFormPhone('');
+    setCrmFormNationality('');
+    setCrmFormLanguage('en');
+    setCrmFormTagsString('VIP');
+    setCrmFormNotes('');
+    setIsCrmModalOpen(true);
+  };
+
+  const handleOpenEditCrm = (profile: CustomerCRM) => {
+    setCrmModalMode('edit');
+    setCrmFormEmail(profile.email);
+    setCrmFormName(profile.name);
+    setCrmFormPhone(profile.phone || '');
+    setCrmFormNationality(profile.nationality || '');
+    setCrmFormLanguage(profile.language || 'en');
+    setCrmFormTagsString(profile.tags ? profile.tags.join(', ') : '');
+    setCrmFormNotes(profile.notes || '');
+    setIsCrmModalOpen(true);
+  };
+
+  const handleDeleteCrmProfile = async (email: string) => {
+    if (!confirm(`Are you absolutely sure you want to permanently delete the CRM profile for ${email}? This action cannot be undone.`)) return;
+    try {
+      const res = await fetch(`/api/crm/${email}`, {
+        method: 'DELETE'
+      });
+      if (res.ok) {
+        alert('CRM Profile deleted successfully.');
+        setSelectedCrmEmail('');
+        fetchAdminData();
+        onRefreshAll();
+      } else {
+        alert('Failed to delete CRM profile.');
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleSendBulkBlast = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!bulkBlastText.trim()) {
+      alert('Please write or select a template message for the promotional broadcast.');
+      return;
+    }
+
+    setIsBlasting(true);
+    try {
+      const res = await fetch('/api/crm/whatsapp-blast', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          segment: bulkBlastSegment,
+          templateText: bulkBlastText
+        })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        alert(`🎉 Bulk WhatsApp Blast Dispatched!\nSuccessfully sent customized promotional alerts to ${data.sentCount} premium guest profiles under the segment "${bulkBlastSegment}".`);
+        setIsBulkBlastOpen(false);
+        setBulkBlastText('');
+        fetchAdminData();
+        onRefreshAll();
+      } else {
+        const err = await res.json();
+        alert(err.error || 'Failed to dispatch Bulk WhatsApp blast.');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('An error occurred while dispatching the Bulk WhatsApp blast.');
+    } finally {
+      setIsBlasting(false);
     }
   };
 
@@ -476,7 +734,8 @@ export default function AdminDashboard({
             { id: 'ticketing', label: '🎫 Tickets & WhatsApp', icon: Ticket },
             { id: 'cms', label: t.cmsManager, icon: BookOpen },
             { id: 'logs', label: t.auditLogs, icon: ShieldAlert },
-            { id: 'ai', label: t.aiStudioConsole, icon: Sparkles }
+            { id: 'ai', label: t.aiStudioConsole, icon: Sparkles },
+            { id: 'sheets', label: '🟢 Google Sheets Sync', icon: FileSpreadsheet }
           ].map(tab => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
@@ -682,35 +941,312 @@ export default function AdminDashboard({
           )}
 
           {/* 3. CRM System tab */}
-          {activeTab === 'crm' && (
-            <div className="space-y-6 animate-fade-in">
-              <h4 className="text-sm font-bold uppercase text-slate-400 tracking-wider">Enterprise CRM Guest Directory</h4>
-              
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                
-                {/* CRM Profiles List */}
-                <div className="md:col-span-1 bg-slate-800/20 border border-slate-800 rounded-2xl p-4 space-y-3">
-                  {analytics.summary.customerCount === 0 ? (
-                    <p className="text-xs text-slate-500 italic">No profiles registered.</p>
-                  ) : (
-                    crmProfilesList(analytics.summary.customerCount)
-                  )}
+          {activeTab === 'crm' && (() => {
+            const uniqueTags = Array.from(new Set(crmProfiles.flatMap(p => p.tags || [])));
+            return (
+              <div className="space-y-6 animate-fade-in">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                  <div>
+                    <h4 className="text-sm font-black uppercase text-slate-400 tracking-wider">Enterprise CRM Guest Directory</h4>
+                    <p className="text-[10px] text-slate-500 font-medium">Create, edit, audit, and dispatch custom notifications to high-net-worth VIP guest profiles.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleOpenCreateCrm}
+                    className="bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs py-2 px-4 rounded-xl flex items-center gap-1.5 transition-all shadow-md cursor-pointer"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Add VIP Guest Profile</span>
+                  </button>
                 </div>
 
-                {/* Selected CRM communication ledger details */}
-                <div className="md:col-span-2 bg-slate-800/10 border border-slate-800 rounded-2xl p-5 space-y-4">
-                  {selectedCrmEmail ? (
-                    crmDetailPanel()
-                  ) : (
-                    <div className="text-center py-20 text-slate-500 italic text-xs">
-                      Select a guest profile on the left column to audit real-time WhatsApp histories, notes, tags, and support channels.
+                {/* Bulk WhatsApp Blast Marketing Module */}
+                <div className="bg-gradient-to-r from-emerald-950/20 to-slate-900/40 border border-emerald-500/15 rounded-2xl p-4 space-y-3 shadow-lg">
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                    <div className="flex items-center gap-2">
+                      <div className="p-2 bg-emerald-500/10 rounded-lg border border-emerald-500/20 text-emerald-400">
+                        <MessageSquare className="w-4 h-4 animate-pulse" />
+                      </div>
+                      <div>
+                        <h5 className="text-xs font-black uppercase text-slate-300 tracking-wider">Bulk WhatsApp Blast Campaign Tool</h5>
+                        <p className="text-[10px] text-slate-500 font-medium">Broadcast customized promotional templates directly to high-value customer segments instantly.</p>
+                      </div>
                     </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsBulkBlastOpen(!isBulkBlastOpen);
+                        if (!bulkBlastText) {
+                          setBulkBlastText('👑 *MAS Exclusive Luxury Upgrade* | Dear *{customer_name}*,\n\nWe are delighted to offer a limited-time 20% elite chauffeur upgrade. Connect with your butler team today!');
+                        }
+                      }}
+                      className="bg-slate-800 hover:bg-slate-700 text-emerald-400 hover:text-emerald-300 border border-slate-700 text-[10px] font-black px-4 py-2 rounded-xl transition-all cursor-pointer flex items-center gap-1.5"
+                    >
+                      {isBulkBlastOpen ? 'COLLAPSE CONSOLE' : 'LAUNCH CAMPAIGN BLAST'}
+                    </button>
+                  </div>
+
+                  {isBulkBlastOpen && (
+                    <form onSubmit={handleSendBulkBlast} className="grid grid-cols-1 md:grid-cols-12 gap-4 pt-3 border-t border-slate-800/60 animate-fade-in">
+                      {/* Segment Tag Selector */}
+                      <div className="md:col-span-3 space-y-2">
+                        <label className="block text-[9px] uppercase text-slate-400 font-bold tracking-wider">Target Audience Segment</label>
+                        <select
+                          value={bulkBlastSegment}
+                          onChange={(e) => setBulkBlastSegment(e.target.value)}
+                          className="bg-slate-900 border border-slate-750 text-slate-200 text-xs rounded-xl px-3 py-2.5 w-full focus:outline-none cursor-pointer"
+                        >
+                          <option value="all">👑 All Registered Guests ({crmProfiles.length})</option>
+                          {uniqueTags.map(tag => {
+                            const count = crmProfiles.filter(p => p.tags && p.tags.includes(tag)).length;
+                            return (
+                              <option key={tag} value={tag}>🏷️ Segment: {tag} ({count})</option>
+                            );
+                          })}
+                        </select>
+                        <div className="p-2 bg-slate-900/50 rounded-lg border border-slate-850">
+                          <span className="block text-[8px] text-slate-500 font-extrabold uppercase">Segment Description</span>
+                          <span className="text-[9.5px] text-slate-400 leading-relaxed font-medium">
+                            {bulkBlastSegment === 'all' 
+                              ? "Sends to every guest listed in the database directory." 
+                              : `Restricted to guests matching the custom tag "${bulkBlastSegment}".`}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Campaign Template Select */}
+                      <div className="md:col-span-4 space-y-2">
+                        <label className="block text-[9px] uppercase text-slate-400 font-bold tracking-wider">Select Promotional Template</label>
+                        <select
+                          value={bulkBlastTemplateId}
+                          onChange={(e) => {
+                            const tplId = e.target.value;
+                            setBulkBlastTemplateId(tplId);
+                            if (tplId === 'custom') {
+                              setBulkBlastText('👑 *MAS Exclusive Luxury Upgrade* | Dear *{customer_name}*,\n\nWe are delighted to offer a limited-time 20% elite chauffeur upgrade. Connect with your butler team today!');
+                            } else if (tplId === 'summer') {
+                              setBulkBlastText('☀️ *MAS Egyptian Summer Soirée* | Dear *{customer_name}*,\n\nExperience ancient Cairo in royal seclusion. Book any VIP Expedition this week and receive a complimentary private luxury sunset yacht sail with gourmet caviar.\n\nReply directly to unlock with your Personal Butler.');
+                            } else if (tplId === 'helicopter') {
+                              setBulkBlastText('🚁 *MAS Royal Helicopter Sky-Tour* | Dear *{customer_name}*,\n\nBypass all highway congestion. Fly directly over the Great Pyramids Plateau in our twin-engine chopper.\n\nBook your royal flight transfer and get 15% off standard rates: {booking_id}');
+                            } else if (tplId === 'loyal') {
+                              setBulkBlastText('👑 *MAS Loyalty Sovereign Suite* | Dear *{customer_name}*,\n\nThank you for being an elite Gold/Platinum guest. Your total investment is *{customer_phone}*. We have unlocked special front-row Sphinx access clearance for you.\n\nReply to claim your Sovereign pass.');
+                            }
+                          }}
+                          className="bg-slate-900 border border-slate-750 text-slate-200 text-xs rounded-xl px-3 py-2.5 w-full focus:outline-none cursor-pointer"
+                        >
+                          <option value="custom">✨ Custom Campaign Broadcast</option>
+                          <option value="summer">☀️ Cairo Summer Soirée Upgrade Template</option>
+                          <option value="helicopter">🚁 Giza Pyramids Heli-Tour Dispatch Template</option>
+                          <option value="loyal">👑 High-End Loyalty Sovereign Upgrade Template</option>
+                        </select>
+
+                        <div className="p-2 bg-slate-900/50 rounded-lg border border-slate-850 space-y-1">
+                          <span className="block text-[8px] text-slate-500 font-extrabold uppercase">Dynamic Placeholder Legend</span>
+                          <p className="text-[8.5px] text-slate-400 leading-normal font-mono">
+                            <b className="text-emerald-400">{`{customer_name}`}</b>, <b className="text-emerald-400">{`{customer_email}`}</b>, <b className="text-emerald-400">{`{booking_id}`}</b>, <b className="text-emerald-400">{`{tour_name}`}</b>, <b className="text-emerald-400">{`{date}`}</b>, <b className="text-emerald-400">{`{pickup_hotel}`}</b>, <b className="text-emerald-400">{`{qr_code}`}</b>
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Customize Campaign Message Text */}
+                      <div className="md:col-span-5 space-y-2">
+                        <label className="block text-[9px] uppercase text-slate-400 font-bold tracking-wider">Promotional Broadcast Message</label>
+                        <textarea
+                          rows={4}
+                          value={bulkBlastText}
+                          onChange={(e) => setBulkBlastText(e.target.value)}
+                          placeholder="Compose your high-value promotional broadcast message..."
+                          className="bg-slate-900 border border-slate-750 text-slate-200 text-xs rounded-xl px-3 py-2 w-full focus:outline-none h-[110px] resize-none leading-relaxed font-mono"
+                        />
+                        <div className="flex justify-end">
+                          <button
+                            type="submit"
+                            disabled={isBlasting}
+                            className="bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-700 disabled:text-slate-500 text-white font-black text-[10px] py-2 px-6 rounded-lg transition-all shadow-md cursor-pointer uppercase tracking-wider flex items-center gap-1.5"
+                          >
+                            {isBlasting ? (
+                              <>
+                                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                                <span>BROADCASTING...</span>
+                              </>
+                            ) : (
+                              <>
+                                <Send className="w-3.5 h-3.5" />
+                                <span>DISPATCH BULK BLAST CAMPAIGN</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                    </form>
                   )}
                 </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  
+                  {/* CRM Profiles List Column with search and filters */}
+                  <div className="md:col-span-1 bg-slate-800/20 border border-slate-800 rounded-2xl p-4 space-y-4">
+                    <div className="space-y-2">
+                      <label className="block text-[9px] uppercase text-slate-500 font-black tracking-wider">Search & Filter Ledger</label>
+                      <input
+                        type="text"
+                        value={crmSearch}
+                        onChange={(e) => setCrmSearch(e.target.value)}
+                        placeholder="Search by name, email, or nationality..."
+                        className="bg-slate-900 border border-slate-750 rounded-xl px-3 py-2 text-white text-xs w-full focus:outline-none"
+                      />
+                      
+                      <div className="flex items-center gap-2">
+                        <span className="text-[8px] text-slate-500 uppercase font-bold">Tag Filter:</span>
+                        <select
+                          value={crmFilterTag}
+                          onChange={(e) => setCrmFilterTag(e.target.value)}
+                          className="bg-slate-900 border border-slate-750 text-slate-300 text-[10px] rounded-lg px-2 py-1 flex-1 focus:outline-none cursor-pointer"
+                        >
+                          <option value="all">All Segment Tags</option>
+                          {uniqueTags.map(tag => (
+                            <option key={tag} value={tag}>{tag}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
 
+                    <div className="border-t border-slate-800/50 pt-2">
+                      {crmProfiles.length === 0 ? (
+                        <p className="text-xs text-slate-500 italic py-6 text-center">No profiles registered.</p>
+                      ) : (
+                        crmProfilesList(crmProfiles.length)
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Selected CRM communication ledger details */}
+                  <div className="md:col-span-2 bg-slate-800/10 border border-slate-800 rounded-2xl p-5 space-y-4 relative">
+                    {selectedCrmEmail ? (
+                      crmDetailPanel()
+                    ) : (
+                      <div className="text-center py-24 text-slate-500 italic text-xs space-y-2">
+                        <Users className="w-10 h-10 text-slate-700 mx-auto" />
+                        <p>Select an elite guest profile on the left ledger to audit real-time WhatsApp histories, concierge notes, segments, and edit files.</p>
+                      </div>
+                    )}
+                  </div>
+
+                </div>
+
+                {/* Add/Edit CRM Profile Modal */}
+                {isCrmModalOpen && (
+                  <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-sm animate-fade-in">
+                    <div className="bg-slate-900 border border-slate-800 w-full max-w-lg p-6 rounded-2xl space-y-4 shadow-2xl relative">
+                      <h3 className="text-sm font-black uppercase text-amber-400 tracking-wider">
+                        {crmModalMode === 'create' ? 'Create VIP Guest Profile' : 'Edit VIP Guest Profile'}
+                      </h3>
+                      <form onSubmit={handleSaveCrmProfile} className="space-y-4 text-xs">
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-slate-400 font-bold mb-1">Email Address (Key ID)</label>
+                            <input
+                              required
+                              disabled={crmModalMode === 'edit'}
+                              type="email"
+                              value={crmFormEmail}
+                              onChange={(e) => setCrmFormEmail(e.target.value)}
+                              placeholder="guest@domain.com"
+                              className="bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white w-full focus:outline-none disabled:opacity-50"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-slate-400 font-bold mb-1">Full Name</label>
+                            <input
+                              required
+                              type="text"
+                              value={crmFormName}
+                              onChange={(e) => setCrmFormName(e.target.value)}
+                              placeholder="Lord/Lady Guest Name"
+                              className="bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white w-full focus:outline-none"
+                            />
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-slate-400 font-bold mb-1">Phone Number</label>
+                            <input
+                              type="text"
+                              value={crmFormPhone}
+                              onChange={(e) => setCrmFormPhone(e.target.value)}
+                              placeholder="+1 555-555-5555"
+                              className="bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white w-full focus:outline-none"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-slate-400 font-bold mb-1">Nationality</label>
+                            <input
+                              type="text"
+                              value={crmFormNationality}
+                              onChange={(e) => setCrmFormNationality(e.target.value)}
+                              placeholder="e.g. United Kingdom"
+                              className="bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white w-full focus:outline-none"
+                            />
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-slate-400 font-bold mb-1">Preferred Language</label>
+                            <select
+                              value={crmFormLanguage}
+                              onChange={(e) => setCrmFormLanguage(e.target.value)}
+                              className="bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white w-full focus:outline-none cursor-pointer"
+                            >
+                              <option value="en">English</option>
+                              <option value="ar">Arabic (العربية)</option>
+                              <option value="de">German</option>
+                              <option value="it">Italian</option>
+                              <option value="fr">French</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-slate-400 font-bold mb-1">Segment Tags (Comma separated)</label>
+                            <input
+                              type="text"
+                              value={crmFormTagsString}
+                              onChange={(e) => setCrmFormTagsString(e.target.value)}
+                              placeholder="e.g. VIP, High Spender, Royal, Repeat Guest"
+                              className="bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white w-full focus:outline-none"
+                            />
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-slate-400 font-bold mb-1">Special Concierge Butler Notes</label>
+                          <textarea
+                            value={crmFormNotes}
+                            onChange={(e) => setCrmFormNotes(e.target.value)}
+                            placeholder="Preferences, allergy logs, security clearances..."
+                            rows={3}
+                            className="bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white w-full focus:outline-none resize-none"
+                          />
+                        </div>
+                        <div className="flex justify-end gap-3 pt-2">
+                          <button
+                            type="button"
+                            onClick={() => setIsCrmModalOpen(false)}
+                            className="bg-slate-850 hover:bg-slate-800 border border-slate-800 text-slate-400 font-bold px-4 py-2 rounded-xl transition-colors cursor-pointer"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="submit"
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white font-black px-5 py-2 rounded-xl transition-colors cursor-pointer"
+                          >
+                            Save Profile
+                          </button>
+                        </div>
+                      </form>
+                    </div>
+                  </div>
+                )}
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* Support Tickets & WhatsApp Automation tab */}
           {activeTab === 'ticketing' && (
@@ -1363,6 +1899,181 @@ export default function AdminDashboard({
             </div>
           )}
 
+          {activeTab === 'sheets' && (
+            <div className="space-y-6 animate-fade-in">
+              <div className="bg-slate-800/40 p-6 rounded-2xl border border-slate-800 space-y-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-3 bg-emerald-500/10 rounded-xl border border-emerald-500/20 text-emerald-400">
+                    <FileSpreadsheet className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-black tracking-tight">{lang === 'ar' ? 'مزامنة غوغل شيتس السيادية' : 'Sovereign Google Sheets Synchronization'}</h3>
+                    <p className="text-slate-400 text-[11px] uppercase tracking-wider font-extrabold">{lang === 'ar' ? 'إدارة تصدير واستيراد بيانات الحجز والـ CRM' : 'Manage export and live streaming of luxury reservation ledgers'}</p>
+                  </div>
+                </div>
+                <div className="h-[1px] bg-slate-800" />
+                <p className="text-slate-300 text-xs md:text-sm leading-relaxed">
+                  {lang === 'ar' 
+                    ? 'قم بربط حسابك على Google لتصدير قوائم الحجوزات النشطة وسجلات عملاء كبار الشخصيات تلقائيًا في جداول بيانات غوغل المنظمة لتسهيل مهام المحاسبة والمتابعة الحية.'
+                    : 'Establish a secure OAuth connection with your Google Account to export active booking catalogs and high-spender CRM details directly into clean, styled Google Spreadsheets for seamless accounting and corporate tracking.'}
+                </p>
+              </div>
+
+              {/* 1. Google OAuth Connection Controller */}
+              <div className="bg-slate-800/40 p-6 rounded-2xl border border-slate-800 space-y-4">
+                <h4 className="text-xs uppercase font-black tracking-widest text-emerald-400">{lang === 'ar' ? 'حالة الاتصال بـ Google' : 'Google Connection Status'}</h4>
+                
+                {googleUser ? (
+                  <div className="flex flex-col md:flex-row justify-between items-start md:items-center p-4 bg-slate-950/60 rounded-xl border border-slate-800 gap-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full overflow-hidden border border-emerald-500 flex items-center justify-center bg-slate-900">
+                        {googleUser.photoURL ? (
+                          <img src={googleUser.photoURL} alt={googleUser.displayName} className="w-full h-full object-cover" />
+                        ) : (
+                          <span className="text-xs font-black text-emerald-400">{googleUser.email?.slice(0, 2).toUpperCase()}</span>
+                        )}
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-bold text-white">{googleUser.displayName || 'Sovereign Officer'}</span>
+                          <span className="bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 text-[8px] font-black px-1.5 py-0.5 rounded uppercase font-sans">Connected</span>
+                        </div>
+                        <span className="text-[11px] text-slate-400 block mt-0.5 font-sans">{googleUser.email}</span>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleGoogleLogout}
+                      className="bg-slate-900 hover:bg-slate-850 text-slate-400 hover:text-rose-400 text-xs font-bold py-1.5 px-3.5 rounded-lg border border-slate-800 transition-colors cursor-pointer"
+                    >
+                      {lang === 'ar' ? 'قطع الاتصال' : 'Disconnect'}
+                    </button>
+                  </div>
+                ) : (
+                  <div className="p-6 bg-slate-950/60 rounded-xl border border-slate-800 text-center space-y-4">
+                    <div className="max-w-md mx-auto space-y-2">
+                      <p className="text-slate-400 text-xs">
+                        {lang === 'ar'
+                          ? 'لم يتم الكشف عن اتصال OAuth نشط. يرجى تسجيل الدخول لتفويض الوصول الآمن لجداول البيانات.'
+                          : 'No active Google OAuth connection detected. Connect your Google workspace account safely to access drive capabilities.'}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleGoogleLogin}
+                      className="bg-white hover:bg-slate-100 text-slate-950 font-black text-xs py-2.5 px-5 rounded-xl transition-all shadow-md flex items-center justify-center gap-2 mx-auto cursor-pointer"
+                    >
+                      <svg className="w-4 h-4" viewBox="0 0 24 24">
+                        <path fill="#EA4335" d="M12.24 10.285V14.4h6.887c-.275 1.565-1.88 4.604-6.887 4.604-4.33 0-7.86-3.577-7.86-8s3.53-8 7.86-8c2.46 0 4.105 1.025 5.047 1.926l3.253-3.133C18.423 1.932 15.603 1 12.24 1c-6.076 0-11 4.924-11 11s4.924 11 11 11c6.346 0 10.574-4.453 10.574-10.762 0-.724-.078-1.277-.174-1.953H12.24z"/>
+                      </svg>
+                      <span>{lang === 'ar' ? 'سجل الدخول باستخدام Google' : 'Sign in with Google'}</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* 2. Export Actions Panel */}
+              <div className="bg-slate-800/40 p-6 rounded-2xl border border-slate-800 space-y-4">
+                <h4 className="text-xs uppercase font-black tracking-widest text-emerald-400">{lang === 'ar' ? 'تصدير البيانات إلى غوغل شيتس' : 'Sovereign Sheet Export Ledger'}</h4>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[10px] text-slate-400 uppercase font-bold mb-1.5">{lang === 'ar' ? 'عنوان جدول البيانات' : 'Spreadsheet Document Title'}</label>
+                    <input
+                      type="text"
+                      disabled={!googleToken}
+                      value={exportTitle}
+                      onChange={(e) => setExportTitle(e.target.value)}
+                      className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white text-xs w-full focus:outline-none disabled:opacity-40"
+                    />
+                  </div>
+                  <div className="flex items-end">
+                    <button
+                      type="button"
+                      disabled={!googleToken || exportStatus === 'exporting'}
+                      onClick={handleRunExport}
+                      className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white font-black text-xs py-2.5 px-6 rounded-xl transition-all w-full flex items-center justify-center gap-2 cursor-pointer"
+                    >
+                      {exportStatus === 'exporting' ? (
+                        <>
+                          <RefreshCw className="w-4 h-4 animate-spin" />
+                          <span>{lang === 'ar' ? 'جاري التصدير...' : 'Exporting Data...'}</span>
+                        </>
+                      ) : (
+                        <>
+                          <FileSpreadsheet className="w-4 h-4" />
+                          <span>{lang === 'ar' ? 'تصدير الحجوزات الآن' : `Export ${bookings.length} Bookings`}</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                {exportStatus === 'success' && exportedSheet && (
+                  <div className="p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-xs space-y-2 animate-fade-in">
+                    <div className="flex items-center gap-2 text-emerald-400 font-extrabold">
+                      <CheckCircle2 className="w-4 h-4" />
+                      <span>{lang === 'ar' ? 'تم التصدير بنجاح!' : 'Sovereign Ledger Export Successful!'}</span>
+                    </div>
+                    <p className="text-slate-300">
+                      {lang === 'ar'
+                        ? `تم إنشاء ملف غوغل شيتس بنجاح بعنوان "${exportTitle}".`
+                        : `A brand new spreadsheet "${exportTitle}" was successfully spawned in your Google Drive and populated with high-end CRM registers.`}
+                    </p>
+                    <a
+                      href={exportedSheet.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-black px-4 py-2 rounded-lg text-[11px] uppercase tracking-wider transition-colors mt-1"
+                    >
+                      <span>{lang === 'ar' ? 'فتح جدول البيانات ↗' : 'Open Spreadsheet ↗'}</span>
+                    </a>
+                  </div>
+                )}
+
+                {exportStatus === 'failed' && exportError && (
+                  <div className="p-4 bg-rose-500/15 border border-rose-500/20 rounded-xl text-xs space-y-1 text-rose-400 animate-fade-in">
+                    <div className="flex items-center gap-2 font-bold">
+                      <AlertTriangle className="w-4 h-4" />
+                      <span>{lang === 'ar' ? 'فشل التصدير' : 'Export Failed'}</span>
+                    </div>
+                    <p className="opacity-90">{exportError}</p>
+                  </div>
+                )}
+              </div>
+
+              {/* 3. Live Synchronicity Settings */}
+              <div className="bg-slate-800/40 p-6 rounded-2xl border border-slate-800 space-y-4">
+                <h4 className="text-xs uppercase font-black tracking-widest text-emerald-400">{lang === 'ar' ? 'إعدادات المزامنة الفورية' : 'Live Synchronization Settings'}</h4>
+                <div className="flex items-center justify-between p-4 bg-slate-950/60 rounded-xl border border-slate-800 gap-4">
+                  <div className="space-y-0.5">
+                    <div className="text-xs font-bold text-white flex items-center gap-1.5">
+                      <span>{lang === 'ar' ? 'مزامنة الحجوزات الجديدة تلقائياً' : 'Auto-export new bookings'}</span>
+                      <span className="bg-amber-500/15 text-amber-400 border border-amber-500/20 text-[8px] font-black px-1.5 py-0.5 rounded uppercase">PRO FEATURE</span>
+                    </div>
+                    <p className="text-slate-400 text-[11px]">
+                      {lang === 'ar'
+                        ? 'عند التفعيل، سيتم دفق أي حجز VIP جديد تقوم به اللوائح مباشرةً لملف غوغل شيتس المتصل.'
+                        : 'Future luxury travel reservations will automatically stream into your sovereign sheet ledger in real-time.'}
+                    </p>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={autoSync}
+                      onChange={(e) => {
+                        setAutoSync(e.target.checked);
+                        localStorage.setItem('googleSheets_autoSync', String(e.target.checked));
+                      }}
+                      className="sr-only peer"
+                    />
+                    <div className="w-10 h-5 bg-slate-700 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-600"></div>
+                  </label>
+                </div>
+              </div>
+            </div>
+          )}
+
         </div>
 
       </div>
@@ -1371,88 +2082,205 @@ export default function AdminDashboard({
 
   // Helper inside loop: render CRM sidebar profile buttons
   function crmProfilesList(count: number) {
-    // We can fetch DB's CRM or mock a select list based on DB
-    // To ensure consistency, we will list the CRM records directly
+    const filtered = crmProfiles.filter(p => {
+      const searchLower = crmSearch.toLowerCase();
+      const matchesSearch = 
+        p.name.toLowerCase().includes(searchLower) ||
+        p.email.toLowerCase().includes(searchLower) ||
+        (p.nationality && p.nationality.toLowerCase().includes(searchLower));
+        
+      const matchesTag = 
+        crmFilterTag === 'all' || 
+        (p.tags && p.tags.includes(crmFilterTag));
+        
+      return matchesSearch && matchesTag;
+    });
+
+    if (filtered.length === 0) {
+      return (
+        <div className="text-center py-6 text-slate-500 italic text-xs">
+          No matches found for "{crmSearch}".
+        </div>
+      );
+    }
+
     return (
-      <div className="space-y-2">
-        {analytics.revenueByTour ? (
-          // Let's search DB crm list
-          bookings.map((b, idx) => {
-            const isSelected = selectedCrmEmail.toLowerCase() === b.customerEmail.toLowerCase();
-            return (
-              <button
-                key={idx}
-                type="button"
-                onClick={() => setSelectedCrmEmail(b.customerEmail)}
-                className={`w-full p-3 rounded-lg text-left text-xs transition-all flex flex-col gap-1 border cursor-pointer ${
-                  isSelected 
-                    ? 'bg-emerald-600 border-emerald-500 text-white' 
-                    : 'bg-slate-900 border-slate-800 text-slate-300 hover:bg-slate-800/50'
-                }`}
-              >
-                <span className="font-bold truncate w-full">{b.customerName}</span>
-                <span className="opacity-80 truncate text-[10px]">{b.customerEmail}</span>
-              </button>
-            );
-          })
-        ) : null}
+      <div className="space-y-2 max-h-[450px] overflow-y-auto pr-1">
+        {filtered.map((p, idx) => {
+          const isSelected = selectedCrmEmail.toLowerCase() === p.email.toLowerCase();
+          return (
+            <div
+              key={idx}
+              onClick={() => setSelectedCrmEmail(p.email)}
+              className={`w-full p-3 rounded-xl text-left text-xs transition-all flex flex-col gap-1.5 border cursor-pointer ${
+                isSelected 
+                  ? 'bg-emerald-600 border-emerald-500 text-white shadow-lg' 
+                  : 'bg-slate-900 border-slate-800 text-slate-300 hover:bg-slate-800/50'
+              }`}
+            >
+              <div className="flex justify-between items-start gap-1">
+                <span className="font-extrabold truncate w-[80%]">{p.name}</span>
+                <span className="text-[9px] font-mono opacity-60">ID: {idx + 1}</span>
+              </div>
+              <span className="opacity-80 truncate text-[10px]">{p.email}</span>
+              {p.phone && <span className="opacity-70 text-[9px]">📞 {p.phone}</span>}
+              {p.tags && p.tags.length > 0 && (
+                <div className="flex flex-wrap gap-1 pt-1">
+                  {p.tags.slice(0, 3).map((t, tIdx) => (
+                    <span 
+                      key={tIdx} 
+                      className={`text-[8px] font-bold px-1.5 py-0.5 rounded uppercase ${
+                        isSelected 
+                          ? 'bg-emerald-700 text-white border border-emerald-500/20' 
+                          : 'bg-slate-800 text-slate-400 border border-slate-750'
+                      }`}
+                    >
+                      {t}
+                    </span>
+                  ))}
+                  {p.tags.length > 3 && (
+                    <span className="text-[7px] font-bold opacity-60 px-1 py-0.5">+ {p.tags.length - 3}</span>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
     );
   }
 
   // Helper inside CRM: render communications panel
   function crmDetailPanel() {
-    // Find booking
-    const b = bookings.find(x => x.customerEmail.toLowerCase() === selectedCrmEmail.toLowerCase());
-    if (!b) return null;
+    const profile = crmProfiles.find(x => x.email.toLowerCase() === selectedCrmEmail.toLowerCase());
+    if (!profile) return null;
+
+    // Calculate dynamic stats
+    const customerBookings = bookings.filter(b => b.customerEmail.toLowerCase() === profile.email.toLowerCase());
+    const totalSpent = customerBookings.reduce((sum, b) => sum + (b.totalAmountUSD || 0), 0);
 
     return (
-      <div className="space-y-4 text-xs md:text-sm animate-fade-in">
-        <div>
-          <span className="text-[9px] bg-amber-500/10 text-amber-400 border border-amber-500/20 px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider">Customer Profile</span>
-          <h4 className="text-base md:text-lg font-black text-slate-100 mt-2">{b.customerName}</h4>
-          <p className="text-slate-400 text-xs mt-0.5">{b.customerEmail} | Phone: {b.customerPhone} | Nationality: {b.customerNationality}</p>
+      <div className="space-y-6 text-xs md:text-sm animate-fade-in">
+        <div className="flex flex-col sm:flex-row justify-between items-start gap-4 border-b border-slate-800/50 pb-4">
+          <div>
+            <span className="text-[9px] bg-amber-500/15 text-amber-400 border border-amber-500/20 px-2.5 py-0.5 rounded-full font-black uppercase tracking-wider">
+              VIP GUEST PROFILE CARD
+            </span>
+            <h4 className="text-base md:text-lg font-black text-slate-100 mt-2">{profile.name}</h4>
+            <p className="text-slate-400 text-xs mt-1">
+              {profile.email} {profile.phone ? `| Phone: ${profile.phone}` : ''}
+            </p>
+            {profile.nationality && (
+              <p className="text-slate-500 text-[10px] mt-0.5">
+                Country of Origin: <span className="text-slate-300 font-bold">{profile.nationality}</span>
+              </p>
+            )}
+          </div>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => handleOpenEditCrm(profile)}
+              className="bg-slate-800 hover:bg-slate-700 text-amber-400 border border-slate-700 text-[10px] font-black px-3 py-1.5 rounded-lg flex items-center gap-1 cursor-pointer transition-all"
+            >
+              <Edit2 className="w-3 h-3" />
+              <span>EDIT PROFILE</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleDeleteCrmProfile(profile.email)}
+              className="bg-rose-500/10 hover:bg-rose-600 border border-rose-500/20 text-rose-400 hover:text-white text-[10px] font-black px-3 py-1.5 rounded-lg flex items-center gap-1 cursor-pointer transition-all"
+            >
+              <Trash2 className="w-3 h-3" />
+              <span>DELETE</span>
+            </button>
+          </div>
         </div>
 
         {/* CRM quick specs */}
-        <div className="grid grid-cols-2 gap-4 bg-slate-900/40 p-4 rounded-xl border border-slate-800 text-slate-300">
-          <div>
-            <span className="block text-[8px] text-slate-500 uppercase font-bold tracking-wider">LTV INVESTMENT VALUE</span>
-            <span className="text-emerald-400 font-extrabold">{formatLocalPrice(b.totalAmountUSD)}</span>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <div className="bg-slate-900/50 p-3 rounded-xl border border-slate-800">
+            <span className="block text-[8px] text-slate-500 uppercase font-black tracking-wider">LTV INVESTMENT VALUE</span>
+            <span className="text-emerald-400 text-xs sm:text-sm font-black mt-0.5 block">{formatLocalPrice(profile.totalSpentUSD || totalSpent || 0)}</span>
           </div>
-          <div>
-            <span className="block text-[8px] text-slate-500 uppercase font-bold tracking-wider">PREFERRED LANGUAGE</span>
-            <span className="text-white font-extrabold">English</span>
+          <div className="bg-slate-900/50 p-3 rounded-xl border border-slate-800">
+            <span className="block text-[8px] text-slate-500 uppercase font-black tracking-wider">EXCURSIONS BOOKED</span>
+            <span className="text-slate-200 text-xs sm:text-sm font-black mt-0.5 block">{customerBookings.length} bookings</span>
+          </div>
+          <div className="bg-slate-900/50 p-3 rounded-xl border border-slate-800">
+            <span className="block text-[8px] text-slate-500 uppercase font-black tracking-wider">PREFERRED LANGUAGE</span>
+            <span className="text-slate-200 text-xs sm:text-sm font-black mt-0.5 block capitalize">{profile.language === 'ar' ? 'Arabic' : profile.language}</span>
+          </div>
+          <div className="bg-slate-900/50 p-3 rounded-xl border border-slate-800">
+            <span className="block text-[8px] text-slate-500 uppercase font-black tracking-wider">LOYALTY TIER</span>
+            <span className="text-amber-400 text-xs sm:text-sm font-black mt-0.5 block uppercase tracking-wider flex items-center gap-1">
+              <Award className="w-3.5 h-3.5 text-amber-400" />
+              <span>{customerBookings.length >= 3 ? '👑 PLATINUM' : customerBookings.length >= 1 ? '🥇 GOLD' : '🥈 SILVER'}</span>
+            </span>
           </div>
         </div>
 
         {/* CRM Tags Module */}
-        <div className="flex flex-wrap gap-1.5 items-center">
-          <span className="text-slate-500 text-[10px] uppercase font-bold mr-1">CRM SEGMENT FLAGS:</span>
-          {['VIP', 'Luxury Explorer', 'High Spender'].map(tag => (
-            <span key={tag} className="bg-slate-800 border border-slate-700 text-slate-300 text-[9px] font-bold px-2 py-0.5 rounded-full uppercase">
-              {tag}
-            </span>
-          ))}
+        <div className="space-y-1.5">
+          <span className="text-slate-500 text-[9px] uppercase font-bold tracking-wider">CRM SEGMENT FLAGS:</span>
+          <div className="flex flex-wrap gap-1.5 items-center">
+            {profile.tags && profile.tags.length > 0 ? (
+              profile.tags.map(tag => (
+                <span key={tag} className="bg-slate-850 border border-slate-750 text-slate-300 text-[9px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                  {tag}
+                </span>
+              ))
+            ) : (
+              <span className="text-[10px] text-slate-600 italic">No tags associated.</span>
+            )}
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-slate-800">
+        {/* Concierge Notes Block */}
+        <div className="bg-slate-950/40 border border-slate-850 p-4 rounded-xl space-y-2">
+          <span className="text-slate-400 text-[9px] uppercase font-extrabold tracking-wider block">Special Concierge Butler Notes</span>
+          <p className="text-slate-300 text-xs whitespace-pre-wrap leading-relaxed font-medium italic">
+            {profile.notes || 'No premium notes registered for this VIP guest.'}
+          </p>
+        </div>
+
+        {/* Messaging Logs & Immediate Inputs */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-slate-800/50">
           
           {/* Dispatch WhatsApp */}
-          <div className="space-y-2">
-            <label className="block text-[10px] uppercase text-emerald-400 font-bold tracking-wider">Broadcast Verified WhatsApp Business API Message</label>
+          <div className="space-y-3">
+            <label className="block text-[10px] uppercase text-emerald-400 font-extrabold tracking-wider">
+              Simulated WhatsApp Notification Logs
+            </label>
+            
+            <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-850 max-h-[140px] overflow-y-auto space-y-2">
+              {profile.whatsappHistory && profile.whatsappHistory.length > 0 ? (
+                profile.whatsappHistory.map((w, idx) => (
+                  <div key={idx} className="bg-emerald-950/20 border border-emerald-500/10 p-2 rounded-lg text-[10px] space-y-1">
+                    <p className="text-emerald-200 leading-relaxed font-medium">{w.message}</p>
+                    <div className="flex justify-between text-[8px] text-slate-500">
+                      <span>Sender: {w.sender || 'System'}</span>
+                      <span>{new Date(w.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <p className="text-[10px] text-slate-600 italic py-4 text-center">No WhatsApp alerts logged.</p>
+              )}
+            </div>
+
             <div className="flex gap-2">
               <input
                 type="text"
                 value={crmWhatsappInput}
                 onChange={(e) => setCrmWhatsappInput(e.target.value)}
-                placeholder="Type push message..."
-                className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-white text-xs flex-1 focus:outline-none"
+                placeholder="Broadcast instant WhatsApp message..."
+                className="bg-slate-900 border border-slate-750 rounded-lg px-3 py-2 text-white text-xs flex-1 focus:outline-none"
               />
               <button
                 type="button"
-                onClick={() => handleSendCrmWhatsapp(b.customerEmail)}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white p-2 rounded-lg cursor-pointer"
+                onClick={() => handleSendCrmWhatsapp(profile.email)}
+                className="bg-emerald-600 hover:bg-emerald-500 text-white px-3 rounded-lg cursor-pointer transition-colors"
               >
                 <Send className="w-4 h-4" />
               </button>
@@ -1460,20 +2288,39 @@ export default function AdminDashboard({
           </div>
 
           {/* Dispatch Support response */}
-          <div className="space-y-2">
-            <label className="block text-[10px] uppercase text-amber-400 font-bold tracking-wider">Publish CRM Support Chat Response</label>
+          <div className="space-y-3">
+            <label className="block text-[10px] uppercase text-amber-400 font-extrabold tracking-wider">
+              Butler Concierge Support Chats
+            </label>
+            
+            <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-850 max-h-[140px] overflow-y-auto space-y-2">
+              {profile.supportHistory && profile.supportHistory.length > 0 ? (
+                profile.supportHistory.map((s, idx) => (
+                  <div key={idx} className="bg-amber-950/10 border border-amber-500/10 p-2 rounded-lg text-[10px] space-y-1">
+                    <p className="text-amber-200 leading-relaxed font-medium">{s.message}</p>
+                    <div className="flex justify-between text-[8px] text-slate-500">
+                      <span>By: {s.sender === 'customer' ? 'Customer' : 'Support Butler'}</span>
+                      <span>{new Date(s.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <p className="text-[10px] text-slate-600 italic py-4 text-center">No support chat logs registered.</p>
+              )}
+            </div>
+
             <div className="flex gap-2">
               <input
                 type="text"
                 value={crmSupportInput}
                 onChange={(e) => setCrmSupportInput(e.target.value)}
-                placeholder="Type support butler response..."
-                className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-white text-xs flex-1 focus:outline-none"
+                placeholder="Publish Support response..."
+                className="bg-slate-900 border border-slate-750 rounded-lg px-3 py-2 text-white text-xs flex-1 focus:outline-none"
               />
               <button
                 type="button"
-                onClick={() => handleSendCrmSupport(b.customerEmail)}
-                className="bg-amber-500 hover:bg-amber-600 text-slate-950 p-2 rounded-lg cursor-pointer"
+                onClick={() => handleSendCrmSupport(profile.email)}
+                className="bg-amber-500 hover:bg-amber-600 text-slate-950 px-3 rounded-lg cursor-pointer transition-colors"
               >
                 <Send className="w-4 h-4" />
               </button>
@@ -1481,6 +2328,66 @@ export default function AdminDashboard({
           </div>
 
         </div>
+
+        {/* Automated Email Dispatches & PDF Itinerary Downloads */}
+        <div className="pt-4 border-t border-slate-800/50 space-y-3">
+          <label className="block text-[10px] uppercase text-sky-400 font-extrabold tracking-wider">
+            Automated Formal Email Dispatch Ledger & Print-Ready PDF Itineraries
+          </label>
+          <div className="bg-slate-950/60 p-4 rounded-xl border border-slate-850 space-y-3">
+            {profile.emailHistory && profile.emailHistory.length > 0 ? (
+              <div className="space-y-3 max-h-[180px] overflow-y-auto pr-1">
+                {profile.emailHistory.map((em, emIdx) => {
+                  const bookingIdMatch = em.subject.match(/\[(RES-\d+)\]/);
+                  const bId = bookingIdMatch ? bookingIdMatch[1] : (customerBookings[0]?.id || '');
+                  return (
+                    <div key={em.id || emIdx} className="bg-slate-900 border border-slate-800 p-3 rounded-lg text-xs space-y-2 animate-fade-in">
+                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-slate-800 pb-2">
+                        <div>
+                          <p className="text-slate-300 font-extrabold">{em.subject}</p>
+                          <p className="text-[10px] text-slate-500">Sent: {new Date(em.timestamp).toLocaleString()}</p>
+                        </div>
+                        {bId && (
+                          <a
+                            href={`/api/bookings/${bId}/pdf`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="bg-sky-600 hover:bg-sky-500 text-white text-[9px] font-black px-2.5 py-1.5 rounded-lg flex items-center gap-1.5 transition-all cursor-pointer shadow"
+                          >
+                            <FileText className="w-3 h-3" />
+                            <span>VIEW / PRINT PDF</span>
+                          </a>
+                        )}
+                      </div>
+                      <p className="text-slate-400 text-[10px] leading-relaxed whitespace-pre-wrap font-mono select-all bg-slate-950/40 p-2 rounded border border-slate-850/50">
+                        {em.body}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="text-center py-6 text-slate-500 italic text-xs space-y-2">
+                <Mail className="w-8 h-8 text-slate-700 mx-auto" />
+                <p>No automated email dispatches recorded for this VIP guest.</p>
+                {customerBookings.length > 0 && (
+                  <div className="pt-1">
+                    <a
+                      href={`/api/bookings/${customerBookings[0].id}/pdf`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex bg-sky-600/20 hover:bg-sky-600 text-sky-400 hover:text-white border border-sky-500/20 text-[9px] font-black px-3 py-1.5 rounded-lg transition-all cursor-pointer"
+                    >
+                      <FileText className="w-3.5 h-3.5" />
+                      <span>Curate & View Official Itinerary Document</span>
+                    </a>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
       </div>
     );
   }

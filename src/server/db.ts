@@ -342,6 +342,39 @@ const initialBookings: Booking[] = [
     whatsappSent: true,
     notes: 'Assigned Sherif (our highest-rated Mercedes V-Class driver) and Dr. Zahi as Egyptologist.',
     createdAt: '2026-07-02T01:15:00Z'
+  },
+  {
+    id: 'RES-10952',
+    tourId: 'tour-2',
+    tourTitle: {
+      en: 'Luxury Nile Dahabiya Royal Cruise & Luxor Tombs Explorer',
+      ar: 'رحلة نيلية ملكية فاخرة على متن الذهبية واستكشاف مقابر الأقصر'
+    },
+    customerName: 'Diamond Entertainment',
+    customerEmail: 'diamond.entertainment70@gmail.com',
+    customerPhone: '+1 415-555-2671',
+    customerNationality: 'United States',
+    travelerCount: 2,
+    travelers: [
+      { name: 'Diamond Entertainment', ageGroup: 'adult' },
+      { name: 'Lady Charlotte Campbell', ageGroup: 'adult' }
+    ],
+    pickupHotel: 'Winter Palace Luxor',
+    roomNumber: 'Suite 102',
+    specialRequests: 'Requested sunset candlelight dinner on Nile island.',
+    date: '2026-06-30',
+    status: 'completed',
+    paymentStatus: 'paid',
+    paymentMethod: 'Credit Card',
+    amountPaidUSD: 2400,
+    totalAmountUSD: 2400,
+    currencyUsed: 'USD',
+    driverName: 'Sherif El Masry',
+    guideName: 'Dr. Zahi',
+    qrCode: 'MAS-QR-RES-10952',
+    whatsappSent: true,
+    notes: 'Completed tour of Luxor and Nile cruising.',
+    createdAt: '2026-06-25T14:30:00Z'
   }
 ];
 

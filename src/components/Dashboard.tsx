@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Ticket, Calendar, ShieldAlert, Award, MessageSquare, Bell, CreditCard, Send, Plus, Sparkles, User, RefreshCw, Smartphone, ShieldCheck, Fingerprint, Lock, Unlock, Activity, CheckCircle2, UserPlus, Gift, Copy, Mail, ExternalLink, Share2 } from 'lucide-react';
+import { Ticket, Calendar, ShieldAlert, Award, MessageSquare, Bell, CreditCard, Send, Plus, Sparkles, User, RefreshCw, Smartphone, ShieldCheck, Fingerprint, Lock, Unlock, Activity, CheckCircle2, UserPlus, Gift, Copy, Mail, ExternalLink, Share2, Compass, Trophy, Gem, X, Star } from 'lucide-react';
 import { Booking, CurrencyConfig, CustomerCRM, SupportMessage, WhatsAppMessage, SupportTicket } from '../types.js';
 import { translations } from '../translations.js';
-import LoyaltyTier from './LoyaltyTier.js';
+import LoyaltyTier, { TIER_CONFIGS } from './LoyaltyTier.js';
 import BookingCountdown from './BookingCountdown.js';
 
 interface DashboardProps {
@@ -28,6 +28,55 @@ export default function Dashboard({
   const [supportInput, setSupportInput] = useState('');
   const [activeTab, setActiveTab] = useState<'trips' | 'support' | 'whatsapp' | 'rewards' | 'saved' | 'security' | 'referral'>('trips');
   const [loading, setLoading] = useState(false);
+
+  // 48-Hour Urgent Checklist Confirmation states
+  const [confirmingBookingId, setConfirmingBookingId] = useState<string | null>(null);
+  const [confirmHotel, setConfirmHotel] = useState('');
+  const [confirmRoom, setConfirmRoom] = useState('');
+  const [confirmRequests, setConfirmRequests] = useState('');
+  const [isSavingConfirmation, setIsSavingConfirmation] = useState(false);
+
+  // Share itinerary states
+  const [sharingBooking, setSharingBooking] = useState<Booking | null>(null);
+  const [copiedShareLink, setCopiedShareLink] = useState(false);
+  const [copiedShareText, setCopiedShareText] = useState(false);
+
+  const getShareHighlightsText = (b: Booking) => {
+    const tourTitleText = lang === 'ar' ? b.tourTitle.ar : b.tourTitle.en;
+    const shareUrl = `${window.location.origin}/?share-itinerary=${b.id}`;
+    
+    if (lang === 'ar') {
+      return `👑 *تفاصيل رحلتي الملكية الفاخرة مع وكالة MAS:*
+
+📌 *الرحلة:* ${tourTitleText}
+📅 *التاريخ:* ${b.date}
+🏨 *نقطة الانطلاق:* ${b.pickupHotel} ${b.roomNumber ? `(غرفة ${b.roomNumber})` : ''}
+🚗 *السائق الخاص:* ${b.driverName || 'جاري التعيين...'}
+🗺️ *المرشد السياحي:* ${b.guideName || 'جاري التعيين...'}
+🎟️ *رمز الحجز:* ${b.id}
+
+🔗 تابع مسار رحلتي الفاخرة وتفاصيلها التفاعلية مباشرة عبر هذا الرابط:
+${shareUrl}`;
+    } else {
+      return `👑 *My Luxury Expedition Itinerary with MAS Agency:*
+
+📌 *Tour:* ${tourTitleText}
+📅 *Date:* ${b.date}
+🏨 *Chauffeur Pickup:* ${b.pickupHotel} ${b.roomNumber ? `(Room ${b.roomNumber})` : ''}
+🚗 *Personal Chauffeur:* ${b.driverName || 'Coordinating VIP driver...'}
+🗺️ *Archaeological Guide:* ${b.guideName || 'Coordinating personal Egyptologist...'}
+🎟️ *Reservation ID:* ${b.id}
+
+🔗 View my full live interactive itinerary and status here:
+${shareUrl}`;
+    }
+  };
+
+  const handleWhatsAppShare = (b: Booking) => {
+    const text = getShareHighlightsText(b);
+    const whatsappUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
+    window.open(whatsappUrl, '_blank');
+  };
 
   // User Tickets state
   const [userTickets, setUserTickets] = useState<SupportTicket[]>([]);
@@ -105,6 +154,65 @@ export default function Dashboard({
     localStorage.setItem('securityLogs', JSON.stringify(securityLogs));
   }, [securityLogs]);
 
+  // Post-Expedition Component Review states
+  const [reviewingBookingId, setReviewingBookingId] = useState<string | null>(null);
+  const [reviewOverallRating, setReviewOverallRating] = useState<number>(5);
+  const [reviewChauffeurRating, setReviewChauffeurRating] = useState<number>(5);
+  const [reviewChauffeurComment, setReviewChauffeurComment] = useState<string>('');
+  const [reviewGuideRating, setReviewGuideRating] = useState<number>(5);
+  const [reviewGuideComment, setReviewGuideComment] = useState<string>('');
+  const [reviewItineraryRating, setReviewItineraryRating] = useState<number>(5);
+  const [reviewItineraryComment, setReviewItineraryComment] = useState<string>('');
+  const [reviewCateringRating, setReviewCateringRating] = useState<number>(5);
+  const [reviewCateringComment, setReviewCateringComment] = useState<string>('');
+  const [reviewGeneralComment, setReviewGeneralComment] = useState<string>('');
+  const [isSubmittingReview, setIsSubmittingReview] = useState<boolean>(false);
+  const [reviewSuccessMsg, setReviewSuccessMsg] = useState<string | null>(null);
+
+  const resetReviewForm = () => {
+    setReviewOverallRating(5);
+    setReviewChauffeurRating(5);
+    setReviewChauffeurComment('');
+    setReviewGuideRating(5);
+    setReviewGuideComment('');
+    setReviewItineraryRating(5);
+    setReviewItineraryComment('');
+    setReviewCateringRating(5);
+    setReviewCateringComment('');
+    setReviewGeneralComment('');
+    setReviewSuccessMsg(null);
+  };
+
+  const handleReviewSubmit = async (bookingId: string) => {
+    setIsSubmittingReview(true);
+    try {
+      const res = await fetch(`/api/bookings/${bookingId}/review`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          overallRating: reviewOverallRating,
+          components: {
+            chauffeur: { rating: reviewChauffeurRating, comment: reviewChauffeurComment },
+            guide: { rating: reviewGuideRating, comment: reviewGuideComment },
+            itinerary: { rating: reviewItineraryRating, comment: reviewItineraryComment },
+            catering: { rating: reviewCateringRating, comment: reviewCateringComment }
+          },
+          generalComment: reviewGeneralComment
+        })
+      });
+
+      if (res.ok) {
+        setReviewSuccessMsg(lang === 'ar' ? 'تم تسجيل تقييمك الملكي بنجاح. نشكرك على مشاركة تجربتك الاستثنائية.' : 'Your sovereign review has been registered. Thank you for sharing your elite feedback.');
+        setReviewingBookingId(null);
+        await fetchData(); // Refresh dashboard data to show submitted review state!
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsSubmittingReview(false);
+    }
+  };
+
   // Convert USD to local currency
   const toLocalPrice = (usdPrice: number) => {
     return parseFloat((usdPrice * activeCurrency.rateToUSD).toFixed(2));
@@ -150,6 +258,57 @@ export default function Dashboard({
   useEffect(() => {
     fetchData();
   }, [userEmail]);
+
+  // Auto-detect and populate first booking within 48 hours requiring confirmation
+  useEffect(() => {
+    const urgent = bookings.find(b => {
+      if (b.detailsConfirmed) return false;
+      if (b.status === 'cancelled' || b.status === 'completed') return false;
+      const bookingTime = b.date.includes('T') ? new Date(b.date).getTime() : new Date(`${b.date}T08:00:00`).getTime();
+      const diffMs = bookingTime - Date.now();
+      const diffHours = diffMs / (1000 * 60 * 60);
+      return diffHours > -4 && diffHours <= 48;
+    });
+    if (urgent && !confirmingBookingId) {
+      setConfirmingBookingId(urgent.id);
+      setConfirmHotel(urgent.pickupHotel || '');
+      setConfirmRoom(urgent.roomNumber || '');
+      setConfirmRequests(urgent.specialRequests || '');
+    }
+  }, [bookings, confirmingBookingId]);
+
+  const handleConfirmDetails = async (bookingId: string) => {
+    setIsSavingConfirmation(true);
+    try {
+      const res = await fetch(`/api/bookings/${bookingId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          pickupHotel: confirmHotel,
+          roomNumber: confirmRoom,
+          specialRequests: confirmRequests,
+          detailsConfirmed: true,
+          detailsConfirmedAt: new Date().toISOString()
+        })
+      });
+      if (res.ok) {
+        alert(lang === 'ar' 
+          ? '🎉 ممتاز! تم تأكيد تفاصيل الاصطحاب النهائية بنجاح وتأمين تصريحك الأمني لرحلتك الاستكشافية.' 
+          : '👑 Expedition Clearance Verified!\nYour final pickup coordinates and special requests have been successfully registered with the central VIP dispatch ledger.'
+        );
+        setConfirmingBookingId(null);
+        await fetchData();
+        onRefreshAll();
+      } else {
+        alert('Failed to register details. Please check the network connection.');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('An error occurred during verification.');
+    } finally {
+      setIsSavingConfirmation(false);
+    }
+  };
 
   // Send Support Butler Message
   const handleSendSupport = async (e: React.FormEvent) => {
@@ -270,6 +429,14 @@ export default function Dashboard({
   const upcomingBookings = bookings.filter(b => b.status === 'pending' || b.status === 'confirmed');
   const pastBookings = bookings.filter(b => b.status === 'completed' || b.status === 'cancelled');
 
+  const bookingsWithin48Hours = upcomingBookings.filter(b => {
+    if (b.detailsConfirmed) return false;
+    const bookingTime = b.date.includes('T') ? new Date(b.date).getTime() : new Date(`${b.date}T08:00:00`).getTime();
+    const diffMs = bookingTime - Date.now();
+    const diffHours = diffMs / (1000 * 60 * 60);
+    return diffHours > -4 && diffHours <= 48;
+  });
+
   const bookingCount = bookings.length;
   let currentTierName = 'Bronze Elite';
   if (lang === 'ar') {
@@ -378,6 +545,12 @@ export default function Dashboard({
             >
               <Icon className="w-4 h-4" />
               <span>{tab.label}</span>
+              {tab.id === 'trips' && bookingsWithin48Hours.length > 0 && (
+                <span className="flex h-2 w-2 shrink-0">
+                  <span className="animate-ping absolute inline-flex h-2 w-2 rounded-full bg-amber-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+                </span>
+              )}
             </button>
           );
         })}
@@ -388,114 +561,815 @@ export default function Dashboard({
         
         {/* Trips Panel */}
         {activeTab === 'trips' && (
-          <div className="space-y-6 animate-fade-in">
-            {upcomingBookings.length === 0 ? (
-              <div className="bg-white p-12 rounded-2xl text-center border border-slate-200/60 max-w-md mx-auto">
-                <Ticket className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-                <h4 className="font-bold text-slate-800 text-base mb-1">{lang === 'ar' ? 'لا توجد حجوزات نشطة حاليًا' : 'No Bookings Found'}</h4>
-                <p className="text-slate-400 text-xs md:text-sm mb-4">{lang === 'ar' ? 'تصفح باقتنا التوقيعية المتميزة واحجز رحلتك الملكية اليوم.' : 'Browse our tours and book your next trip today!'}</p>
-              </div>
-            ) : (
-              upcomingBookings.map((b) => (
-                <div key={b.id} className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm grid grid-cols-1 lg:grid-cols-3 gap-6">
-                  {/* Voyage Info */}
-                  <div className="lg:col-span-2 space-y-4">
-                    <div className="flex flex-wrap items-center gap-2 justify-between">
-                      <span className="text-[10px] bg-slate-100 text-slate-700 px-3 py-1 rounded-full font-bold uppercase tracking-wider font-sans">
-                        ID: {b.id}
-                      </span>
-                      <div className="flex gap-2">
-                        <span className={`text-[10px] px-3 py-1 rounded-full font-bold uppercase tracking-wider ${
-                          b.status === 'confirmed' 
-                            ? 'bg-emerald-100 text-emerald-800' 
-                            : 'bg-amber-100 text-amber-800'
-                        }`}>
-                          {b.status === 'confirmed' ? t.confirmed : t.pending}
+          <div className="space-y-6">
+            {/* Automated 48-Hour Urgent Checklist Notification Banners */}
+            {bookingsWithin48Hours.map(b => (
+              <div key={`alert-${b.id}`} className="bg-gradient-to-r from-amber-500/10 via-orange-500/5 to-slate-900/5 border border-amber-500/20 rounded-2xl p-5 md:p-6 shadow-sm animate-fade-in text-slate-800 space-y-4">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-3 border-b border-amber-500/10">
+                  <div className="flex items-start gap-2.5">
+                    <span className="p-2 bg-amber-500/20 text-amber-700 rounded-lg animate-pulse shrink-0">
+                      <ShieldAlert className="w-5 h-5" />
+                    </span>
+                    <div>
+                      <h4 className="text-xs font-black uppercase text-amber-800 tracking-wider flex items-center gap-2 flex-wrap">
+                        <span>{lang === 'ar' ? 'تصريح عاجل: تأكيد تفاصيل الرحلة مطلوب' : 'URGENT CLEARANCE: EXPEDITION CONFIRMATION REQUIRED'}</span>
+                        <span className="bg-amber-500 text-white text-[9px] font-extrabold px-2 py-0.5 rounded-full animate-bounce">
+                          {lang === 'ar' ? '٤٨ ساعة' : 'Within 48h'}
                         </span>
-                        <span className={`text-[10px] px-3 py-1 rounded-full font-bold uppercase tracking-wider ${
-                          b.paymentStatus === 'paid' 
-                            ? 'bg-emerald-100 text-emerald-800' 
-                            : 'bg-rose-100 text-rose-800'
-                        }`}>
-                          {b.paymentStatus === 'paid' ? t.paid : t.unpaid}
-                        </span>
-                      </div>
-                    </div>
-
-                    <h3 className="text-base md:text-lg font-bold text-slate-800 font-sans tracking-tight">
-                      {lang === 'ar' ? b.tourTitle.ar : b.tourTitle.en}
-                    </h3>
-
-                    <div className="grid grid-cols-2 gap-4 text-xs font-medium text-slate-600">
-                      <div>
-                        <span className="block text-slate-400 text-[10px] uppercase font-bold tracking-wider">{t.searchDate}</span>
-                        <span className="text-slate-800 font-bold">{b.date}</span>
-                      </div>
-                      <div>
-                        <span className="block text-slate-400 text-[10px] uppercase font-bold tracking-wider">{t.pickupHotel}</span>
-                        <span className="text-slate-800 font-bold">{b.pickupHotel} {b.roomNumber ? `(${b.roomNumber})` : ''}</span>
-                      </div>
-                      <div>
-                        <span className="block text-slate-400 text-[10px] uppercase font-bold tracking-wider">{t.driver}</span>
-                        <span className="text-emerald-700 font-bold">{b.driverName || (lang === 'ar' ? 'جاري تعيين سائق مخصص...' : 'Assigning Driver...')}</span>
-                      </div>
-                      <div>
-                        <span className="block text-slate-400 text-[10px] uppercase font-bold tracking-wider">{t.guide}</span>
-                        <span className="text-amber-700 font-bold">{b.guideName || (lang === 'ar' ? 'جاري تعيين مرشد أثري...' : 'Assigning Tour Guide...')}</span>
-                      </div>
-                    </div>
-
-                    {b.specialRequests && (
-                      <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
-                        <span className="block text-slate-400 text-[10px] uppercase font-bold tracking-wider mb-0.5">{lang === 'ar' ? 'الطلبات والترتيبات الخاصة' : 'Special Requests'}</span>
-                        <p className="text-slate-700 text-xs font-medium">{b.specialRequests}</p>
-                      </div>
-                    )}
-
-                    <div className="flex justify-between items-center bg-slate-50 p-3 rounded-lg border border-slate-100">
-                      <span className="text-xs font-bold text-slate-500">{t.total}</span>
-                      <span className="text-base font-black text-slate-800 font-sans">{formatLocalPrice(b.totalAmountUSD)}</span>
+                      </h4>
+                      <p className="text-[11px] text-slate-500 font-semibold mt-0.5 leading-relaxed">
+                        {lang === 'ar' 
+                          ? `تبدأ رحلتك الاستكشافية إلى [${b.tourTitle.ar}] قريبًا جدًا. يرجى مراجعة تفاصيل الاصطحاب لضمان التخليص الأمني وتنسيق سائق المرسيدس المخصص.` 
+                          : `Your luxury expedition to [${b.tourTitle.en}] begins very soon. Please verify your pickup coordinates to clear royal security logs & guide dispatch.`}
+                      </p>
                     </div>
                   </div>
+                  <span className="text-[10px] font-mono bg-amber-500/10 text-amber-800 border border-amber-500/20 px-2.5 py-1 rounded-lg font-black shrink-0">
+                    ID: {b.id}
+                  </span>
+                </div>
 
-                  {/* Digital QR Ticket */}
-                  <div className="bg-gradient-to-b from-slate-900 to-slate-800 text-white rounded-xl p-5 flex flex-col items-center justify-between border border-slate-700 text-center shadow-lg relative">
-                    <div className="absolute top-0 left-4 w-4 h-4 bg-white rounded-b-full" />
-                    <div className="absolute top-0 right-4 w-4 h-4 bg-white rounded-b-full" />
-                    
-                    <div className="w-full">
-                      <span className="text-[9px] text-amber-400 font-bold uppercase tracking-widest">{t.digitalVoucher}</span>
-                      <div className="h-[1px] bg-slate-700 my-2" />
-                    </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="block text-[10px] uppercase text-slate-500 font-bold tracking-wider">
+                      {lang === 'ar' ? 'فندق الاصطحاب للسائق' : 'Chauffeur Pickup Hotel'}
+                    </label>
+                    <input
+                      type="text"
+                      value={confirmingBookingId === b.id ? confirmHotel : b.pickupHotel}
+                      onChange={(e) => {
+                        if (confirmingBookingId === b.id) setConfirmHotel(e.target.value);
+                      }}
+                      placeholder="e.g. Four Seasons Nile Plaza"
+                      className="bg-white border border-slate-200 focus:border-amber-500 rounded-xl px-3 py-2 text-xs w-full focus:outline-none font-semibold text-slate-800"
+                    />
+                  </div>
 
-                    {/* QR Simulation Box */}
-                    <div className="bg-white p-3 rounded-xl shadow-md my-4 flex flex-col items-center">
-                      <div className="w-32 h-32 bg-slate-100 flex flex-col items-center justify-center p-2 border border-slate-200">
-                        {/* Custom visual QR representation using simple blocks */}
-                        <div className="grid grid-cols-4 gap-1 w-full h-full opacity-80">
-                          {[...Array(16)].map((_, i) => (
-                            <div key={i} className={`rounded-sm ${i % 3 === 0 || i % 5 === 1 ? 'bg-slate-900' : 'bg-transparent'}`} />
-                          ))}
+                  <div className="space-y-1.5">
+                    <label className="block text-[10px] uppercase text-slate-500 font-bold tracking-wider">
+                      {lang === 'ar' ? 'رقم الغرفة (مهم لنداء اللوبي)' : 'Room Number (for lobby paging)'}
+                    </label>
+                    <input
+                      type="text"
+                      value={confirmingBookingId === b.id ? confirmRoom : b.roomNumber || ''}
+                      onChange={(e) => {
+                        if (confirmingBookingId === b.id) setConfirmRoom(e.target.value);
+                      }}
+                      placeholder={lang === 'ar' ? 'رقم الغرفة أو "لم أسجل الدخول بعد"' : 'e.g. Room 1402 or "Not Checked In Yet"'}
+                      className="bg-white border border-slate-200 focus:border-amber-500 rounded-xl px-3 py-2 text-xs w-full focus:outline-none font-semibold text-slate-800"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="block text-[10px] uppercase text-slate-500 font-bold tracking-wider">
+                      {lang === 'ar' ? 'الترتيبات الخاصة أو النظام الغذائي' : 'Dietary or Accessibility Preferences'}
+                    </label>
+                    <input
+                      type="text"
+                      value={confirmingBookingId === b.id ? confirmRequests : b.specialRequests || ''}
+                      onChange={(e) => {
+                        if (confirmingBookingId === b.id) setConfirmRequests(e.target.value);
+                      }}
+                      placeholder="e.g. Halal food, wheelchair access, extra towels"
+                      className="bg-white border border-slate-200 focus:border-amber-500 rounded-xl px-3 py-2 text-xs w-full focus:outline-none font-semibold text-slate-800"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pt-2">
+                  <div className="text-[10px] text-slate-400 font-semibold flex items-center gap-1.5">
+                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                    <span>{lang === 'ar' ? 'تأكيد التفاصيل يحمي خصوصيتك ويضمن المواعيد.' : 'Verified details ensure zero delays on departure.'}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleConfirmDetails(b.id)}
+                    disabled={isSavingConfirmation}
+                    className="bg-amber-600 hover:bg-amber-500 disabled:bg-slate-300 text-white font-black text-[10px] py-2 px-5 rounded-lg transition-all shadow-md cursor-pointer uppercase tracking-wider flex items-center gap-1.5 shrink-0"
+                  >
+                    {isSavingConfirmation ? (
+                      <>
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                        <span>{lang === 'ar' ? 'جاري التأكيد والتوثيق...' : 'VERIFYING DETAILS...'}</span>
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        <span>{lang === 'ar' ? 'تأكيد وتوثيق تفاصيل الرحلة' : 'CONFIRM & REGISTER DETAILS'}</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            ))}
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-fade-in text-slate-800">
+              {/* Left/Main Column: Upcoming Trips */}
+              <div className="lg:col-span-2 space-y-6">
+              {upcomingBookings.length === 0 ? (
+                <div className="bg-white p-12 rounded-2xl text-center border border-slate-200/60 max-w-md mx-auto">
+                  <Ticket className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+                  <h4 className="font-bold text-slate-800 text-base mb-1">{lang === 'ar' ? 'لا توجد حجوزات نشطة حاليًا' : 'No Bookings Found'}</h4>
+                  <p className="text-slate-400 text-xs md:text-sm mb-4">{lang === 'ar' ? 'تصفح باقتنا التوقيعية المتميزة واحجز رحلتك الملكية اليوم.' : 'Browse our tours and book your next trip today!'}</p>
+                </div>
+              ) : (
+                upcomingBookings.map((b) => (
+                  <div key={b.id} className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    {/* Voyage Info */}
+                    <div className="lg:col-span-2 space-y-4">
+                      <div className="flex flex-wrap items-center gap-2 justify-between">
+                        <span className="text-[10px] bg-slate-100 text-slate-700 px-3 py-1 rounded-full font-bold uppercase tracking-wider font-sans">
+                          ID: {b.id}
+                        </span>
+                        <div className="flex flex-wrap gap-2">
+                          {b.detailsConfirmed ? (
+                            <span className="text-[10px] bg-emerald-600 text-white px-3 py-1 rounded-full font-bold uppercase tracking-wider flex items-center gap-1 shrink-0">
+                              <ShieldCheck className="w-3 h-3" />
+                              <span>{lang === 'ar' ? 'تم تأكيد التفاصيل' : 'Details Verified'}</span>
+                            </span>
+                          ) : (
+                            (() => {
+                              const bookingTime = b.date.includes('T') ? new Date(b.date).getTime() : new Date(`${b.date}T08:00:00`).getTime();
+                              const diffMs = bookingTime - Date.now();
+                              const diffHours = diffMs / (1000 * 60 * 60);
+                              if (diffHours > -4 && diffHours <= 48) {
+                                return (
+                                  <span className="text-[10px] bg-amber-500 text-white px-3 py-1 rounded-full font-extrabold uppercase tracking-wider animate-pulse shrink-0">
+                                    {lang === 'ar' ? 'تأكيد مطلوب (٤٨ ساعة)' : 'Confirm Required (48h)'}
+                                  </span>
+                                );
+                              }
+                              return null;
+                            })()
+                          )}
+                          <span className={`text-[10px] px-3 py-1 rounded-full font-bold uppercase tracking-wider ${
+                            b.status === 'confirmed' 
+                              ? 'bg-emerald-100 text-emerald-800' 
+                              : 'bg-amber-100 text-amber-800'
+                          }`}>
+                            {b.status === 'confirmed' ? t.confirmed : t.pending}
+                          </span>
+                          <span className={`text-[10px] px-3 py-1 rounded-full font-bold uppercase tracking-wider ${
+                            b.paymentStatus === 'paid' 
+                              ? 'bg-emerald-100 text-emerald-800' 
+                              : 'bg-rose-100 text-rose-800'
+                          }`}>
+                            {b.paymentStatus === 'paid' ? t.paid : t.unpaid}
+                          </span>
                         </div>
                       </div>
-                      <span className="text-[10px] font-mono text-slate-400 mt-2 tracking-widest">
-                        {b.qrCode}
-                      </span>
+
+                      <h3 className="text-base md:text-lg font-bold text-slate-800 font-sans tracking-tight">
+                        {lang === 'ar' ? b.tourTitle.ar : b.tourTitle.en}
+                      </h3>
+
+                      <div className="grid grid-cols-2 gap-4 text-xs font-medium text-slate-600">
+                        <div>
+                          <span className="block text-slate-400 text-[10px] uppercase font-bold tracking-wider">{t.searchDate}</span>
+                          <span className="text-slate-800 font-bold">{b.date}</span>
+                        </div>
+                        <div>
+                          <span className="block text-slate-400 text-[10px] uppercase font-bold tracking-wider">{t.pickupHotel}</span>
+                          <span className="text-slate-800 font-bold">{b.pickupHotel} {b.roomNumber ? `(${b.roomNumber})` : ''}</span>
+                        </div>
+                        <div>
+                          <span className="block text-slate-400 text-[10px] uppercase font-bold tracking-wider">{t.driver}</span>
+                          <span className="text-emerald-700 font-bold">{b.driverName || (lang === 'ar' ? 'جاري تعيين سائق مخصص...' : 'Assigning Driver...')}</span>
+                        </div>
+                        <div>
+                          <span className="block text-slate-400 text-[10px] uppercase font-bold tracking-wider">{t.guide}</span>
+                          <span className="text-amber-700 font-bold">{b.guideName || (lang === 'ar' ? 'جاري تعيين مرشد أثري...' : 'Assigning Tour Guide...')}</span>
+                        </div>
+                      </div>
+
+                      {b.specialRequests && (
+                        <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
+                          <span className="block text-slate-400 text-[10px] uppercase font-bold tracking-wider mb-0.5">{lang === 'ar' ? 'الطلبات والترتيبات الخاصة' : 'Special Requests'}</span>
+                          <p className="text-slate-700 text-xs font-medium">{b.specialRequests}</p>
+                        </div>
+                      )}
+
+                      <div className="flex justify-between items-center bg-slate-50 p-3 rounded-lg border border-slate-100">
+                        <span className="text-xs font-bold text-slate-500">{t.total}</span>
+                        <span className="text-base font-black text-slate-800 font-sans">{formatLocalPrice(b.totalAmountUSD)}</span>
+                      </div>
                     </div>
 
-                    <div className="w-full">
-                      <p className="text-[9px] text-slate-400 font-medium mb-1">{lang === 'ar' ? 'يرجى تقديم رمز الـ QR لسائق المرسيدس عند الاصطحاب' : 'Scan this QR code with your driver at pickup.'}</p>
+                    {/* Digital QR Ticket */}
+                    <div className="bg-gradient-to-b from-slate-900 to-slate-800 text-white rounded-xl p-5 flex flex-col items-center justify-between border border-slate-700 text-center shadow-lg relative">
+                      <div className="absolute top-0 left-4 w-4 h-4 bg-white rounded-b-full" />
+                      <div className="absolute top-0 right-4 w-4 h-4 bg-white rounded-b-full" />
+                      
+                      <div className="w-full">
+                        <span className="text-[9px] text-amber-400 font-bold uppercase tracking-widest">{t.digitalVoucher}</span>
+                        <div className="h-[1px] bg-slate-700 my-2" />
+                      </div>
+
+                      {/* QR Simulation Box */}
+                      <div className="bg-white p-3 rounded-xl shadow-md my-4 flex flex-col items-center">
+                        <div className="w-32 h-32 bg-slate-100 flex flex-col items-center justify-center p-2 border border-slate-200">
+                          {/* Custom visual QR representation using simple blocks */}
+                          <div className="grid grid-cols-4 gap-1 w-full h-full opacity-80">
+                            {[...Array(16)].map((_, i) => (
+                              <div key={i} className={`rounded-sm ${i % 3 === 0 || i % 5 === 1 ? 'bg-slate-900' : 'bg-transparent'}`} />
+                            ))}
+                          </div>
+                        </div>
+                        <span className="text-[10px] font-mono text-slate-400 mt-2 tracking-widest">
+                          {b.qrCode}
+                        </span>
+                      </div>
+
+                      <div className="w-full space-y-2">
+                        <p className="text-[9px] text-slate-400 font-medium mb-1">{lang === 'ar' ? 'يرجى تقديم رمز الـ QR لسائق المرسيدس عند الاصطحاب' : 'Scan this QR code with your driver at pickup.'}</p>
+                        <a 
+                          href={`/api/bookings/${b.id}/pdf`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs w-full py-2 rounded-lg transition-colors cursor-pointer block text-center"
+                        >
+                          {lang === 'ar' ? 'تحميل التذكرة الإلكترونية (PDF)' : 'Download Ticket (PDF)'}
+                        </a>
+                        <a 
+                          href={`/api/bookings/${b.id}/agreement`}
+                          download={`Luxury_Service_Agreement_${b.id}.pdf`}
+                          className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs w-full py-2 rounded-lg transition-colors cursor-pointer block text-center flex items-center justify-center gap-1.5"
+                        >
+                          <ShieldCheck className="w-3.5 h-3.5 text-emerald-150" />
+                          <span>{lang === 'ar' ? 'تحميل اتفاقية الخدمة الفاخرة (PDF)' : 'Luxury Agreement (PDF)'}</span>
+                        </a>
+                        <button 
+                          onClick={() => setSharingBooking(b)}
+                          className="bg-slate-700 hover:bg-slate-600 text-white font-bold text-xs w-full py-2 rounded-lg transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+                        >
+                          <Share2 className="w-3.5 h-3.5" />
+                          <span>{lang === 'ar' ? 'مشاركة تفاصيل الرحلة' : 'Share Itinerary'}</span>
+                        </button>
+                        {!b.detailsConfirmed && (
+                          <button
+                            onClick={() => {
+                              setConfirmingBookingId(b.id);
+                              setConfirmHotel(b.pickupHotel || '');
+                              setConfirmRoom(b.roomNumber || '');
+                              setConfirmRequests(b.specialRequests || '');
+                              const el = document.getElementById('dashboard-booking-countdown-wrapper');
+                              if (el) el.scrollIntoView({ behavior: 'smooth' });
+                            }}
+                            className="bg-white/10 hover:bg-white/20 text-white font-bold text-xs w-full py-2.5 rounded-lg transition-colors cursor-pointer border border-white/10 flex items-center justify-center gap-1.5"
+                          >
+                            <ShieldAlert className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
+                            <span>{lang === 'ar' ? 'تحديث وتأكيد تفاصيل الموعد' : 'Verify Pickup Details'}</span>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+
+              {/* Concluded Expeditions & Component Feedback */}
+              <div className="mt-8 border-t border-slate-100 pt-8 space-y-4">
+                <div className="flex items-center gap-2 mb-4">
+                  <span className="p-1.5 bg-emerald-50 text-emerald-700 rounded-md">
+                    <Compass className="w-5 h-5" />
+                  </span>
+                  <div>
+                    <h3 className="text-base font-extrabold text-slate-800 tracking-tight">
+                      {lang === 'ar' ? 'الرحلات الاستكشافية المكتملة وتقييم التجربة' : 'Concluded Expeditions & Post-Expedition Reviews'}
+                    </h3>
+                    <p className="text-[11px] text-slate-400 font-medium">
+                      {lang === 'ar' ? 'مراجعة وتوثيق جودة كل عنصر من عناصر رحلتك الخاصة لتأكيد مستويات الجودة السيادية.' : 'Audit and rate individual service components of your private tours to uphold our sovereign standards.'}
+                    </p>
+                  </div>
+                </div>
+
+                {reviewSuccessMsg && (
+                  <div className="bg-emerald-50 border border-emerald-150 rounded-xl p-4 flex items-start gap-3 text-emerald-800 text-xs font-medium animate-fade-in mb-4">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                    <div className="flex-1">
+                      <p>{reviewSuccessMsg}</p>
                       <button 
-                        onClick={() => alert(`Downloading secure PDF invoice/ticket for reservation ${b.qrCode}`)}
-                        className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs w-full py-2 rounded-lg transition-colors cursor-pointer"
+                        onClick={() => setReviewSuccessMsg(null)}
+                        className="text-[10px] text-emerald-700 underline font-bold mt-1 hover:text-emerald-950 block"
                       >
-                        {lang === 'ar' ? 'تحميل التذكرة الإلكترونية (PDF)' : 'Download Ticket (PDF)'}
+                        {lang === 'ar' ? 'إغلاق التنبيه' : 'Dismiss Alert'}
                       </button>
                     </div>
                   </div>
-                </div>
-              ))
-            )}
+                )}
+
+                {pastBookings.filter(b => b.status === 'completed').length === 0 ? (
+                  <div className="bg-slate-50/50 border border-slate-150/50 rounded-xl p-6 text-center text-slate-400 italic text-xs font-medium">
+                    {lang === 'ar' ? 'لا توجد رحلات استكشافية سابقة مسجلة في ملفك الشخصي حتى الآن.' : 'No completed or past expeditions recorded in your luxury itinerary yet.'}
+                  </div>
+                ) : (
+                  <div className="space-y-6">
+                    {pastBookings.filter(b => b.status === 'completed').map((b) => {
+                      const isCompleted = b.status === 'completed';
+                      // Consider a trip concluded at 5 PM on the day of the trip
+                      const bookingTime = b.date.includes('T') ? new Date(b.date).getTime() : new Date(`${b.date}T17:00:00`).getTime();
+                      const hoursSinceConclusion = (Date.now() - bookingTime) / (1000 * 60 * 60);
+                      const isEligible = isCompleted && hoursSinceConclusion >= 24;
+                      const hasReview = !!b.review;
+
+                      return (
+                        <div key={`concluded-${b.id}`} className="bg-white border border-slate-200/80 rounded-xl p-5 shadow-sm space-y-4">
+                          {/* Header of Past Trip Card */}
+                          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
+                            <div className="space-y-0.5 animate-fade-in">
+                              <span className="text-[9px] font-mono font-bold bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full uppercase">
+                                ID: {b.id}
+                              </span>
+                              <h4 className="text-sm font-bold text-slate-800">
+                                {lang === 'ar' ? b.tourTitle.ar : b.tourTitle.en}
+                              </h4>
+                              <p className="text-[10px] text-slate-400 font-bold">
+                                {lang === 'ar' ? `تاريخ الرحلة: ${b.date}` : `Tour Date: ${b.date}`}
+                              </p>
+                            </div>
+
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[9px] font-extrabold uppercase px-2 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200 shrink-0">
+                                {lang === 'ar' ? 'مكتملة' : 'Completed'}
+                              </span>
+                              {hasReview && (
+                                <span className="text-[9px] font-extrabold uppercase px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-100 shrink-0 flex items-center gap-0.5 animate-fade-in">
+                                  <Sparkles className="w-2.5 h-2.5 text-emerald-500" />
+                                  <span>{lang === 'ar' ? 'تم التقييم' : 'Reviewed'}</span>
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Lock Banner / Info message if completed but < 24 hours */}
+                          {!isEligible && isCompleted && (
+                            <div className="bg-slate-50 border border-slate-150 rounded-lg p-3.5 flex items-start gap-2.5 text-[11px] font-medium text-slate-500 animate-fade-in">
+                              <Lock className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
+                              <div>
+                                <p className="font-semibold text-slate-700">
+                                  {lang === 'ar' ? 'استمارة مراجعة جودة الرحلة مغلقة مؤقتاً' : 'Sovereign Review Form Currently Locked'}
+                                </p>
+                                <p className="text-[10px] text-slate-400 mt-0.5">
+                                  {lang === 'ar' 
+                                    ? `سيتم فتح نموذج تقييم عناصر جودة الرحلة بعد ٢٤ ساعة من انتهائها لجمع آرائكم الأكثر دقة (يفتح خلال ${Math.max(1, Math.ceil(24 - hoursSinceConclusion))} ساعة)`
+                                    : `The post-expedition review form unlocks 24 hours after your trip concludes to allow accurate reflection (unlocks in ${Math.max(1, Math.ceil(24 - hoursSinceConclusion))} hours).`}
+                                </p>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* CASE A: Review is already submitted */}
+                          {hasReview && b.review && (
+                            <div className="bg-emerald-50/20 border border-emerald-500/10 rounded-xl p-4 space-y-3.5 animate-fade-in">
+                              <div className="flex items-center justify-between">
+                                <span className="text-[11px] font-black text-slate-800 uppercase tracking-wide flex items-center gap-1">
+                                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                                  <span>{lang === 'ar' ? 'آراؤكم وتقييماتكم المسجلة' : 'Your Submitted Ratings'}</span>
+                                </span>
+                                <div className="flex items-center gap-0.5">
+                                  {[...Array(5)].map((_, idx) => (
+                                    <Star 
+                                      key={idx} 
+                                      className={`w-3.5 h-3.5 ${idx < (b.review?.overallRating || 5) ? 'fill-amber-400 text-amber-400' : 'text-slate-200'}`} 
+                                    />
+                                  ))}
+                                  <span className="text-xs font-black text-slate-700 ml-1">
+                                    {(b.review?.overallRating || 5).toFixed(1)}/5
+                                  </span>
+                                </div>
+                              </div>
+
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-[11px] font-medium">
+                                {/* Chauffeur Review */}
+                                <div className="bg-white border border-slate-100 rounded-lg p-2.5 shadow-sm">
+                                  <div className="flex justify-between items-center mb-1">
+                                    <span className="font-extrabold text-slate-700">
+                                      {lang === 'ar' ? 'السائق وموكب المرسيدس' : 'Private Chauffeur & Fleet'}
+                                    </span>
+                                    <span className="text-amber-500 font-extrabold">★ {b.review.components.chauffeur.rating}/5</span>
+                                  </div>
+                                  {b.review.components.chauffeur.comment && (
+                                    <p className="text-slate-500 italic text-[10px]">"{b.review.components.chauffeur.comment}"</p>
+                                  )}
+                                </div>
+
+                                {/* Guide Review */}
+                                <div className="bg-white border border-slate-100 rounded-lg p-2.5 shadow-sm">
+                                  <div className="flex justify-between items-center mb-1">
+                                    <span className="font-extrabold text-slate-700">
+                                      {lang === 'ar' ? 'المرشد الأثري والمؤرخ' : 'Scholar Guide & Historian'}
+                                    </span>
+                                    <span className="text-amber-500 font-extrabold">★ {b.review.components.guide.rating}/5</span>
+                                  </div>
+                                  {b.review.components.guide.comment && (
+                                    <p className="text-slate-500 italic text-[10px]">"{b.review.components.guide.comment}"</p>
+                                  )}
+                                </div>
+
+                                {/* Itinerary Review */}
+                                <div className="bg-white border border-slate-100 rounded-lg p-2.5 shadow-sm">
+                                  <div className="flex justify-between items-center mb-1">
+                                    <span className="font-extrabold text-slate-700">
+                                      {lang === 'ar' ? 'المعالم والمناطق الأثرية' : 'Archaeological Sites & Pacing'}
+                                    </span>
+                                    <span className="text-amber-500 font-extrabold">★ {b.review.components.itinerary.rating}/5</span>
+                                  </div>
+                                  {b.review.components.itinerary.comment && (
+                                    <p className="text-slate-500 italic text-[10px]">"{b.review.components.itinerary.comment}"</p>
+                                  )}
+                                </div>
+
+                                {/* Catering Review */}
+                                <div className="bg-white border border-slate-100 rounded-lg p-2.5 shadow-sm">
+                                  <div className="flex justify-between items-center mb-1">
+                                    <span className="font-extrabold text-slate-700">
+                                      {lang === 'ar' ? 'المأكولات والضيافة والخدمات' : 'Luxury Catering & Hospitality'}
+                                    </span>
+                                    <span className="text-amber-500 font-extrabold">★ {b.review.components.catering.rating}/5</span>
+                                  </div>
+                                  {b.review.components.catering.comment && (
+                                    <p className="text-slate-500 italic text-[10px]">"{b.review.components.catering.comment}"</p>
+                                  )}
+                                </div>
+                              </div>
+
+                              {b.review.generalComment && (
+                                <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-100 text-[11px] font-medium text-slate-700">
+                                  <span className="block font-bold text-[9px] uppercase tracking-wider text-slate-400 mb-0.5">
+                                    {lang === 'ar' ? 'التعليقات العامة' : 'General Comments'}
+                                  </span>
+                                  <p className="italic">"{b.review.generalComment}"</p>
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {/* CASE B: Review not submitted, and form is NOT open */}
+                          {isEligible && !hasReview && reviewingBookingId !== b.id && (
+                            <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 bg-slate-50/50 p-4 rounded-xl border border-dashed border-slate-200 animate-fade-in">
+                              <div className="space-y-0.5">
+                                <h5 className="text-xs font-bold text-slate-700">
+                                  {lang === 'ar' ? 'بانتظار تقييمكم المعتمد' : 'Awaiting Sovereign Assessment'}
+                                </h5>
+                                <p className="text-[10px] text-slate-400 font-medium">
+                                  {lang === 'ar' ? 'يرجى مراجعة وتوثيق جودة كل قسم من أقسام خدماتنا لمواصلة الامتياز.' : 'Assess each component of your private experience to help us maintain elite hospitality.'}
+                                </p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  resetReviewForm();
+                                  setReviewingBookingId(b.id);
+                                }}
+                                className="bg-slate-900 hover:bg-slate-800 text-white font-black text-xs px-4 py-2 rounded-lg transition-all cursor-pointer whitespace-nowrap"
+                              >
+                                {lang === 'ar' ? 'تقييم عناصر الرحلة الاستكشافية' : 'Write Post-Expedition Review'}
+                              </button>
+                            </div>
+                          )}
+
+                          {/* CASE C: Review form is ACTIVE for this booking */}
+                          {isEligible && !hasReview && reviewingBookingId === b.id && (
+                            <form 
+                              onSubmit={(e) => {
+                                e.preventDefault();
+                                handleReviewSubmit(b.id);
+                              }}
+                              className="bg-slate-50/50 border border-slate-200 rounded-xl p-5 space-y-5 animate-fade-in text-xs font-medium text-slate-700"
+                            >
+                              <div className="border-b border-slate-150 pb-3 flex justify-between items-center">
+                                <span className="font-extrabold text-sm text-slate-800 flex items-center gap-1.5">
+                                  <Sparkles className="w-4 h-4 text-amber-500 animate-pulse" />
+                                  <span>{lang === 'ar' ? 'استمارة التقييم بعد الرحلة' : 'Post-Expedition Review Form'}</span>
+                                </span>
+                                <button 
+                                  type="button"
+                                  onClick={() => setReviewingBookingId(null)}
+                                  className="text-slate-400 hover:text-slate-600 font-bold"
+                                >
+                                  {lang === 'ar' ? 'إلغاء' : 'Cancel'}
+                                </button>
+                              </div>
+
+                              {/* Overall Experience Star Rating */}
+                              <div className="space-y-1.5 animate-fade-in">
+                                <label className="block text-slate-700 font-extrabold">
+                                  {lang === 'ar' ? '١. التقييم الإجمالي للتجربة الملكية' : '1. Overall Luxury Tour Experience'} <span className="text-rose-500">*</span>
+                                </label>
+                                <div className="flex items-center gap-2">
+                                  <div className="flex items-center gap-1 bg-white border border-slate-200 px-3.5 py-1.5 rounded-lg shadow-sm">
+                                    {[1, 2, 3, 4, 5].map((starValue) => (
+                                      <button
+                                        key={starValue}
+                                        type="button"
+                                        onClick={() => setReviewOverallRating(starValue)}
+                                        className="focus:outline-none cursor-pointer transition-all hover:scale-110"
+                                      >
+                                        <Star 
+                                          className={`w-5 h-5 ${starValue <= reviewOverallRating ? 'fill-amber-400 text-amber-400' : 'text-slate-300'}`} 
+                                        />
+                                      </button>
+                                    ))}
+                                  </div>
+                                  <span className="text-xs font-black text-slate-500">
+                                    {reviewOverallRating === 5 ? (lang === 'ar' ? 'استثنائي (٥ نجوم)' : 'Sovereign Premium (5/5)') :
+                                     reviewOverallRating === 4 ? (lang === 'ar' ? 'ممتاز جداً' : 'Very Good (4/5)') :
+                                     reviewOverallRating === 3 ? (lang === 'ar' ? 'جيد جداً' : 'Good (3/5)') :
+                                     reviewOverallRating === 2 ? (lang === 'ar' ? 'بحاجة لتحسين' : 'Needs Work (2/5)') :
+                                     (lang === 'ar' ? 'غير مقبول' : 'Unsatisfactory (1/5)')}
+                                  </span>
+                                </div>
+                              </div>
+
+                              {/* 4 Core Tour Components Assessment */}
+                              <div className="space-y-4 pt-2 border-t border-slate-150 animate-fade-in">
+                                <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wide">
+                                  {lang === 'ar' ? '٢. تقييم عناصر الخدمة الفردية مخصصة' : '2. Quality Ratings for Individual Tour Components'}
+                                </h4>
+
+                                {/* Component A: Chauffeur */}
+                                <div className="space-y-2 bg-white border border-slate-150 rounded-xl p-4 shadow-sm">
+                                  <div className="flex flex-wrap justify-between items-center gap-2">
+                                    <span className="font-extrabold text-slate-800 flex items-center gap-1.5">
+                                      <span className="w-1.5 h-1.5 bg-emerald-600 rounded-full" />
+                                      {lang === 'ar' ? 'السائق وموكب المرسيدس الفاخر' : 'Private Chauffeur & Mercedes Fleet'}
+                                    </span>
+                                    <div className="flex gap-1 items-center bg-slate-50 px-2 py-1 rounded-lg border border-slate-100">
+                                      {[1, 2, 3, 4, 5].map((starValue) => (
+                                        <button
+                                          key={`chauffeur-${starValue}`}
+                                          type="button"
+                                          onClick={() => setReviewChauffeurRating(starValue)}
+                                          className="focus:outline-none cursor-pointer transition-all"
+                                        >
+                                          <Star 
+                                            className={`w-4 h-4 ${starValue <= reviewChauffeurRating ? 'fill-amber-400 text-amber-400' : 'text-slate-200'}`} 
+                                          />
+                                        </button>
+                                      ))}
+                                    </div>
+                                  </div>
+                                  <input
+                                    type="text"
+                                    value={reviewChauffeurComment}
+                                    onChange={(e) => setReviewChauffeurComment(e.target.value)}
+                                    placeholder={lang === 'ar' ? 'شارك رأيك حول سلوك السائق، جودة القيادة، ونظافة سيارة مرسيدس...' : 'Share feedback on punctuality, driving safety, vehicle comfort...'}
+                                    className="w-full text-xs font-medium px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-500 text-slate-800 bg-slate-50/30"
+                                  />
+                                </div>
+
+                                {/* Component B: Guide */}
+                                <div className="space-y-2 bg-white border border-slate-150 rounded-xl p-4 shadow-sm">
+                                  <div className="flex flex-wrap justify-between items-center gap-2">
+                                    <span className="font-extrabold text-slate-800 flex items-center gap-1.5">
+                                      <span className="w-1.5 h-1.5 bg-emerald-600 rounded-full" />
+                                      {lang === 'ar' ? 'المرشد الأثري والمؤرخ الأكاديمي' : 'Scholar Guide & Egyptologist'}
+                                    </span>
+                                    <div className="flex gap-1 items-center bg-slate-50 px-2 py-1 rounded-lg border border-slate-100">
+                                      {[1, 2, 3, 4, 5].map((starValue) => (
+                                        <button
+                                          key={`guide-${starValue}`}
+                                          type="button"
+                                          onClick={() => setReviewGuideRating(starValue)}
+                                          className="focus:outline-none cursor-pointer transition-all"
+                                        >
+                                          <Star 
+                                            className={`w-4 h-4 ${starValue <= reviewGuideRating ? 'fill-amber-400 text-amber-400' : 'text-slate-200'}`} 
+                                          />
+                                        </button>
+                                      ))}
+                                    </div>
+                                  </div>
+                                  <input
+                                    type="text"
+                                    value={reviewGuideComment}
+                                    onChange={(e) => setReviewGuideComment(e.target.value)}
+                                    placeholder={lang === 'ar' ? 'كيف كانت معلومات المرشد التاريخية، أسلوب الشرح، ومرافقته؟...' : 'Historian storytelling depth, passion, scheduling care...'}
+                                    className="w-full text-xs font-medium px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-500 text-slate-800 bg-slate-50/30"
+                                  />
+                                </div>
+
+                                {/* Component C: Itinerary */}
+                                <div className="space-y-2 bg-white border border-slate-150 rounded-xl p-4 shadow-sm">
+                                  <div className="flex flex-wrap justify-between items-center gap-2">
+                                    <span className="font-extrabold text-slate-800 flex items-center gap-1.5">
+                                      <span className="w-1.5 h-1.5 bg-emerald-600 rounded-full" />
+                                      {lang === 'ar' ? 'مسار الزيارة وتجربة المواقع الأثرية ومستوى الدخول' : 'Archaeological Site Access & Pacing'}
+                                    </span>
+                                    <div className="flex gap-1 items-center bg-slate-50 px-2 py-1 rounded-lg border border-slate-100">
+                                      {[1, 2, 3, 4, 5].map((starValue) => (
+                                        <button
+                                          key={`itinerary-${starValue}`}
+                                          type="button"
+                                          onClick={() => setReviewItineraryRating(starValue)}
+                                          className="focus:outline-none cursor-pointer transition-all"
+                                        >
+                                          <Star 
+                                            className={`w-4 h-4 ${starValue <= reviewItineraryRating ? 'fill-amber-400 text-amber-400' : 'text-slate-200'}`} 
+                                          />
+                                        </button>
+                                      ))}
+                                    </div>
+                                  </div>
+                                  <input
+                                    type="text"
+                                    value={reviewItineraryComment}
+                                    onChange={(e) => setReviewItineraryComment(e.target.value)}
+                                    placeholder={lang === 'ar' ? 'تجاوز طوابير الانتظار، ترتيب المعالم، والوقت المتاح...' : 'Site skip-the-line effectiveness, path selection, timing quality...'}
+                                    className="w-full text-xs font-medium px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-500 text-slate-800 bg-slate-50/30"
+                                  />
+                                </div>
+
+                                {/* Component D: Catering */}
+                                <div className="space-y-2 bg-white border border-slate-150 rounded-xl p-4 shadow-sm">
+                                  <div className="flex flex-wrap justify-between items-center gap-2">
+                                    <span className="font-extrabold text-slate-800 flex items-center gap-1.5">
+                                      <span className="w-1.5 h-1.5 bg-emerald-600 rounded-full" />
+                                      {lang === 'ar' ? 'الضيافة والوجبات وخدمات الغداء الفاخر' : 'Luxury Catering & Culinary Hospitality'}
+                                    </span>
+                                    <div className="flex gap-1 items-center bg-slate-50 px-2 py-1 rounded-lg border border-slate-100">
+                                      {[1, 2, 3, 4, 5].map((starValue) => (
+                                        <button
+                                          key={`catering-${starValue}`}
+                                          type="button"
+                                          onClick={() => setReviewCateringRating(starValue)}
+                                          className="focus:outline-none cursor-pointer transition-all"
+                                        >
+                                          <Star 
+                                            className={`w-4 h-4 ${starValue <= reviewCateringRating ? 'fill-amber-400 text-amber-400' : 'text-slate-200'}`} 
+                                          />
+                                        </button>
+                                      ))}
+                                    </div>
+                                  </div>
+                                  <input
+                                    type="text"
+                                    value={reviewCateringComment}
+                                    onChange={(e) => setReviewCateringComment(e.target.value)}
+                                    placeholder={lang === 'ar' ? 'جودة المأكولات، الخدمة والمشروبات المبردة المرافقة...' : 'Taste of catering menu, dietary responsiveness, fresh towels...'}
+                                    className="w-full text-xs font-medium px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-500 text-slate-800 bg-slate-50/30"
+                                  />
+                                </div>
+                              </div>
+
+                              {/* General Overall Review Comments */}
+                              <div className="space-y-1.5 pt-2 border-t border-slate-150 animate-fade-in">
+                                <label className="block text-slate-700 font-extrabold">
+                                  {lang === 'ar' ? '٣. تعليقات عامة وملاحظات إضافية' : '3. Additional General Thoughts'}
+                                </label>
+                                <textarea
+                                  rows={3}
+                                  value={reviewGeneralComment}
+                                  onChange={(e) => setReviewGeneralComment(e.target.value)}
+                                  placeholder={lang === 'ar' ? 'ما الذي جعل هذه الرحلة استثنائية، أو أي مقترحات تفوق مستوى تطلعاتكم؟...' : 'What did you enjoy most, or how can we elevate our royal standards even further?'}
+                                  className="w-full text-xs font-medium px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-500 text-slate-800 bg-white"
+                                />
+                              </div>
+
+                              {/* Action buttons */}
+                              <div className="flex justify-end gap-3 pt-3 border-t border-slate-150 animate-fade-in">
+                                <button
+                                  type="button"
+                                  onClick={() => setReviewingBookingId(null)}
+                                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg transition-colors cursor-pointer"
+                                >
+                                  {lang === 'ar' ? 'إلغاء وتراجع' : 'Cancel'}
+                                </button>
+                                <button
+                                  type="submit"
+                                  disabled={isSubmittingReview}
+                                  className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-lg transition-colors cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+                                >
+                                  {isSubmittingReview ? (
+                                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                                  ) : (
+                                    <Sparkles className="w-3.5 h-3.5" />
+                                  )}
+                                  <span>{lang === 'ar' ? 'إرسال التقييم الملكي المعتمد' : 'Submit Sovereign Review'}</span>
+                                </button>
+                              </div>
+                            </form>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Right Column: Mini Loyalty Tracker */}
+            <div className="lg:col-span-1 space-y-6">
+              {(() => {
+                const actualTierKey = bookingCount >= 4 ? 'Diamond' : bookingCount === 3 ? 'Platinum' : bookingCount === 2 ? 'Gold' : bookingCount === 1 ? 'Silver' : 'Bronze';
+                const config = TIER_CONFIGS[actualTierKey];
+                const IconComponent = config ? config.icon : Award;
+                
+                // Next tier calculation
+                const getNext = () => {
+                  if (actualTierKey === 'Bronze') return { nameEn: 'Silver Sovereign', nameAr: 'الفضية السيادية', target: 1 };
+                  if (actualTierKey === 'Silver') return { nameEn: 'Gold Majesty', nameAr: 'الذهبية المهيبة', target: 2 };
+                  if (actualTierKey === 'Gold') return { nameEn: 'Platinum Paramount', nameAr: 'البلاتينية الرفيعة', target: 3 };
+                  if (actualTierKey === 'Platinum') return { nameEn: 'Royal Diamond Executive', nameAr: 'الماسية الملكية التنفيذية', target: 4 };
+                  return null;
+                };
+                const next = getNext();
+                const totalSpentUSD = crmProfile?.totalSpentUSD || 0;
+
+                return (
+                  <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm space-y-6 relative overflow-hidden">
+                    {/* Subtle aesthetic backdrop */}
+                    <div className="absolute top-0 right-0 opacity-[0.03] pointer-events-none -mr-8 -mt-8">
+                      <IconComponent className="w-40 h-40 text-slate-900" />
+                    </div>
+
+                    <div className="pb-4 border-b border-slate-100 flex items-center justify-between">
+                      <div>
+                        <h4 className="text-xs font-black uppercase text-slate-800 tracking-wider">
+                          {lang === 'ar' ? 'مستوى الولاء والجوائز' : 'Loyalty Status Tracker'}
+                        </h4>
+                        <p className="text-[10px] text-slate-400 font-semibold mt-0.5">
+                          {lang === 'ar' ? 'سجل الرحلات والميزات النخبوية' : 'Voyage ledger & dynamic privileges'}
+                        </p>
+                      </div>
+                      <span className="h-2 w-2 rounded-full bg-amber-500 animate-ping" />
+                    </div>
+
+                    {/* Current Tier Badge Card */}
+                    <div className={`p-4 rounded-2xl bg-gradient-to-br ${config ? config.cardGradient : 'from-slate-900 to-slate-950'} text-white relative overflow-hidden border ${config ? config.glowClass : 'border-slate-800'}`}>
+                      <span className="text-[8px] bg-white/10 border border-white/20 px-2 py-0.5 rounded-full font-bold uppercase tracking-widest text-slate-300">
+                        {lang === 'ar' ? 'فئتك الحالية' : 'CURRENT STATUS'}
+                      </span>
+                      <h5 className="text-base font-black tracking-wide text-white flex items-center gap-2 mt-2 font-serif">
+                        <IconComponent className={`w-5 h-5 ${config ? config.colorClass : 'text-amber-400'}`} />
+                        <span>{lang === 'ar' ? (config ? config.nameAr : 'البرونزية النخبة') : (config ? config.nameEn : 'Bronze Elite')}</span>
+                      </h5>
+                      <p className="text-[10px] text-slate-300 font-medium mt-1 leading-snug">
+                        {lang === 'ar' 
+                          ? `${bookingCount} رحلات فاخرة مؤكدة ومكتملة`
+                          : `${bookingCount} verified elite voyage${bookingCount === 1 ? '' : 's'} logged`
+                        }
+                      </p>
+
+                      <div className="mt-4 pt-3 border-t border-white/10 flex justify-between text-[10px] font-bold text-slate-300">
+                        <span>{lang === 'ar' ? 'نقاط ماس:' : 'MAS Points:'} {(bookingCount * 1500).toLocaleString()}</span>
+                        <span>{lang === 'ar' ? 'الإنفاق:' : 'Spend:'} ${totalSpentUSD.toLocaleString()} USD</span>
+                      </div>
+                    </div>
+
+                    {/* Progress to Next Milestone */}
+                    {next && (
+                      <div className="space-y-2">
+                        <div className="flex justify-between text-[10px] font-bold text-slate-600 uppercase">
+                          <span>{lang === 'ar' ? `الرحلات: ${bookingCount} / ${next.target}` : `Voyages: ${bookingCount} / ${next.target}`}</span>
+                          <span className="text-amber-600">{lang === 'ar' ? `التالي: ${next.nameAr}` : `Next: ${next.nameEn}`}</span>
+                        </div>
+                        <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden border border-slate-200/50">
+                          <div 
+                            className="h-full bg-amber-400 rounded-full transition-all duration-500"
+                            style={{ width: `${Math.min(100, (bookingCount / next.target) * 100)}%` }}
+                          />
+                        </div>
+                        <p className="text-[10px] text-slate-400 font-semibold leading-relaxed">
+                          {lang === 'ar' 
+                            ? `احجز وأكمل ${next.target - bookingCount} رحلة أخرى لفتح فئة ${next.nameAr} والامتيازات المرافقة.`
+                            : `Complete ${next.target - bookingCount} more luxury booking${next.target - bookingCount === 1 ? '' : 's'} to unlock ${next.nameEn} status benefits.`
+                          }
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Tier Privileges Summary */}
+                    {config && (
+                      <div className="space-y-3 bg-slate-50 p-4 rounded-2xl border border-slate-200/50">
+                        <h5 className="text-[10px] font-black text-slate-600 uppercase tracking-wider">
+                          {lang === 'ar' ? 'بعض امتيازات فئتك الحالية:' : 'Your Exclusive Tier Perks:'}
+                        </h5>
+                        <ul className="space-y-2 text-xs font-semibold text-slate-700">
+                          {(lang === 'ar' ? config.perksAr : config.perksEn).map((perk, idx) => (
+                            <li key={idx} className="flex items-start gap-2 leading-relaxed">
+                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                              <span>{perk}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {/* Button to navigate to full rewards page */}
+                    <button
+                      onClick={() => setActiveTab('rewards')}
+                      className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold text-[10px] uppercase py-3 rounded-xl transition-colors cursor-pointer text-center flex items-center justify-center gap-2 shadow-sm"
+                    >
+                      <Award className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
+                      <span>{lang === 'ar' ? 'عرض تفاصيل الفئات والجوائز كاملة' : 'View Full Rewards & Sandbox'}</span>
+                    </button>
+
+                  </div>
+                );
+              })()}
+            </div>
+          </div>
           </div>
         )}
 
@@ -1491,6 +2365,150 @@ export default function Dashboard({
         )}
 
       </div>
+
+      {sharingBooking && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-lg w-full border border-slate-200 overflow-hidden shadow-2xl animate-fade-in text-slate-800">
+            {/* Header */}
+            <div className="bg-slate-900 text-white px-6 py-4 flex items-center justify-between border-b border-slate-800">
+              <div className="flex items-center gap-2">
+                <Share2 className="w-5 h-5 text-amber-400" />
+                <h3 className="text-base font-bold tracking-tight">
+                  {lang === 'ar' ? 'مشاركة تفاصيل الرحلة الملكية' : 'Share Luxury Expedition'}
+                </h3>
+              </div>
+              <button
+                onClick={() => {
+                  setSharingBooking(null);
+                  setCopiedShareLink(false);
+                  setCopiedShareText(false);
+                }}
+                className="text-slate-400 hover:text-white transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="p-6 space-y-4">
+              <p className="text-xs text-slate-500 font-medium leading-relaxed">
+                {lang === 'ar'
+                  ? 'شارك تفاصيل رحلتك الفاخرة وجدول أعمالك الاستثنائي مع عائلتك وأصدقائك عبر رابط تفاعلي أو رسالة واتساب مجهزة.'
+                  : 'Share your upcoming ultra-luxury expedition details, chauffeur schedules, and itinerary highlights with friends or family.'}
+              </p>
+
+              {/* Itinerary highlight card preview */}
+              <div className="bg-slate-50 border border-slate-200 p-4 rounded-2xl space-y-3 font-sans">
+                <div className="flex justify-between items-center text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+                  <span>{lang === 'ar' ? 'معاينة الرسالة المشاركة' : 'Share Message Preview'}</span>
+                  <span className="text-amber-600">ID: {sharingBooking.id}</span>
+                </div>
+                <div className="bg-white border border-slate-200 p-3 rounded-xl shadow-sm text-xs text-slate-700 whitespace-pre-wrap font-medium font-mono max-h-48 overflow-y-auto leading-relaxed">
+                  {getShareHighlightsText(sharingBooking)}
+                </div>
+              </div>
+
+              {/* Sharing actions */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                {/* Copy public link */}
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const shareUrl = `${window.location.origin}/?share-itinerary=${sharingBooking.id}`;
+                    try {
+                      await navigator.clipboard.writeText(shareUrl);
+                      setCopiedShareLink(true);
+                      setTimeout(() => setCopiedShareLink(false), 2000);
+                    } catch (e) {
+                      const el = document.createElement('textarea');
+                      el.value = shareUrl;
+                      document.body.appendChild(el);
+                      el.select();
+                      document.execCommand('copy');
+                      document.body.removeChild(el);
+                      setCopiedShareLink(true);
+                      setTimeout(() => setCopiedShareLink(false), 2000);
+                    }
+                  }}
+                  className="flex items-center justify-center gap-2 bg-slate-900 hover:bg-slate-800 text-white font-black text-xs py-3 px-4 rounded-xl transition-all shadow-sm cursor-pointer border border-slate-800 uppercase tracking-wider"
+                >
+                  {copiedShareLink ? (
+                    <>
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                      <span>{lang === 'ar' ? 'تم نسخ الرابط!' : 'Link Copied!'}</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-4 h-4 text-amber-400" />
+                      <span>{lang === 'ar' ? 'نسخ الرابط التفاعلي' : 'Copy Public Link'}</span>
+                    </>
+                  )}
+                </button>
+
+                {/* Copy Message Text */}
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const shareText = getShareHighlightsText(sharingBooking);
+                    try {
+                      await navigator.clipboard.writeText(shareText);
+                      setCopiedShareText(true);
+                      setTimeout(() => setCopiedShareText(false), 2000);
+                    } catch (e) {
+                      const el = document.createElement('textarea');
+                      el.value = shareText;
+                      document.body.appendChild(el);
+                      el.select();
+                      document.execCommand('copy');
+                      document.body.removeChild(el);
+                      setCopiedShareText(true);
+                      setTimeout(() => setCopiedShareText(false), 2000);
+                    }
+                  }}
+                  className="flex items-center justify-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-black text-xs py-3 px-4 rounded-xl transition-all shadow-sm cursor-pointer border border-slate-200 uppercase tracking-wider"
+                >
+                  {copiedShareText ? (
+                    <>
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                      <span>{lang === 'ar' ? 'تم نسخ النص!' : 'Text Copied!'}</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-4 h-4 text-slate-500" />
+                      <span>{lang === 'ar' ? 'نسخ النص المجهز' : 'Copy Raw Text'}</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {/* Direct WhatsApp Share button */}
+              <button
+                type="button"
+                onClick={() => handleWhatsAppShare(sharingBooking)}
+                className="w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs py-3.5 px-4 rounded-xl transition-all shadow-md cursor-pointer border border-emerald-700 uppercase tracking-wider"
+              >
+                <MessageSquare className="w-4 h-4" />
+                <span>{lang === 'ar' ? 'مشاركة عبر واتساب المباشر' : 'Share Directly via WhatsApp'}</span>
+              </button>
+            </div>
+
+            {/* Footer */}
+            <div className="bg-slate-50 px-6 py-4 flex justify-end border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => {
+                  setSharingBooking(null);
+                  setCopiedShareLink(false);
+                  setCopiedShareText(false);
+                }}
+                className="bg-slate-200 hover:bg-slate-300 text-slate-700 font-black text-xs py-2.5 px-5 rounded-lg transition-colors cursor-pointer uppercase"
+              >
+                {lang === 'ar' ? 'إغلاق' : 'Close'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

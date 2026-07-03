@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, CreditCard, ChevronRight, ChevronLeft, ShieldCheck, Ticket, Calendar, UserCheck, MessageSquare, Plus, Trash2 } from 'lucide-react';
 import { Tour, CurrencyConfig, Traveler } from '../types.js';
 import { translations } from '../translations.js';
+import SignaturePad from './SignaturePad.js';
 
 interface BookingModalProps {
   tour: Tour;
@@ -31,6 +32,7 @@ export default function BookingModal({
   const [customerEmail, setCustomerEmail] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [customerNationality, setCustomerNationality] = useState('United States');
+  const [signatureUrl, setSignatureUrl] = useState<string | null>(null);
   const [date, setDate] = useState(tour.availableDates[0] || '');
   const [travelerCount, setTravelerCount] = useState(1);
   const [travelers, setTravelers] = useState<Traveler[]>([{ name: '', ageGroup: 'adult' }]);
@@ -130,6 +132,13 @@ export default function BookingModal({
       return;
     }
 
+    if (!signatureUrl) {
+      alert(lang === 'ar' 
+        ? 'الرجاء توقيع اتفاقية الخدمة الفاخرة رقمياً قبل متابعة الدفع.' 
+        : 'Please sign the digital luxury service agreement before finalizing your reservation.');
+      return;
+    }
+
     setLoading(true);
     try {
       const res = await fetch('/api/bookings', {
@@ -150,7 +159,8 @@ export default function BookingModal({
           paymentMethod,
           couponCode: couponValid ? couponCode : undefined,
           selectedExtras,
-          currency: currency
+          currency: currency,
+          signatureUrl
         })
       });
 
@@ -516,6 +526,9 @@ export default function BookingModal({
                   <span className="text-emerald-600 font-sans">{formatLocalPrice(totalUSD)}</span>
                 </div>
               </div>
+
+              {/* Sovereign Luxury Agreement Signature */}
+              <SignaturePad lang={lang} onSave={setSignatureUrl} />
             </div>
           )}
 

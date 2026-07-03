@@ -78,12 +78,33 @@ export interface Booking {
   whatsappSent: boolean;
   notes?: string;
   createdAt: string;
+  detailsConfirmed?: boolean;
+  detailsConfirmedAt?: string;
+  signatureUrl?: string;
   luxuryAddon?: {
     id: string;
     title: LocalizedText;
     priceUSD: number;
     icon?: string;
   };
+  review?: BookingReview;
+}
+
+export interface ComponentReview {
+  rating: number;
+  comment: string;
+}
+
+export interface BookingReview {
+  submittedAt: string;
+  overallRating: number;
+  components: {
+    chauffeur: ComponentReview;
+    guide: ComponentReview;
+    itinerary: ComponentReview;
+    catering: ComponentReview;
+  };
+  generalComment: string;
 }
 
 export interface LuxuryAddonRecommend {
@@ -134,6 +155,15 @@ export interface SupportMessage {
   timestamp: string;
 }
 
+export interface EmailMessage {
+  id: string;
+  recipientEmail: string;
+  subject: string;
+  body: string;
+  attachmentName?: string; // e.g. "MAS_Itinerary_RES-12345.pdf"
+  timestamp: string;
+}
+
 export interface CustomerCRM {
   email: string;
   name: string;
@@ -144,6 +174,7 @@ export interface CustomerCRM {
   notes: string;
   whatsappHistory: WhatsAppMessage[];
   supportHistory: SupportMessage[];
+  emailHistory?: EmailMessage[]; // Optional to support existing CRM objects without migration hassle
   totalSpentUSD: number;
   createdAt: string;
 }
