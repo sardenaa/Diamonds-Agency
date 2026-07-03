@@ -40,10 +40,14 @@ The application is built on a modern, high-performance full-stack TypeScript arc
 ### 1. For Customers
 - **Expedition Booking**: Customers select bespoke historical routes (e.g., *Luxor Secret Tombs*, *Pyramids Sunrise Flight*). They specify traveler counts, special culinary/dietary requirements, select luxury pickup hotels, and request room-specific butler arrangements.
 - **Digital Sign-off**: During checkout, customers execute the **Sovereign Luxury Agreement** by appending their hand-drawn signature directly via a specialized touchscreen canvas.
+- **Instant WhatsApp Communication**:
+  - **Floating Concierge Button**: A gorgeous floating action button available on all pages that directs guests directly to the MAS Royal Concierge WhatsApp chat (`+201202181834`). The button features a state-aware animated greeting tooltip configured in English and Arabic.
+  - **Contextual Form Inquiries**: Interactive WhatsApp triggers are integrated directly inside both the selected tour details and active checkout modals, automatically pre-filling the guest's WhatsApp message with their exact desired expedition title.
 - **VIP Guest Dashboard**:
   - **Download Ticket (PDF)**: Accesses an elegant, print-ready digital boarding pass and security voucher.
   - **Luxury Agreement (PDF)**: Instantly generates and downloads a legally formal, gold-accented service contract embedding their exact touchscreen signature, electronic timestamp, and binding quality covenants.
   - **Live Chat**: Allows customers to interact directly with their designated private butler.
+  - **Booking Coordination**: Instantly launch WhatsApp chat directly from the active ticket to synchronize schedules with their private driver or assigned Egyptologist.
 
 ### 2. For Admins
 - **Analytics & Operations**: Financial tracking of total gross capital, active expeditions, and guest manifests with status indicators.

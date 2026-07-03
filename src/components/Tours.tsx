@@ -357,12 +357,27 @@ export default function Tours({
                     <span className="block text-[10px] text-slate-400 font-bold uppercase">{t.subtotal}</span>
                     <span className="text-2xl md:text-3xl font-black text-slate-900 font-sans">{formatLocalPrice(selectedTour.priceUSD)}</span>
                   </div>
-                  <button
-                    onClick={() => onSelectBookTour(selectedTour)}
-                    className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-black text-sm px-8 py-3.5 rounded-full shadow-lg shadow-amber-500/10 hover:scale-[1.02] transition-transform cursor-pointer"
-                  >
-                    {t.bookNow}
-                  </button>
+                  <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+                    <a
+                      href={`https://wa.me/201202181834?text=${encodeURIComponent(
+                        lang === 'ar' 
+                          ? `مرحباً، أود الاستفسار من الكونسيرج الملكي حول تفاصيل جولة "${selectedTour.title.ar || selectedTour.title.en}".` 
+                          : `Hello, I would like to inquire with the Royal Concierge regarding the "${selectedTour.title.en}" expedition.`
+                      )}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-black text-sm px-6 py-3.5 rounded-full shadow-lg shadow-emerald-500/10 hover:scale-[1.02] transition-transform cursor-pointer text-center flex items-center justify-center gap-1.5"
+                    >
+                      <MessageSquare className="w-4 h-4 text-white" />
+                      <span>{lang === 'ar' ? 'استفسار واتساب' : 'WhatsApp Inquiry'}</span>
+                    </a>
+                    <button
+                      onClick={() => onSelectBookTour(selectedTour)}
+                      className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-black text-sm px-8 py-3.5 rounded-full shadow-lg shadow-amber-500/10 hover:scale-[1.02] transition-transform cursor-pointer"
+                    >
+                      {t.bookNow}
+                    </button>
+                  </div>
                 </div>
               </div>
             )}

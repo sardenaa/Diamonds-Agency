@@ -7,6 +7,7 @@ import BookingModal from './components/BookingModal.js';
 import Dashboard from './components/Dashboard.js';
 import AdminDashboard from './components/AdminDashboard.js';
 import Chatbot from './components/Chatbot.js';
+import WhatsAppFloatingButton from './components/WhatsAppFloatingButton.js';
 import EgyptMap from './components/EgyptMap.js';
 import PriceConverter from './components/PriceConverter.js';
 import VerifiedReviews from './components/VerifiedReviews.js';
@@ -651,6 +652,7 @@ export default function App() {
 
       {/* 4. Luxury Floating Digital Butler Chatbot & Price Converter */}
       <Chatbot lang={lang} />
+      <WhatsAppFloatingButton lang={lang} />
       <PriceConverter lang={lang} currencies={currencies} onUpdateRates={setCurrencies} />
 
       {/* 5. Interactive Checkout Booking Modal Dialog */}

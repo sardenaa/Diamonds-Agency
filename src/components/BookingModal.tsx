@@ -532,6 +532,31 @@ export default function BookingModal({
             </div>
           )}
 
+          {/* Direct WhatsApp help banner */}
+          <div className="mt-6 p-4 bg-emerald-500/5 border border-emerald-500/10 rounded-2xl flex flex-col sm:flex-row items-center justify-between text-xs font-semibold gap-3">
+            <div className="text-slate-600 flex items-center gap-2">
+              <span className="w-2 h-2 bg-emerald-500 rounded-full animate-ping shrink-0" />
+              <span>
+                {lang === 'ar' 
+                  ? 'هل تحتاج إلى ترتيبات حصرية أو مساعدة كونسيرج فورية؟' 
+                  : 'Need customized elite arrangements or instant butler support?'}
+              </span>
+            </div>
+            <a 
+              href={`https://wa.me/201202181834?text=${encodeURIComponent(
+                lang === 'ar' 
+                  ? `مرحباً، أنا مهتم بحجز جولة "${tour.title.ar || tour.title.en}" الفاخرة وأود الاستفسار من الكونسيرج الملكي مباشرة.` 
+                  : `Hello, I am interested in booking the bespoke "${tour.title.en}" expedition and would like to coordinate custom concierge details.`
+              )}`}
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="text-emerald-700 hover:text-emerald-600 flex items-center gap-1.5 font-bold bg-white px-3.5 py-1.5 rounded-xl border border-emerald-500/20 shadow-sm transition-all hover:scale-105"
+            >
+              <MessageSquare className="w-3.5 h-3.5 text-emerald-600" />
+              <span>{lang === 'ar' ? 'دردشة مع الكونسيرج الملكي' : 'WhatsApp Concierge'}</span>
+            </a>
+          </div>
+
         </form>
 
         {/* Footer controls */}

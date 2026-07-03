@@ -805,6 +805,19 @@ ${shareUrl}`;
                           <Share2 className="w-3.5 h-3.5" />
                           <span>{lang === 'ar' ? 'مشاركة تفاصيل الرحلة' : 'Share Itinerary'}</span>
                         </button>
+                        <a 
+                          href={`https://wa.me/201202181834?text=${encodeURIComponent(
+                            lang === 'ar' 
+                              ? `مرحباً كونسيرج MAS الملكي، أود التنسيق بخصوص حجزي رقم ${b.id} لجولة "${b.tourTitle.ar || b.tourTitle.en}".` 
+                              : `Hello MAS Royal Concierge, I would like to coordinate about my booking ${b.id} for the "${b.tourTitle.en}" expedition.`
+                          )}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs w-full py-2 rounded-lg transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+                        >
+                          <MessageSquare className="w-3.5 h-3.5 text-white" />
+                          <span>{lang === 'ar' ? 'واتساب الكونسيرج الملكي' : 'WhatsApp Concierge'}</span>
+                        </a>
                         {!b.detailsConfirmed && (
                           <button
                             onClick={() => {
