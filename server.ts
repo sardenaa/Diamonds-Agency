@@ -392,6 +392,20 @@ MAS Agency Royal Concierge Division`;
     res.json(booking);
   });
 
+  app.delete('/api/bookings/:id', (req, res) => {
+    const db = getDB();
+    const index = db.bookings.findIndex(b => b.id === req.params.id);
+    if (index === -1) {
+      return res.status(404).json({ error: 'Booking not found' });
+    }
+    const id = db.bookings[index].id;
+    const customerEmail = db.bookings[index].customerEmail;
+    db.bookings.splice(index, 1);
+    saveDB(db);
+    logAudit('BOOKING_DELETED', 'Admin Operations', `Permanently deleted booking record: ${id} (Customer: ${customerEmail})`);
+    res.json({ success: true, message: `Booking ${id} deleted successfully.` });
+  });
+
   // Post-Expedition review for individual tour components
   app.post('/api/bookings/:id/review', (req, res) => {
     const db = getDB();
@@ -757,6 +771,32 @@ JSON Schema:
     res.status(201).json(newBlog);
   });
 
+  app.put('/api/blogs/:id', (req, res) => {
+    const db = getDB();
+    const index = db.blogs.findIndex(b => b.id === req.params.id);
+    if (index === -1) {
+      return res.status(404).json({ error: 'Blog post not found' });
+    }
+    const updated = { ...db.blogs[index], ...req.body };
+    db.blogs[index] = updated;
+    saveDB(db);
+    logAudit('BLOG_UPDATED', 'Content Editor', `Updated article: ${updated.title.en}`);
+    res.json(updated);
+  });
+
+  app.delete('/api/blogs/:id', (req, res) => {
+    const db = getDB();
+    const index = db.blogs.findIndex(b => b.id === req.params.id);
+    if (index === -1) {
+      return res.status(404).json({ error: 'Blog post not found' });
+    }
+    const title = db.blogs[index].title.en;
+    db.blogs.splice(index, 1);
+    saveDB(db);
+    logAudit('BLOG_DELETED', 'Content Editor', `Deleted article: ${title}`);
+    res.json({ success: true });
+  });
+
   // 6. Coupons API
   app.get('/api/coupons', (req, res) => {
     const db = getDB();
@@ -775,6 +815,32 @@ JSON Schema:
     saveDB(db);
     logAudit('COUPON_CREATED', 'Marketing Team', `Created promotion coupon: ${newCoupon.code} (${newCoupon.discountPercent}% off)`);
     res.status(201).json(newCoupon);
+  });
+
+  app.put('/api/coupons/:code', (req, res) => {
+    const db = getDB();
+    const index = db.coupons.findIndex(c => c.code.toUpperCase() === req.params.code.toUpperCase());
+    if (index === -1) {
+      return res.status(404).json({ error: 'Coupon not found' });
+    }
+    const updated = { ...db.coupons[index], ...req.body };
+    db.coupons[index] = updated;
+    saveDB(db);
+    logAudit('COUPON_UPDATED', 'Marketing Team', `Updated promotion coupon: ${updated.code}`);
+    res.json(updated);
+  });
+
+  app.delete('/api/coupons/:code', (req, res) => {
+    const db = getDB();
+    const index = db.coupons.findIndex(c => c.code.toUpperCase() === req.params.code.toUpperCase());
+    if (index === -1) {
+      return res.status(404).json({ error: 'Coupon not found' });
+    }
+    const code = db.coupons[index].code;
+    db.coupons.splice(index, 1);
+    saveDB(db);
+    logAudit('COUPON_DELETED', 'Marketing Team', `Deleted coupon code: ${code}`);
+    res.json({ success: true });
   });
 
   app.post('/api/coupons/verify', (req, res) => {
@@ -969,6 +1035,22 @@ JSON Schema:
     saveDB(db);
     logAudit('SUPPORT_TICKET_REPLY', sender === 'customer' ? 'Guest Client' : 'Support Agent', `Added reply to ticket ${ticket.id}`);
     res.json(ticket);
+  });
+
+  app.delete('/api/tickets/:id', (req, res) => {
+    const db = getDB();
+    if (!db.tickets) {
+      return res.status(404).json({ error: 'Ticket not found' });
+    }
+    const index = db.tickets.findIndex(t => t.id === req.params.id);
+    if (index === -1) {
+      return res.status(404).json({ error: 'Ticket not found' });
+    }
+    const id = db.tickets[index].id;
+    db.tickets.splice(index, 1);
+    saveDB(db);
+    logAudit('SUPPORT_TICKET_DELETED', 'Admin CRM', `Deleted support ticket: ${id}`);
+    res.json({ success: true });
   });
 
   app.post('/api/audit-logs', (req, res) => {
@@ -1509,8 +1591,17 @@ JSON Schema:
       countriesData,
       driversData,
       guidesData,
-      auditLogs: db.auditLogs.slice(0, 50) // Return last 50 audit logs
+      auditLogs: db.auditLogs
     });
+  });
+
+  app.post('/api/audit-logs', (req, res) => {
+    const { action, user, details } = req.body;
+    if (!action || !details) {
+      return res.status(400).json({ error: 'Missing action or details' });
+    }
+    logAudit(action, user || 'Admin Manager', details);
+    res.json({ success: true });
   });
 
   // 10. AI Concierge Bot (Google Gemini)

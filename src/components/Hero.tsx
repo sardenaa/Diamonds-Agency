@@ -28,7 +28,8 @@ export default function Hero({ lang, onSearch }: HeroProps) {
     { en: 'Cairo', ar: 'القاهرة' },
     { en: 'Luxor', ar: 'الأقصر' },
     { en: 'Sharm El Sheikh', ar: 'شرم الشيخ' },
-    { en: 'Aswan', ar: 'أسوان' }
+    { en: 'Aswan', ar: 'أسوان' },
+    { en: 'Hurghada', ar: 'الغردقة' }
   ];
 
   return (

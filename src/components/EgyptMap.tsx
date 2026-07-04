@@ -107,6 +107,28 @@ export default function EgyptMap({ lang }: EgyptMapProps) {
         en: ['VIP Sharm El Sheikh Private Yacht Charter', 'Ras Mohammed Snorkeling & Lobster On-Deck'],
         ar: ['رحلة يخت خاصة لكبار الشخصيات في شرم الشيخ', 'غطس رأس محمد مع وجبة الكركند على السطح']
       }
+    },
+    {
+      id: 'hurghada',
+      name: { en: 'Hurghada (Agency HQ)', ar: 'الغردقة (المقر الرئيسي)' },
+      coordinates: { x: '62%', y: '48%' },
+      weather: { en: 'Warm Breeze, 31°C', ar: 'نسيم دافئ، ٣١ م°', temp: '31°C' },
+      attractions: {
+        en: ['Giftun Island Private Beach', 'Hurghada Marina & Yacht Port', 'El Gouna Luxury Lagoons'],
+        ar: ['شاطئ جزيرة جفتون الخاص', 'مارينا الغردقة وميناء اليخوت', 'بحيرات الجونة الفاخرة']
+      },
+      hotels: {
+        en: ['The Oberoi Sahl Hasheesh', 'Steigenberger ALDAU Beach', 'Rixos Premium Magawish'],
+        ar: ['أوبيروي سهل حشيش', 'شتيجنبرجر ألدو بيتش', 'ريكسوس بريميوم مجاويش']
+      },
+      transport: {
+        en: 'VIP Speedboats, Yacht Charters & Mercedes Private Transfer Fleet (HQ Base)',
+        ar: 'قوارب سريعة فاخرة، تأجير يخوت وأسطول مرسيدس الخاص للتقل الملكي (مقرنا الرئيسي)'
+      },
+      tours: {
+        en: ['Sovereign Hurghada Private Yacht & Red Sea Safari', 'Hurghada Premium Desert Quad ATV Safari'],
+        ar: ['رحلة يخت الغردقة السيادية الخاصة وسفاري البحر الأحمر', 'رحلة سفاري الغردقة الفاخرة بالدراجات الرباعية']
+      }
     }
   ];
 

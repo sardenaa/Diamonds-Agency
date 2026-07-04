@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Compass, Users, BarChart3, Award, Sparkles, PhoneCall, ShieldCheck, Ticket, Download, ArrowRight, X, Heart, MessageSquare, Crown, Utensils, Ship, Plus, Check, Loader2 } from 'lucide-react';
+import { Compass, Users, BarChart3, Award, Sparkles, PhoneCall, ShieldCheck, Ticket, Download, ArrowRight, X, Heart, MessageSquare, Crown, Utensils, Ship, Plus, Check, Loader2, Star, Printer } from 'lucide-react';
 import LanguageSelector from './components/LanguageSelector.js';
 import Hero from './components/Hero.js';
 import Tours from './components/Tours.js';
 import BookingModal from './components/BookingModal.js';
 import Dashboard from './components/Dashboard.js';
 import AdminDashboard from './components/AdminDashboard.js';
+import AdminSecurityGate from './components/AdminSecurityGate.js';
 import Chatbot from './components/Chatbot.js';
 import WhatsAppFloatingButton from './components/WhatsAppFloatingButton.js';
 import EgyptMap from './components/EgyptMap.js';
@@ -20,6 +21,14 @@ export default function App() {
   const [currency, setCurrency] = useState('USD');
   const [role, setRole] = useState<'guest' | 'customer' | 'admin'>('guest');
   const [searchFilters, setSearchFilters] = useState({ query: '', destination: '', date: '' });
+
+  // Admin Security States
+  const [isAdminVerified, setIsAdminVerified] = useState<boolean>(() => {
+    return localStorage.getItem('mas_admin_verified') === 'true';
+  });
+  const [adminPermissionTier, setAdminPermissionTier] = useState<string>(() => {
+    return localStorage.getItem('mas_admin_tier') || 'Sovereign Admin';
+  });
   
   // Dialog controls
   const [selectedBookTour, setSelectedBookTour] = useState<Tour | null>(null);
@@ -88,6 +97,81 @@ export default function App() {
       fetchSharedBooking();
     }
   }, [lang]);
+
+  // Digital Boarding Pass state
+  const [showBoardingPass, setShowBoardingPass] = useState(false);
+
+  // Review form states
+  const [showReviewModal, setShowReviewModal] = useState(false);
+  const [overallRating, setOverallRating] = useState(5);
+  const [guideRating, setGuideRating] = useState(5);
+  const [guideComment, setGuideComment] = useState('');
+  const [driverRating, setDriverRating] = useState(5);
+  const [driverComment, setDriverComment] = useState('');
+  const [generalComment, setGeneralComment] = useState('');
+  const [reviewSubmitting, setReviewSubmitting] = useState(false);
+
+  const handleSubmitReview = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!sharedBooking) return;
+    setReviewSubmitting(true);
+    try {
+      const res = await fetch(`/api/bookings/${sharedBooking.id}/review`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          overallRating,
+          components: {
+            chauffeur: {
+              rating: driverRating,
+              comment: driverComment
+            },
+            guide: {
+              rating: guideRating,
+              comment: guideComment
+            },
+            itinerary: {
+              rating: overallRating,
+              comment: generalComment
+            },
+            catering: {
+              rating: overallRating,
+              comment: ''
+            }
+          },
+          generalComment
+        })
+      });
+      if (res.ok) {
+        // Fetch or update local booking object to contain this review so it renders instantly
+        const updatedBooking = {
+          ...sharedBooking,
+          review: {
+            submittedAt: new Date().toISOString(),
+            overallRating,
+            components: {
+              chauffeur: { rating: driverRating, comment: driverComment },
+              guide: { rating: guideRating, comment: guideComment },
+              itinerary: { rating: overallRating, comment: generalComment }
+            },
+            generalComment
+          }
+        };
+        setSharedBooking(updatedBooking);
+        setShowReviewModal(false);
+        alert(lang === 'ar' ? 'تم تقديم تقييمك الملكي بنجاح!' : 'Your royal review has been submitted successfully!');
+      } else {
+        alert(lang === 'ar' ? 'فشل تقديم التقييم.' : 'Failed to submit review.');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Error submitting review.');
+    } finally {
+      setReviewSubmitting(false);
+    }
+  };
 
   // Luxury Add-ons states
   const [recommendations, setRecommendations] = useState<any[]>([]);
@@ -239,11 +323,94 @@ export default function App() {
 
   if (sharedBooking) {
     const isAr = lang === 'ar';
+    const todayString = new Date().toISOString().split('T')[0];
+    const isTourPassed = sharedBooking.date <= todayString;
+    const hasSubmittedReview = !!sharedBooking.review;
     const activeCurrency = currencies.find(c => c.code === currency) || currencies[0];
     const localTotal = (sharedBooking.totalAmountUSD * activeCurrency.rateToUSD).toFixed(2);
     const formattedPrice = isAr 
       ? `${localTotal} ${activeCurrency.symbol}`
       : `${activeCurrency.symbol}${localTotal}`;
+
+    // Helper for printing itinerary day-by-day
+    const getPrintItinerary = () => {
+      const tourId = sharedBooking.tourId;
+      const tourTitleEn = (sharedBooking.tourTitle?.en || '').toLowerCase();
+      
+      if (tourId === 'tour-1' || tourTitleEn.includes('pyramid') || tourTitleEn.includes('cairo') || tourTitleEn.includes('sphinx')) {
+        return [
+          {
+            day: 1,
+            title: isAr ? 'الاستقبال الملكي والتحرك بالمرسيدس' : 'Royal Reception & Mercedes Pickup',
+            description: isAr
+              ? 'يقوم سائقنا المحترف باصطحابك من فندقك الفاخر بسيارة مرسيدس V-Class خاصة مع مناشف مبردة ومشروبات فاخرة.'
+              : 'Our professional chauffeur picks you up from your luxury hotel in a private Mercedes V-Class with chilled towels and premium refreshments.'
+          },
+          {
+            day: 2,
+            title: isAr ? 'دخول حصري للهرم الأكبر' : 'Exclusive Great Pyramid Access',
+            description: isAr
+              ? 'تجاوز جميع خطوط الانتظار العامة. امشِ عبر الغرف الخاصة لخوفو مع مرشدك الأكاديمي المخصص لشرح الأسرار القديمة.'
+              : 'Bypass all public lines. Walk through the private chambers of Khufu with your dedicated scholar guide explaining ancient secrets.'
+          },
+          {
+            day: 3,
+            title: isAr ? 'ركوب الجمال الملكي في الصحراء وغداء فاخر' : 'Royal Desert Camel Ride & Gourmet Lunch',
+            description: isAr
+              ? 'اركب الجمال الصحراوية الفاخرة أو الدراجات الرباعية إلى جناحنا الخاص. استمتع بقائمة طعام 5 نجوم مع خلفية الأهرامات.'
+              : 'Ride premium desert camels or quad bikes to our private pavilion. Enjoy a 5-star catering menu with pyramids backdrop.'
+          }
+        ];
+      } else if (tourId === 'tour-2' || tourTitleEn.includes('nile') || tourTitleEn.includes('dahabiya') || tourTitleEn.includes('luxor') || tourTitleEn.includes('aswan')) {
+        return [
+          {
+            day: 1,
+            title: isAr ? 'الصعود على الدهبية وجولة البر الشرقي الخاصة' : 'Boarding the Dahabiya & East Bank Private Tour',
+            description: isAr
+              ? 'اصعد على متن يخت الدهبية الفاخر فائق الخصوصية. تذوق مشروبات الترحيب المخصصة تليها جولة غروب ساحرة داخل معبد الكرنك.'
+              : 'Embark on our ultra-private luxury Dahabiya yacht. Savor custom welcoming drinks followed by a curated twilight walk inside Karnak Temple.'
+          },
+          {
+            day: 2,
+            title: isAr ? 'وادي الملوك الفاخر ومقبرة سيتي الأول' : 'VIP Valley of the Kings & Seti I Tomb',
+            description: isAr
+              ? 'انزل إلى مقبرة سيتي الأول الحصرية (المغلقة عادةً أمام الجمهور العام) ومقبرة توت عنخ آمون. إبحار بعد الظهر مع شاي بعد الظهر الفاخر.'
+              : 'Descend into the exclusive Tomb of Seti I (normally closed to general public) and Tutankhamun. Afternoon sail with luxury afternoon high tea.'
+          },
+          {
+            day: 3,
+            title: isAr ? 'معبد إدفو وعشاء اليخوت الملكي' : 'Temple of Edfu & Royal Gala Dinner',
+            description: isAr
+              ? 'قم بزيارة معبد إدفو عبر عربة تجرها الخيول الفاخرة. اختتم الرحلة بعشاء ملكي فاخر على ضوء الشموع على جزيرة في النيل.'
+              : 'Visit Edfu temple via luxury horse-drawn carriage. End the journey with a candlelit royal gala dinner on an island on the Nile.'
+          }
+        ];
+      } else {
+        return [
+          {
+            day: 1,
+            title: isAr ? 'صعود كبار الشخصيات في المارينا' : 'VIP Boarding at Marina',
+            description: isAr
+              ? 'الوصول عبر خدمة النقل الفاخرة الخاصة بمرسيدس. اصعد إلى يختك الخاص الرائع مع كوب مبرد من العصير الفوار الفاخر.'
+              : 'Arrive via private Mercedes luxury transport. Step onto your pristine private yacht with a glass of premium sparkling juice.'
+          },
+          {
+            day: 2,
+            title: isAr ? 'الغوص ورأس محمد سنوركلينج' : 'Ras Mohammed Snorkeling & Coral Dives',
+            description: isAr
+              ? 'أبحر إلى يولاندا ريف. استكشف حطام السفن تحت الماء والحدائق المرجانية النابضة بالحياة برفقة عالم أحياء مائية خاص.'
+              : 'Sail to Yolanda Reef. Explore underwater shipwrecks and vibrant gardens accompanied by a private marine biologist.'
+          },
+          {
+            day: 3,
+            title: isAr ? 'وليمة استاكوزا طازجة على اليخت وإبحار الغروب' : 'On-Deck Lobster Feast & Sunset Sail',
+            description: isAr
+              ? 'تذوق غداءً من الاستاكوزا المشوية والجمبري الطازج. ارتشف المشروبات اللذيذة على السرير الشمسي بينما نبحر عائدين على طول ساحل سيناء في الساعة الذهبية.'
+              : 'Savor a freshly grilled lobster and prawn lunch. Sip cocktails on the sunbed as we cruise back along the Sinai coast during golden hour.'
+          }
+        ];
+      }
+    };
 
     // Gallery images selection logic
     const tourId = sharedBooking.tourId;
@@ -384,7 +551,8 @@ export default function App() {
     }
 
     return (
-      <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between overflow-x-hidden font-sans" dir={isAr ? 'rtl' : 'ltr'}>
+      <>
+        <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between overflow-x-hidden font-sans print:hidden" dir={isAr ? 'rtl' : 'ltr'}>
         {/* Public Header */}
         <header className="border-b border-slate-900 bg-slate-950/80 backdrop-blur-xl px-4 md:px-8 py-4 sticky top-0 z-40">
           <div className="max-w-4xl mx-auto flex items-center justify-between">
@@ -553,6 +721,163 @@ export default function App() {
               <span className="text-xs font-black uppercase text-slate-400 tracking-wider">TOTAL LEDGER VALUE</span>
               <span className="text-lg md:text-2xl font-black text-emerald-400 font-sans tracking-tight">{formattedPrice}</span>
             </div>
+
+            {/* 24/7 VIP Emergency Assistance Desk */}
+            <div className="bg-slate-950 border border-rose-500/20 p-5 rounded-2xl relative overflow-hidden space-y-4">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-rose-500/5 rounded-full blur-2xl pointer-events-none" />
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex items-start gap-3">
+                  <div className="bg-rose-500/10 p-2.5 rounded-xl text-rose-500 shrink-0 mt-0.5 animate-pulse">
+                    <PhoneCall className="w-5 h-5" />
+                  </div>
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] bg-rose-500/15 text-rose-400 border border-rose-500/20 px-2.5 py-0.5 rounded-full font-black tracking-wider uppercase">
+                        {isAr ? 'دعم طوارئ كبار الشخصيات على مدار الساعة' : '24/7 VIP EMERGENCY ASSISTANCE'}
+                      </span>
+                    </div>
+                    <h4 className="font-extrabold text-sm text-white uppercase tracking-tight">
+                      {isAr ? 'مكتب اتصال المساعد المباشر الفاخر' : "Diamond Agency's VIP Concierge"}
+                    </h4>
+                    <p className="text-[10px] text-slate-400 font-semibold leading-relaxed">
+                      {isAr
+                        ? 'تواصل مباشرة مع مندوب خدمة العملاء الفائقة لأي مساعدة أو تعديل طارئ لمسار الرحلة.'
+                        : 'Immediate one-tap direct connection to your dedicated lead travel architect.'}
+                    </p>
+                  </div>
+                </div>
+                <div className="text-[10px] text-slate-500 font-mono font-bold uppercase shrink-0 text-left sm:text-right">
+                  {isAr ? 'الخط الساخن متاح دائماً' : 'Sovereign Priority Line'}
+                  <p className="text-rose-400 text-xs font-black mt-0.5 font-sans">+20 120 218 1834</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                <a
+                  href="tel:+201202181834"
+                  className="bg-rose-600 hover:bg-rose-500 text-white font-extrabold text-xs px-5 py-3.5 rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-rose-950/20 uppercase tracking-wider group cursor-pointer text-center"
+                >
+                  <PhoneCall className="w-4 h-4 group-hover:scale-110 transition-transform shrink-0" />
+                  <span>{isAr ? 'اتصال هاتفي بنقرة واحدة' : 'One-Tap Voice Call'}</span>
+                </a>
+
+                <a
+                  href="https://wa.me/201202181834"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="bg-slate-900 hover:bg-slate-850 text-white font-extrabold text-xs px-5 py-3.5 rounded-xl flex items-center justify-center gap-2 transition-all border border-slate-800 uppercase tracking-wider group cursor-pointer text-center"
+                >
+                  <MessageSquare className="w-4 h-4 text-emerald-400 group-hover:scale-110 transition-transform shrink-0" />
+                  <span>{isAr ? 'إرسال رسالة مباشرة' : 'Direct VIP Message'}</span>
+                </a>
+              </div>
+            </div>
+
+            {/* Sharing & Boarding Pass Actions */}
+            <div className="border-t border-slate-800/60 pt-5 mt-4 space-y-4">
+              {/* Show review summary if already submitted */}
+              {hasSubmittedReview && (
+                <div className="bg-slate-900 border border-emerald-500/20 rounded-2xl p-5 space-y-3">
+                  <div className="flex items-center gap-2 text-emerald-400">
+                    <Check className="w-4 h-4 shrink-0" />
+                    <span className="text-[10px] font-black uppercase tracking-widest">
+                      {isAr ? 'تم تقديم تقييمك بنجاح' : 'ROYAL EXPEDITION REVIEW RECORDED'}
+                    </span>
+                  </div>
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[10px] text-slate-400 font-bold uppercase">{isAr ? 'التقييم العام:' : 'Overall Experience:'}</span>
+                      <div className="flex items-center">
+                        {[...Array(5)].map((_, i) => (
+                          <Star
+                            key={i}
+                            className={`w-3.5 h-3.5 ${
+                              i < (sharedBooking.review?.overallRating || 5) ? 'fill-amber-400 text-amber-400' : 'text-slate-700'
+                            }`}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                    {sharedBooking.review?.components?.guide && (
+                      <div className="text-[11px] text-slate-300">
+                        <p className="font-bold text-slate-200">
+                          👨‍🏫 {isAr ? 'تقييم المرشد الأثري:' : 'Certified Egyptologist:'}{' '}
+                          <span className="text-amber-400 font-black">{sharedBooking.review.components.guide.rating}/5</span>
+                        </p>
+                        {sharedBooking.review.components.guide.comment && (
+                          <p className="text-slate-400 italic mt-0.5 pl-4 border-l border-slate-800">
+                            "{sharedBooking.review.components.guide.comment}"
+                          </p>
+                        )}
+                      </div>
+                    )}
+                    {sharedBooking.review?.components?.chauffeur && (
+                      <div className="text-[11px] text-slate-300">
+                        <p className="font-bold text-slate-200">
+                          🚗 {isAr ? 'تقييم السائق الخاص:' : 'Private Chauffeur:'}{' '}
+                          <span className="text-amber-400 font-black">{sharedBooking.review.components.chauffeur.rating}/5</span>
+                        </p>
+                        {sharedBooking.review.components.chauffeur.comment && (
+                          <p className="text-slate-400 italic mt-0.5 pl-4 border-l border-slate-800">
+                            "{sharedBooking.review.components.chauffeur.comment}"
+                          </p>
+                        )}
+                      </div>
+                    )}
+                    {sharedBooking.review?.generalComment && (
+                      <div className="text-[11px] text-slate-300 border-t border-slate-800 pt-2 mt-2">
+                        <span className="text-slate-400 font-bold uppercase">{isAr ? 'التعليق العام:' : 'General Comment:'}</span>
+                        <p className="text-slate-200 italic mt-0.5">"{sharedBooking.review.generalComment}"</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                <a
+                  href={`https://api.whatsapp.com/send?text=${encodeURIComponent(
+                    isAr
+                      ? `مرحباً! إليك مسار رحلتنا الفاخرة المعتمدة لجولتنا القادمة "${sharedBooking.tourTitle.ar}" في ${sharedBooking.date}. رقم الحجز: ${sharedBooking.id}. يمكنك الاطلاع على كامل التفاصيل والمسار المباشر وسائق المرسيدس الخاص من هنا:\n\n${window.location.href}`
+                      : `Hello! Here is our official luxury travel itinerary for our upcoming "${sharedBooking.tourTitle.en}" on ${sharedBooking.date}. Reservation ID: ${sharedBooking.id}. View live routing, personal chauffeur details, and digital boarding pass here:\n\n${window.location.href}`
+                  )}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs px-5 py-3.5 rounded-2xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-emerald-950/20 uppercase tracking-wider group border border-emerald-500/20 cursor-pointer text-center"
+                >
+                  <svg viewBox="0 0 24 24" className="w-4 h-4 fill-current group-hover:scale-110 transition-transform shrink-0">
+                    <path d="M12.012 2c-5.506 0-9.988 4.482-9.988 9.988 0 1.761.458 3.477 1.328 5.004l-1.411 5.15 5.27-1.383c1.479.807 3.14 1.231 4.801 1.231 5.506 0 9.988-4.482 9.988-9.988C22 6.482 17.518 2 12.012 2zm5.787 14.397c-.237.669-1.189 1.228-1.642 1.277-.453.048-.901.218-2.909-.575-2.573-1.018-4.212-3.645-4.34-3.816-.128-.17-1.026-1.365-1.026-2.604 0-1.24.646-1.849.873-2.102.227-.253.495-.316.66-.316.165 0 .33.003.474.01.152.007.356-.057.557.426.206.495.706 1.724.767 1.85.061.127.102.274.018.443-.083.17-.124.274-.248.417-.124.143-.261.32-.372.43-.124.124-.253.259-.11.505.143.245.635 1.047 1.365 1.696.942.837 1.737 1.096 1.985 1.219.248.123.392.102.536-.062.144-.165.619-.723.784-.97.165-.247.33-.206.557-.123.227.082 1.444.68 1.691.804.248.124.413.186.475.294.062.108.062.624-.175 1.293z" />
+                  </svg>
+                  <span>{isAr ? 'مشاركة عبر واتساب' : 'Share via WhatsApp'}</span>
+                </a>
+
+                <button
+                  onClick={() => setShowBoardingPass(true)}
+                  className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-xs px-5 py-3.5 rounded-2xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-amber-950/20 uppercase tracking-wider group border border-amber-400/20 cursor-pointer"
+                >
+                  <Ticket className="w-4 h-4 group-hover:scale-110 transition-transform shrink-0" />
+                  <span>{isAr ? 'بطاقة الصعود الرقمية' : 'Digital Boarding Pass'}</span>
+                </button>
+
+                <button
+                  onClick={() => window.print()}
+                  className="bg-slate-800 hover:bg-slate-700 text-white font-extrabold text-xs px-5 py-3.5 rounded-2xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-slate-950/20 uppercase tracking-wider group border border-slate-700 cursor-pointer text-center"
+                >
+                  <Printer className="w-4 h-4 group-hover:scale-110 transition-transform shrink-0" />
+                  <span>{isAr ? 'تحميل المسار كـ PDF' : 'Download Itinerary PDF'}</span>
+                </button>
+
+                {isTourPassed && !hasSubmittedReview && (
+                  <button
+                    onClick={() => setShowReviewModal(true)}
+                    className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-extrabold text-xs px-5 py-3.5 rounded-2xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-amber-950/20 uppercase tracking-wider group cursor-pointer"
+                  >
+                    <Star className="w-4 h-4 fill-slate-950 text-slate-950 group-hover:scale-110 transition-transform shrink-0" />
+                    <span>{isAr ? 'كتابة تقييم للرحلة' : 'Leave a Review'}</span>
+                  </button>
+                )}
+              </div>
+            </div>
           </div>
 
           {/* Tour Gallery Section */}
@@ -626,9 +951,430 @@ export default function App() {
           <p>© {new Date().getFullYear()} {t.brandName} ROYAL CONCIERGE DIVISION. ALL VIP RIGHTS RESERVED.</p>
           <p className="text-slate-600">SECURE CRYPTOGRAPHIC DISPATCH LEDGER VERIFIED</p>
         </footer>
+
+        {/* Boarding Pass Modal */}
+        {showBoardingPass && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/95 backdrop-blur-md overflow-y-auto">
+            <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-md w-full shadow-2xl relative overflow-hidden flex flex-col my-8">
+              {/* Premium Top Bar */}
+              <div className="bg-slate-950 border-b border-slate-800 p-5 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Crown className="w-4 h-4 text-amber-500" />
+                  <span className="text-[10px] text-slate-300 font-black uppercase tracking-widest">
+                    MAS SOVEREIGN BOARDING PASS
+                  </span>
+                </div>
+                <button
+                  onClick={() => setShowBoardingPass(false)}
+                  className="text-slate-400 hover:text-white p-1.5 rounded-xl bg-slate-900 hover:bg-slate-850 transition-all cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Boarding Pass Ticket Container */}
+              <div className="p-6 space-y-6 flex-1">
+                {/* Perforated design header */}
+                <div className="text-center space-y-1">
+                  <span className="text-[8px] bg-amber-500/10 text-amber-400 border border-amber-500/20 px-3 py-1 rounded-full font-black tracking-widest uppercase">
+                    {isAr ? 'تصريح مرور المسار المعتمد' : 'VERIFIED EXPEDITION ACCESS'}
+                  </span>
+                  <h3 className="text-base font-black text-white uppercase tracking-tight">
+                    {isAr ? 'بطاقة الصعود الرقمية الفاخرة' : 'Sovereign Boarding Pass'}
+                  </h3>
+                </div>
+
+                {/* Ticket Details */}
+                <div className="bg-slate-950 rounded-2xl border border-slate-800 p-4 space-y-4">
+                  {/* Grid */}
+                  <div className="grid grid-cols-2 gap-4 text-[10px] uppercase font-bold text-slate-400">
+                    <div>
+                      <span className="text-slate-500 block mb-0.5">{isAr ? 'اسم الضيف' : 'PASSENGER / GUEST'}</span>
+                      <span className="text-slate-200 text-xs font-extrabold truncate block">
+                        {userEmail}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 block mb-0.5">{isAr ? 'رمز التصريح' : 'CLEARANCE ID'}</span>
+                      <span className="text-amber-400 text-xs font-black font-mono block truncate">
+                        {sharedBooking.id.substring(0, 13).toUpperCase()}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 block mb-0.5">{isAr ? 'تاريخ المغامرة' : 'EXPEDITION DATE'}</span>
+                      <span className="text-slate-200 text-xs font-extrabold block">
+                        {sharedBooking.date}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 block mb-0.5">{isAr ? 'حالة الدفع' : 'STATUS'}</span>
+                      <span className="text-emerald-400 text-xs font-extrabold block">
+                        {isAr ? 'مصادق ومعتمد' : 'VERIFIED & PAID'}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="border-t border-dashed border-slate-800/80 my-3" />
+
+                  {/* Tour details */}
+                  <div className="text-[10px] uppercase">
+                    <span className="text-slate-500 font-bold block mb-0.5">{isAr ? 'الجولة المختارة' : 'SELECTED VOYAGE'}</span>
+                    <span className="text-white text-xs font-black block leading-snug">
+                      {isAr ? sharedBooking.tourTitle.ar : sharedBooking.tourTitle.en}
+                    </span>
+                  </div>
+
+                  {/* Driver / Guide */}
+                  <div className="grid grid-cols-2 gap-4 text-[10px] uppercase font-bold text-slate-400 mt-2">
+                    <div>
+                      <span className="text-slate-500 block mb-0.5">{isAr ? 'السائق الخاص' : 'CHAUFFEUR'}</span>
+                      <span className="text-slate-300 text-xs font-bold block truncate">
+                        {sharedBooking.driverName || (isAr ? 'مرسيدس الفئة S الفاخرة' : 'S-Class Luxury')}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 block mb-0.5">{isAr ? 'المرشد الخاص' : 'EGYPTOLOGIST'}</span>
+                      <span className="text-slate-300 text-xs font-bold block truncate">
+                        {sharedBooking.guideName || (isAr ? 'مرشد أثري معتمد' : 'Certified Egyptologist')}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Perforated lines separation */}
+                <div className="relative flex items-center justify-between my-2 py-2">
+                  <div className="absolute left-[-25px] w-6 h-6 bg-slate-950 rounded-full border border-slate-800 border-l-transparent border-t-transparent border-b-transparent" />
+                  <div className="w-full border-t border-dashed border-slate-800" />
+                  <div className="absolute right-[-25px] w-6 h-6 bg-slate-950 rounded-full border border-slate-800 border-r-transparent border-t-transparent border-b-transparent" />
+                </div>
+
+                {/* QR Code section */}
+                <div className="text-center space-y-3">
+                  <div className="bg-white p-4 rounded-3xl inline-block shadow-2xl border border-slate-800">
+                    <img
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&color=0f172a&bgcolor=ffffff&data=${encodeURIComponent(
+                        window.location.origin + '/?view-itinerary=' + sharedBooking.id
+                      )}`}
+                      alt="Digital Security Verification QR Code"
+                      className="w-40 h-40 object-contain mx-auto block"
+                      referrerPolicy="no-referrer"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <span className="text-[9px] text-slate-500 font-mono font-bold tracking-widest block">
+                      {isAr ? 'مسح رمز الاستجابة للتحقق عند الوصول' : 'SCAN FOR VERIFICATION UPON ARRIVAL'}
+                    </span>
+                    <p className="text-[10px] text-slate-400 font-semibold leading-relaxed max-w-xs mx-auto">
+                      {isAr
+                        ? 'يرجى تقديم هذه البطاقة الرقمية مع رمز الاستجابة السريعة لممثلي الاستقبال والمرشد عند نقطة الالتقاء.'
+                        : 'Present this digital pass to your private chauffeur or Egyptologist guide for instant clearance.'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Close footer action */}
+              <div className="bg-slate-950 border-t border-slate-800 p-4">
+                <button
+                  onClick={() => setShowBoardingPass(false)}
+                  className="w-full bg-slate-900 hover:bg-slate-850 text-white font-extrabold text-xs py-3.5 rounded-2xl uppercase tracking-wider transition-all border border-slate-800 cursor-pointer"
+                >
+                  {isAr ? 'إغلاق البطاقة الرقمية' : 'Dismiss Boarding Pass'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Leave a Review Modal */}
+        {showReviewModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/95 backdrop-blur-md overflow-y-auto">
+            <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-lg w-full shadow-2xl relative overflow-hidden flex flex-col my-8">
+              {/* Top bar */}
+              <div className="bg-slate-950 border-b border-slate-800 p-5 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Star className="w-4 h-4 text-amber-500 fill-amber-500" />
+                  <span className="text-[10px] text-slate-300 font-black uppercase tracking-widest">
+                    {isAr ? 'تقييم مغامرة MAS الاستثنائية' : 'RATE YOUR MAS ROYAL EXPEDITION'}
+                  </span>
+                </div>
+                <button
+                  onClick={() => setShowReviewModal(false)}
+                  className="text-slate-400 hover:text-white p-1.5 rounded-xl bg-slate-900 hover:bg-slate-850 transition-all cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <form onSubmit={handleSubmitReview} className="p-6 space-y-6 overflow-y-auto flex-1">
+                <div className="text-center space-y-1">
+                  <span className="text-[8px] bg-amber-500/10 text-amber-400 border border-amber-500/20 px-3 py-1 rounded-full font-black tracking-widest uppercase">
+                    {isAr ? 'مشاركة انطباعاتك الملكية' : 'SHARE YOUR ROYAL IMPRESSIONS'}
+                  </span>
+                  <h3 className="text-base font-black text-white uppercase tracking-tight">
+                    {isAr ? 'تقييم تجربة الرحلة والخدمات' : 'Rate Your Luxury Experience'}
+                  </h3>
+                </div>
+
+                {/* Overall Rating */}
+                <div className="bg-slate-950 rounded-2xl border border-slate-800 p-4 space-y-2">
+                  <label className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">
+                    {isAr ? 'التقييم العام للتجربة' : 'Overall Experience Rating'}
+                  </label>
+                  <div className="flex items-center gap-2">
+                    {[1, 2, 3, 4, 5].map((stars) => (
+                      <button
+                        type="button"
+                        key={stars}
+                        onClick={() => setOverallRating(stars)}
+                        className="p-1 cursor-pointer transition-transform hover:scale-110"
+                      >
+                        <Star
+                          className={`w-8 h-8 ${
+                            stars <= overallRating ? 'fill-amber-400 text-amber-400' : 'text-slate-700'
+                          }`}
+                        />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Guide Rating & Feedback */}
+                <div className="bg-slate-950 rounded-2xl border border-slate-800 p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">
+                      👨‍🏫 {isAr ? 'تقييم المرشد الأثري الخاص بك' : 'Certified Egyptologist Guide'}
+                    </label>
+                    <div className="flex items-center gap-1">
+                      {[1, 2, 3, 4, 5].map((stars) => (
+                        <button
+                          type="button"
+                          key={stars}
+                          onClick={() => setGuideRating(stars)}
+                          className="p-0.5 cursor-pointer"
+                        >
+                          <Star
+                            className={`w-5 h-5 ${
+                              stars <= guideRating ? 'fill-amber-400 text-amber-400' : 'text-slate-700'
+                            }`}
+                          />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <input
+                    type="text"
+                    value={guideComment}
+                    onChange={(e) => setGuideComment(e.target.value)}
+                    placeholder={isAr ? 'أدخل ملاحظاتك حول مرشدك الأثري...' : 'Provide feedback on your scholar guide...'}
+                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+
+                {/* Driver Rating & Feedback */}
+                <div className="bg-slate-950 rounded-2xl border border-slate-800 p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">
+                      🚗 {isAr ? 'تقييم السائق الخاص بك' : 'Mercedes Chauffeur & Vehicle'}
+                    </label>
+                    <div className="flex items-center gap-1">
+                      {[1, 2, 3, 4, 5].map((stars) => (
+                        <button
+                          type="button"
+                          key={stars}
+                          onClick={() => setDriverRating(stars)}
+                          className="p-0.5 cursor-pointer"
+                        >
+                          <Star
+                            className={`w-5 h-5 ${
+                              stars <= driverRating ? 'fill-amber-400 text-amber-400' : 'text-slate-700'
+                            }`}
+                          />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <input
+                    type="text"
+                    value={driverComment}
+                    onChange={(e) => setDriverComment(e.target.value)}
+                    placeholder={isAr ? 'أدخل ملاحظاتك حول السائق الخاص بك والسيارة...' : 'Provide feedback on your chauffeur and Mercedes vehicle...'}
+                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+
+                {/* General Comment */}
+                <div className="bg-slate-950 rounded-2xl border border-slate-800 p-4 space-y-2">
+                  <label className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">
+                    {isAr ? 'تعليقات إضافية للرحلة الملكية' : 'General Comments / Tour Customization Feedback'}
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={generalComment}
+                    onChange={(e) => setGeneralComment(e.target.value)}
+                    placeholder={isAr ? 'كيف كانت الجولة الإجمالية والخدمات الفاخرة المرافقة؟' : 'How was your overall itinerary flow and royal catering service?'}
+                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500 resize-none"
+                  />
+                </div>
+
+                <div className="pt-2">
+                  <button
+                    type="submit"
+                    disabled={reviewSubmitting}
+                    className="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-black text-xs py-3.5 rounded-2xl uppercase tracking-widest transition-all shadow-md cursor-pointer flex items-center justify-center gap-2"
+                  >
+                    {reviewSubmitting ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin text-slate-950" />
+                        <span>{isAr ? 'جاري توثيق التقييم...' : 'RECORDING FEEDBACK...'}</span>
+                      </>
+                    ) : (
+                      <>
+                        <Check className="w-4 h-4 text-slate-950" />
+                        <span>{isAr ? 'إرسال وتوثيق التقييم' : 'Submit Royal Review'}</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
       </div>
-    );
-  }
+
+      {/* ==================== PRINTABLE PDF TEMPLATE ==================== */}
+      <div className="hidden print:block bg-white text-slate-900 p-8 font-sans" dir={isAr ? 'rtl' : 'ltr'}>
+        {/* Elegant Letterhead Header */}
+        <div className="flex justify-between items-center border-b-2 border-amber-600 pb-4 mb-6">
+          <div className="space-y-1">
+            <h1 className="text-xl font-black tracking-tight text-slate-900 uppercase">
+              {isAr ? 'وكالة ماس للرحلات الفاخرة' : 'MAS AGENCY ROYAL CONCIERGE'}
+            </h1>
+            <p className="text-[9px] text-amber-700 tracking-widest font-mono font-bold uppercase">
+              {isAr ? 'قسم الخدمات السيادية • تصاريح المرور الملكية' : 'Sovereign Dispatch Division • Official Expedition Pass'}
+            </p>
+          </div>
+          <div className="text-right text-[9px] text-slate-500 space-y-0.5">
+            <p className="font-bold">{isAr ? 'وثيقة تصريح رسمي معتمدة' : 'OFFICIAL CLEARANCE PASS'}</p>
+            <p className="font-mono">{new Date().toLocaleDateString()}</p>
+          </div>
+        </div>
+
+        {/* Big Title */}
+        <div className="text-center mb-6">
+          <h2 className="text-base font-extrabold text-slate-900 uppercase tracking-wider">
+            {isAr ? 'تأكيد مسار الرحلة والتحقق الأمني الرقمي' : 'Official Expedition Itinerary & Access Clearance'}
+          </h2>
+          <p className="text-[11px] text-slate-500 mt-1 font-mono">
+            {isAr ? `رمز الحجز: ${sharedBooking.id}` : `Reservation ID: ${sharedBooking.id}`}
+          </p>
+        </div>
+
+        {/* Meta details table */}
+        <table className="w-full text-xs border border-slate-300 rounded-xl overflow-hidden mb-6">
+          <tbody>
+            <tr className="border-b border-slate-200 bg-slate-50">
+              <td className="p-3 font-bold text-slate-500 uppercase text-[9px] w-1/3">{isAr ? 'الضيف الملكي' : 'PASSENGER / GUEST'}</td>
+              <td className="p-3 font-bold text-slate-800">{sharedBooking.customerName} ({sharedBooking.customerEmail})</td>
+            </tr>
+            <tr className="border-b border-slate-200">
+              <td className="p-3 font-bold text-slate-500 uppercase text-[9px]">{isAr ? 'تاريخ الاستكشاف المعتمد' : 'APPROVED EXPEDITION DATE'}</td>
+              <td className="p-3 font-semibold text-slate-800">{sharedBooking.date}</td>
+            </tr>
+            <tr className="border-b border-slate-200 bg-slate-50">
+              <td className="p-3 font-bold text-slate-500 uppercase text-[9px]">{isAr ? 'الرحلة والخدمات المحددة' : 'SELECTED LUXURY VOYAGE'}</td>
+              <td className="p-3 font-bold text-amber-800">
+                {isAr ? sharedBooking.tourTitle.ar : sharedBooking.tourTitle.en}
+              </td>
+            </tr>
+            <tr className="border-b border-slate-200">
+              <td className="p-3 font-bold text-slate-500 uppercase text-[9px]">{isAr ? 'السائق الخاص والسيارة' : 'PRIVATE CHAUFFEUR'}</td>
+              <td className="p-3 font-semibold text-slate-800">
+                {sharedBooking.driverName || (isAr ? 'مرسيدس الفئة S الفاخرة' : 'S-Class Luxury')}
+              </td>
+            </tr>
+            <tr className="border-b border-slate-200 bg-slate-50">
+              <td className="p-3 font-bold text-slate-500 uppercase text-[9px]">{isAr ? 'المرشد الأثري الأكاديمي' : 'CERTIFIED EGYPTOLOGIST'}</td>
+              <td className="p-3 font-semibold text-slate-800">
+                {sharedBooking.guideName || (isAr ? 'مرشد أثري معتمد' : 'Certified Egyptologist')}
+              </td>
+            </tr>
+            <tr className="border-b border-slate-200">
+              <td className="p-3 font-bold text-slate-500 uppercase text-[9px]">{isAr ? 'موقع وفندق الالتقاء' : 'CHAUFFEUR PICKUP ZONE'}</td>
+              <td className="p-3 font-semibold text-slate-800">{sharedBooking.pickupHotel} (Room: {sharedBooking.roomNumber || 'TBD'})</td>
+            </tr>
+            <tr className="bg-slate-50">
+              <td className="p-3 font-bold text-slate-500 uppercase text-[9px]">{isAr ? 'قيمة المعاملة والمصادقة' : 'TOTAL VALUE VERIFIED'}</td>
+              <td className="p-3 font-black text-emerald-700 text-sm">{formattedPrice}</td>
+            </tr>
+          </tbody>
+        </table>
+
+        {/* Itinerary Chronology */}
+        <div className="space-y-4 mb-6">
+          <h3 className="text-[10px] font-black uppercase text-slate-900 border-b border-slate-300 pb-1 mb-2 tracking-widest">
+            {isAr ? 'المسار الزمني المفصل للرحلة الاستكشافية' : 'DETAILED EXPEDITION CHRONOLOGY'}
+          </h3>
+          <div className="space-y-3">
+            {getPrintItinerary().map((item: any, idx: number) => (
+              <div key={idx} className="border-l-2 border-amber-500 pl-4 space-y-1">
+                <span className="text-[9px] font-bold text-amber-700 uppercase tracking-widest font-mono">
+                  {isAr ? `اليوم ${item.day}` : `DAY ${item.day}`}
+                </span>
+                <h4 className="text-xs font-black text-slate-800 uppercase">{item.title}</h4>
+                <p className="text-[11px] text-slate-600 leading-relaxed">{item.description}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Verification and signature section */}
+        <div className="mt-8 border-t border-slate-300 pt-6 flex justify-between items-end">
+          <div className="space-y-3 max-w-sm">
+            <h4 className="text-[9px] font-black text-slate-800 uppercase tracking-wider">
+              {isAr ? 'شروط المرور والتفويض' : 'EXPEDITION ENTRY CLEARANCE'}
+            </h4>
+            <p className="text-[9px] text-slate-500 leading-relaxed">
+              {isAr
+                ? 'تعتبر هذه الوثيقة الرقمية المطبوعة بمثابة تأكيد رسمي وتصريح دخول معتمد لجميع المعالم والخدمات السياحية المشمولة. يرجى تقديم رمز الاستجابة السريعة (QR) عند الوصول ومواقع الاستقبال للتحقق الفوري من الهوية.'
+                : 'This document serves as your official luxury travel confirmation and security pass. All transfers, private VIP guides, meals, and specialized access privileges are fully pre-paid and certified.'}
+            </p>
+            <p className="text-[8px] text-slate-400 font-mono font-bold uppercase">
+              MAS AGENCY SECURITIES LEDGER • STAMP CERTIFIED
+            </p>
+          </div>
+
+          <div className="flex gap-4 items-center">
+            {/* Signature if available */}
+            {sharedBooking.signatureUrl && (
+              <div className="text-center space-y-1">
+                <span className="text-[8px] text-slate-400 font-bold uppercase block">{isAr ? 'توقيع الضيف' : 'GUEST SIGNATURE'}</span>
+                <div className="border border-slate-300 p-1.5 rounded bg-slate-50">
+                  <img src={sharedBooking.signatureUrl} alt="Signature Seal" className="h-8 w-24 object-contain block" referrerPolicy="no-referrer" />
+                </div>
+              </div>
+            )}
+
+            {/* QR verification */}
+            <div className="text-center space-y-1">
+              <span className="text-[8px] text-slate-400 font-bold uppercase block">{isAr ? 'الرمز الرقمي' : 'LEDGER VERIFICATION'}</span>
+              <div className="bg-white p-1 border border-slate-300 rounded">
+                <img
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=100x100&color=0f172a&bgcolor=ffffff&data=${encodeURIComponent(
+                    window.location.origin + '/?view-itinerary=' + sharedBooking.id
+                  )}`}
+                  alt="QR Clearance"
+                  className="w-16 h-16 object-contain block"
+                  referrerPolicy="no-referrer"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
 
   return (
     <div className={`min-h-screen ${tokens.colors.background} ${tokens.colors.textMain} selection:bg-emerald-500 selection:text-white flex flex-col justify-between overflow-x-hidden ${tokens.typography.familySans}`}>
@@ -762,12 +1508,31 @@ export default function App() {
 
         {role === 'admin' && (
           <div className={`${tokens.spacing.containerWide} py-10`}>
-            <AdminDashboard
-              lang={lang}
-              currency={currency}
-              currencies={currencies}
-              onRefreshAll={() => {}}
-            />
+            {!isAdminVerified ? (
+              <AdminSecurityGate
+                lang={lang}
+                onVerify={(tier) => {
+                  setIsAdminVerified(true);
+                  setAdminPermissionTier(tier);
+                  localStorage.setItem('mas_admin_verified', 'true');
+                  localStorage.setItem('mas_admin_tier', tier);
+                }}
+              />
+            ) : (
+              <AdminDashboard
+                lang={lang}
+                currency={currency}
+                currencies={currencies}
+                onRefreshAll={() => {}}
+                adminPermissionTier={adminPermissionTier}
+                onLogoutAdmin={() => {
+                  setIsAdminVerified(false);
+                  setAdminPermissionTier('Sovereign Admin');
+                  localStorage.removeItem('mas_admin_verified');
+                  localStorage.removeItem('mas_admin_tier');
+                }}
+              />
+            )}
           </div>
         )}
       </main>

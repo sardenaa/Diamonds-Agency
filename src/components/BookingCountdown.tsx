@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Calendar, Clock, Sparkles, Compass, MapPin, Ticket, Timer, ShieldCheck, HelpCircle } from 'lucide-react';
 import { Booking } from '../types.js';
+import ProfileModal from './ProfileModal.js';
 
 interface BookingCountdownProps {
   bookings: Booking[];
@@ -78,6 +79,11 @@ const PRESET_VOYAGES: Record<string, SimulatedVoyage> = {
 };
 
 export default function BookingCountdown({ bookings, lang }: BookingCountdownProps) {
+  // Profile modal states
+  const [selectedStaffName, setSelectedStaffName] = useState('');
+  const [selectedStaffRole, setSelectedStaffRole] = useState<'guide' | 'driver'>('guide');
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+
   // Check if there is a real upcoming booking (status pending or confirmed)
   const realUpcoming = [...bookings]
     .filter(b => b.status === 'confirmed' || b.status === 'pending')
@@ -292,7 +298,22 @@ export default function BookingCountdown({ bookings, lang }: BookingCountdownPro
                 <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
                 <div>
                   <span className="block text-slate-400 text-[9px] uppercase font-black tracking-widest">{lang === 'ar' ? 'السائق الخاص' : 'CHAUFFEUR SERVICE'}</span>
-                  <span className="text-slate-100 font-bold">{driverName}</span>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-slate-100 font-bold">{driverName}</span>
+                    {driverName && !driverName.includes('...') && !driverName.includes('جاري') && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedStaffName(driverName);
+                          setSelectedStaffRole('driver');
+                          setIsProfileModalOpen(true);
+                        }}
+                        className="text-[9px] font-extrabold uppercase text-emerald-400 hover:text-emerald-300 hover:underline cursor-pointer bg-transparent border-none p-0 inline-flex items-center"
+                      >
+                        <span>({lang === 'ar' ? 'الملف' : 'Profile'})</span>
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -300,7 +321,22 @@ export default function BookingCountdown({ bookings, lang }: BookingCountdownPro
                 <Sparkles className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
                 <div>
                   <span className="block text-slate-400 text-[9px] uppercase font-black tracking-widest">{lang === 'ar' ? 'المرشد الأثري الخاص' : 'EXECUTIVE SCHOLAR'}</span>
-                  <span className="text-slate-100 font-bold">{guideName}</span>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-slate-100 font-bold">{guideName}</span>
+                    {guideName && !guideName.includes('...') && !guideName.includes('جاري') && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedStaffName(guideName);
+                          setSelectedStaffRole('guide');
+                          setIsProfileModalOpen(true);
+                        }}
+                        className="text-[9px] font-extrabold uppercase text-amber-400 hover:text-amber-300 hover:underline cursor-pointer bg-transparent border-none p-0 inline-flex items-center"
+                      >
+                        <span>({lang === 'ar' ? 'الملف' : 'Profile'})</span>
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
@@ -394,6 +430,15 @@ export default function BookingCountdown({ bookings, lang }: BookingCountdownPro
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Staff Profile Modal */}
+      <ProfileModal
+        isOpen={isProfileModalOpen}
+        onClose={() => setIsProfileModalOpen(false)}
+        staffName={selectedStaffName}
+        role={selectedStaffRole}
+        lang={lang}
+      />
     </div>
   );
 }

@@ -4,6 +4,7 @@ import { Booking, CurrencyConfig, CustomerCRM, SupportMessage, WhatsAppMessage, 
 import { translations } from '../translations.js';
 import LoyaltyTier, { TIER_CONFIGS } from './LoyaltyTier.js';
 import BookingCountdown from './BookingCountdown.js';
+import ProfileModal from './ProfileModal.js';
 
 interface DashboardProps {
   lang: 'en' | 'ar';
@@ -40,6 +41,11 @@ export default function Dashboard({
   const [sharingBooking, setSharingBooking] = useState<Booking | null>(null);
   const [copiedShareLink, setCopiedShareLink] = useState(false);
   const [copiedShareText, setCopiedShareText] = useState(false);
+
+  // Profile modal states
+  const [selectedStaffName, setSelectedStaffName] = useState('');
+  const [selectedStaffRole, setSelectedStaffRole] = useState<'guide' | 'driver'>('guide');
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
 
   const getShareHighlightsText = (b: Booking) => {
     const tourTitleText = lang === 'ar' ? b.tourTitle.ar : b.tourTitle.en;
@@ -734,11 +740,41 @@ ${shareUrl}`;
                         </div>
                         <div>
                           <span className="block text-slate-400 text-[10px] uppercase font-bold tracking-wider">{t.driver}</span>
-                          <span className="text-emerald-700 font-bold">{b.driverName || (lang === 'ar' ? 'جاري تعيين سائق مخصص...' : 'Assigning Driver...')}</span>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="text-emerald-700 font-bold">{b.driverName || (lang === 'ar' ? 'جاري تعيين سائق مخصص...' : 'Assigning Driver...')}</span>
+                            {b.driverName && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedStaffName(b.driverName || '');
+                                  setSelectedStaffRole('driver');
+                                  setIsProfileModalOpen(true);
+                                }}
+                                className="text-[10px] font-extrabold uppercase text-emerald-600 hover:text-emerald-500 hover:underline cursor-pointer bg-transparent border-none p-0 inline-flex items-center gap-0.5"
+                              >
+                                <span>({lang === 'ar' ? 'الملف الشخصي' : 'Profile'})</span>
+                              </button>
+                            )}
+                          </div>
                         </div>
                         <div>
                           <span className="block text-slate-400 text-[10px] uppercase font-bold tracking-wider">{t.guide}</span>
-                          <span className="text-amber-700 font-bold">{b.guideName || (lang === 'ar' ? 'جاري تعيين مرشد أثري...' : 'Assigning Tour Guide...')}</span>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="text-amber-700 font-bold">{b.guideName || (lang === 'ar' ? 'جاري تعيين مرشد أثري...' : 'Assigning Tour Guide...')}</span>
+                            {b.guideName && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedStaffName(b.guideName || '');
+                                  setSelectedStaffRole('guide');
+                                  setIsProfileModalOpen(true);
+                                }}
+                                className="text-[10px] font-extrabold uppercase text-amber-600 hover:text-amber-500 hover:underline cursor-pointer bg-transparent border-none p-0 inline-flex items-center gap-0.5"
+                              >
+                                <span>({lang === 'ar' ? 'الملف الشخصي' : 'Profile'})</span>
+                              </button>
+                            )}
+                          </div>
                         </div>
                       </div>
 
@@ -2522,6 +2558,15 @@ ${shareUrl}`;
           </div>
         </div>
       )}
+
+      {/* Staff Profile Modal */}
+      <ProfileModal
+        isOpen={isProfileModalOpen}
+        onClose={() => setIsProfileModalOpen(false)}
+        staffName={selectedStaffName}
+        role={selectedStaffRole}
+        lang={lang}
+      />
     </div>
   );
 }

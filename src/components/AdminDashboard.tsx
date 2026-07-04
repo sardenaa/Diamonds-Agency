@@ -1,27 +1,36 @@
 import React, { useState, useEffect } from 'react';
-import { BarChart3, Users, BookOpen, ShieldAlert, Sparkles, Plus, Trash2, Edit2, RotateCcw, Send, Calendar, CheckCircle2, DollarSign, Award, RefreshCw, Layers, Ticket, MessageSquare, Bot, AlertTriangle, ShieldCheck, FileSpreadsheet, FileText, Mail } from 'lucide-react';
+import { BarChart3, Users, BookOpen, ShieldAlert, Sparkles, Plus, Trash2, Edit2, RotateCcw, Send, Calendar, CheckCircle2, DollarSign, Award, RefreshCw, Layers, Ticket, MessageSquare, Bot, AlertTriangle, ShieldCheck, FileSpreadsheet, FileText, Mail, Tag, FileEdit, Star, Search, Filter, Check } from 'lucide-react';
 import { Tour, Booking, CustomerCRM, AuditLog, CurrencyConfig, SupportTicket, WhatsAppTemplate } from '../types.js';
 import { translations } from '../translations.js';
 import { googleSignIn, logout, initAuth, getAccessToken } from '../lib/firebase.js';
 import { exportBookingsToSheets } from '../lib/googleSheets.js';
+import ProfileModal from './ProfileModal.js';
 
 interface AdminDashboardProps {
   lang: 'en' | 'ar';
   currency: string;
   currencies: CurrencyConfig[];
   onRefreshAll: () => void;
+  adminPermissionTier?: string;
+  onLogoutAdmin?: () => void;
 }
 
 export default function AdminDashboard({
   lang,
   currency,
   currencies,
-  onRefreshAll
+  onRefreshAll,
+  adminPermissionTier = 'Sovereign Admin',
+  onLogoutAdmin
 }: AdminDashboardProps) {
   const t = translations[lang];
   const activeCurrency = currencies.find(c => c.code === currency) || currencies[0];
 
-  const [activeTab, setActiveTab] = useState<'analytics' | 'operations' | 'crm' | 'cms' | 'logs' | 'ai' | 'ticketing' | 'sheets'>('analytics');
+  const [activeTab, setActiveTab] = useState<'analytics' | 'operations' | 'crm' | 'cms' | 'logs' | 'ai' | 'ticketing' | 'sheets' | 'coupons' | 'blogs'>(() => {
+    if (adminPermissionTier === 'Operations Manager') return 'operations';
+    if (adminPermissionTier === 'Guest Relations Coordinator') return 'crm';
+    return 'analytics';
+  });
   const [analytics, setAnalytics] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [tours, setTours] = useState<Tour[]>([]);
@@ -104,6 +113,55 @@ export default function AdminDashboard({
   const [aiGeneratedContent, setAiGeneratedContent] = useState('');
   const [aiGenerating, setAiGenerating] = useState(false);
 
+  // Expanded Sovereign Management states (Coupons, Blogs, Manual Bookings)
+  const [coupons, setCoupons] = useState<any[]>([]);
+  const [blogs, setBlogs] = useState<any[]>([]);
+
+  // Manual Booking form states
+  const [isManualBookingOpen, setIsManualBookingOpen] = useState(false);
+  const [manualTourId, setManualTourId] = useState('tour-1');
+  const [manualCustomerName, setManualCustomerName] = useState('');
+  const [manualCustomerEmail, setManualCustomerEmail] = useState('');
+  const [manualCustomerPhone, setManualCustomerPhone] = useState('');
+  const [manualCustomerNationality, setManualCustomerNationality] = useState('Egypt');
+  const [manualDate, setManualDate] = useState('2026-07-05');
+  const [manualTravelerCount, setManualTravelerCount] = useState(1);
+  const [manualPickupHotel, setManualPickupHotel] = useState('');
+  const [manualRoomNumber, setManualRoomNumber] = useState('');
+  const [manualSpecialRequests, setManualSpecialRequests] = useState('');
+  const [manualPaymentMethod, setManualPaymentMethod] = useState('Cash');
+
+  // Coupon Manager states
+  const [editingCouponCode, setEditingCouponCode] = useState<string | null>(null);
+  const [newCouponCode, setNewCouponCode] = useState('');
+  const [newCouponDiscount, setNewCouponDiscount] = useState(10);
+  const [newCouponValidUntil, setNewCouponValidUntil] = useState('2026-12-31');
+
+  // Blog Post Manager states
+  const [editingBlogId, setEditingBlogId] = useState<string | null>(null);
+  const [newBlogTitleEn, setNewBlogTitleEn] = useState('');
+  const [newBlogTitleAr, setNewBlogTitleAr] = useState('');
+  const [newBlogDescriptionEn, setNewBlogDescriptionEn] = useState('');
+  const [newBlogDescriptionAr, setNewBlogDescriptionAr] = useState('');
+  const [newBlogBodyEn, setNewBlogBodyEn] = useState('');
+  const [newBlogBodyAr, setNewBlogBodyAr] = useState('');
+  const [newBlogCategory, setNewBlogCategory] = useState('VIP Highlights');
+  const [newBlogImage, setNewBlogImage] = useState('https://images.unsplash.com/photo-1539650116574-8efeb43e2750?auto=format&fit=crop&q=80&w=1200');
+  const [newBlogSlug, setNewBlogSlug] = useState('');
+
+  // Live Preview states
+  const [isLivePreviewOpen, setIsLivePreviewOpen] = useState(false);
+  const [previewLang, setPreviewLang] = useState<'en' | 'ar'>('en');
+
+  // Profile modal states
+  const [selectedStaffName, setSelectedStaffName] = useState('');
+  const [selectedStaffRole, setSelectedStaffRole] = useState<'guide' | 'driver'>('guide');
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+
+  // Logs filters
+  const [logSearch, setLogSearch] = useState('');
+  const [logFilter, setLogFilter] = useState('all');
+
   const fetchAdminData = async () => {
     setLoading(true);
     try {
@@ -126,6 +184,18 @@ export default function AdminDashboard({
       const templatesRes = await fetch('/api/whatsapp-templates');
       const templatesData = await templatesRes.json();
       setWhatsappTemplates(templatesData);
+
+      const couponsRes = await fetch('/api/coupons');
+      if (couponsRes.ok) {
+        const couponsData = await couponsRes.json();
+        setCoupons(couponsData);
+      }
+
+      const blogsRes = await fetch('/api/blogs');
+      if (blogsRes.ok) {
+        const blogsData = await blogsRes.json();
+        setBlogs(blogsData);
+      }
 
       const crmRes = await fetch('/api/crm');
       if (crmRes.ok) {
@@ -222,6 +292,83 @@ export default function AdminDashboard({
     }
   };
 
+  const handleExportCSV = async () => {
+    try {
+      if (bookings.length === 0) {
+        alert('No bookings available to export.');
+        return;
+      }
+      
+      const headers = [
+        'Booking ID',
+        'Tour Title',
+        'Customer Name',
+        'Customer Email',
+        'Customer Phone',
+        'Nationality',
+        'Travelers Count',
+        'Departure Date',
+        'Status',
+        'Payment Status',
+        'Payment Method',
+        'Amount Paid (USD)',
+        'Total Amount (USD)',
+        'Chauffeur Assigned',
+        'Egyptologist Scholar',
+        'Booking Date'
+      ];
+      
+      const rows = bookings.map(b => {
+        const titleEn = b.tourTitle?.en || '';
+        const titleAr = b.tourTitle?.ar || '';
+        const selectedTitle = lang === 'ar' ? titleAr : titleEn;
+        return [
+          b.id,
+          `"${selectedTitle.replace(/"/g, '""')}"`,
+          `"${(b.customerName || '').replace(/"/g, '""')}"`,
+          b.customerEmail,
+          `"${(b.customerPhone || '').replace(/"/g, '""')}"`,
+          `"${(b.customerNationality || '').replace(/"/g, '""')}"`,
+          b.travelerCount,
+          b.date,
+          b.status,
+          b.paymentStatus,
+          b.paymentMethod,
+          b.amountPaidUSD,
+          b.totalAmountUSD,
+          `"${(b.driverName || '').replace(/"/g, '""')}"`,
+          `"${(b.guideName || '').replace(/"/g, '""')}"`,
+          b.createdAt
+        ];
+      });
+      
+      const csvString = [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
+      const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csvString], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.setAttribute("href", url);
+      link.setAttribute("download", `MAS_Sovereign_Bookings_Report_${new Date().toISOString().split('T')[0]}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      // Log activity to audit log on server
+      await fetch('/api/audit-logs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'BOOKINGS_EXPORTED_CSV',
+          user: googleUser?.email || 'Admin Operations',
+          details: `Exported accounting CSV report of ${bookings.length} active bookings.`
+        })
+      });
+      fetchAdminData(); // Refresh the logs list!
+    } catch (e) {
+      console.error(e);
+      alert('Failed to export CSV report.');
+    }
+  };
+
   // Convert USD to local currency
   const toLocalPrice = (usdPrice: number) => {
     return parseFloat((usdPrice * activeCurrency.rateToUSD).toFixed(2));
@@ -263,6 +410,197 @@ export default function AdminDashboard({
         fetchAdminData();
         onRefreshAll();
         alert('Instant refund successfully authorized.');
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  // Operations: delete booking
+  const handleDeleteBooking = async (id: string) => {
+    if (!confirm('Are you absolutely certain you want to permanently delete this reservation from the database? This action is irreversible.')) return;
+    try {
+      const res = await fetch(`/api/bookings/${id}`, {
+        method: 'DELETE'
+      });
+      if (res.ok) {
+        fetchAdminData();
+        onRefreshAll();
+        alert('Booking successfully removed from database.');
+      } else {
+        alert('Failed to delete booking.');
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  // Operations: create manual booking
+  const handleCreateManualBooking = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const res = await fetch('/api/bookings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tourId: manualTourId,
+          customerName: manualCustomerName,
+          customerEmail: manualCustomerEmail,
+          customerPhone: manualCustomerPhone,
+          customerNationality: manualCustomerNationality,
+          date: manualDate,
+          travelerCount: manualTravelerCount,
+          pickupHotel: manualPickupHotel,
+          roomNumber: manualRoomNumber,
+          specialRequests: manualSpecialRequests,
+          paymentMethod: manualPaymentMethod,
+          selectedExtras: []
+        })
+      });
+
+      if (res.ok) {
+        fetchAdminData();
+        onRefreshAll();
+        setIsManualBookingOpen(false);
+        // Reset manual booking inputs
+        setManualCustomerName('');
+        setManualCustomerEmail('');
+        setManualCustomerPhone('');
+        setManualPickupHotel('');
+        setManualRoomNumber('');
+        setManualSpecialRequests('');
+        alert('Manual Booking added successfully!');
+      } else {
+        const err = await res.json();
+        alert(`Failed to create booking: ${err.error || 'unknown error'}`);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  // Coupons: create or edit coupon
+  const handleSaveCoupon = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newCouponCode.trim()) return;
+    try {
+      const url = editingCouponCode ? `/api/coupons/${editingCouponCode}` : '/api/coupons';
+      const method = editingCouponCode ? 'PUT' : 'POST';
+      const body = {
+        code: newCouponCode.trim().toUpperCase(),
+        discountPercent: newCouponDiscount,
+        validUntil: newCouponValidUntil
+      };
+
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+
+      if (res.ok) {
+        fetchAdminData();
+        setNewCouponCode('');
+        setNewCouponDiscount(10);
+        setNewCouponValidUntil('2026-12-31');
+        setEditingCouponCode(null);
+        alert('Coupon successfully processed!');
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  // Coupons: toggle coupon status
+  const handleToggleCoupon = async (code: string, currentActive: boolean) => {
+    try {
+      const res = await fetch(`/api/coupons/${code}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ active: !currentActive })
+      });
+      if (res.ok) {
+        fetchAdminData();
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  // Coupons: delete coupon
+  const handleDeleteCoupon = async (code: string) => {
+    if (!confirm(`Are you sure you want to delete coupon "${code}"?`)) return;
+    try {
+      const res = await fetch(`/api/coupons/${code}`, { method: 'DELETE' });
+      if (res.ok) {
+        fetchAdminData();
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  // Blogs: save or edit blog
+  const handleSaveBlog = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newBlogTitleEn.trim()) return;
+    try {
+      const url = editingBlogId ? `/api/blogs/${editingBlogId}` : '/api/blogs';
+      const method = editingBlogId ? 'PUT' : 'POST';
+      const body = {
+        title: { en: newBlogTitleEn, ar: newBlogTitleAr || newBlogTitleEn },
+        description: { en: newBlogDescriptionEn, ar: newBlogDescriptionAr || newBlogDescriptionEn },
+        body: { en: newBlogBodyEn, ar: newBlogBodyAr || newBlogBodyEn },
+        category: newBlogCategory,
+        image: newBlogImage,
+        slug: newBlogSlug || undefined
+      };
+
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+
+      if (res.ok) {
+        fetchAdminData();
+        // Reset blog form
+        setNewBlogTitleEn('');
+        setNewBlogTitleAr('');
+        setNewBlogDescriptionEn('');
+        setNewBlogDescriptionAr('');
+        setNewBlogBodyEn('');
+        setNewBlogBodyAr('');
+        setNewBlogSlug('');
+        setEditingBlogId(null);
+        alert('Blog post saved successfully!');
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  // Blogs: edit blog button click
+  const handleEditBlogClick = (blog: any) => {
+    setEditingBlogId(blog.id);
+    setNewBlogTitleEn(blog.title.en);
+    setNewBlogTitleAr(blog.title.ar || '');
+    setNewBlogDescriptionEn(blog.description?.en || '');
+    setNewBlogDescriptionAr(blog.description?.ar || '');
+    setNewBlogBodyEn(blog.body.en);
+    setNewBlogBodyAr(blog.body.ar || '');
+    setNewBlogCategory(blog.category);
+    setNewBlogImage(blog.image);
+    setNewBlogSlug(blog.slug || '');
+  };
+
+  // Blogs: delete blog
+  const handleDeleteBlog = async (id: string) => {
+    if (!confirm('Are you sure you want to permanently delete this blog post?')) return;
+    try {
+      const res = await fetch(`/api/blogs/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        fetchAdminData();
       }
     } catch (e) {
       console.error(e);
@@ -654,6 +992,23 @@ export default function AdminDashboard({
     }
   };
 
+  // Delete a support ticket
+  const handleDeleteTicket = async (ticketId: string) => {
+    if (!confirm(`Are you sure you want to permanently delete support ticket "${ticketId}"?`)) return;
+    try {
+      const res = await fetch(`/api/tickets/${ticketId}`, { method: 'DELETE' });
+      if (res.ok) {
+        setSelectedTicketId(null);
+        fetchAdminData();
+        alert('Support ticket deleted successfully.');
+      } else {
+        alert('Failed to delete support ticket.');
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   // Update WhatsApp automation template
   const handleSaveTemplate = async (id: string, text: string) => {
     try {
@@ -700,26 +1055,49 @@ export default function AdminDashboard({
 
   const { summary, revenueByTour, countriesData, driversData, guidesData } = analytics;
 
+  const isTabUnlocked = (tabId: string) => {
+    if (adminPermissionTier === 'Sovereign Admin') return true;
+    if (adminPermissionTier === 'Operations Manager') {
+      return ['operations', 'coupons'].includes(tabId);
+    }
+    if (adminPermissionTier === 'Guest Relations Coordinator') {
+      return ['crm', 'ticketing'].includes(tabId);
+    }
+    return false;
+  };
+
   return (
     <div className="bg-slate-900 text-white rounded-3xl border border-slate-800 p-6 md:p-8 shadow-2xl font-sans">
       
       {/* Top Admin Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center border-b border-slate-800 pb-6 mb-8 gap-4">
         <div>
-          <div className="flex items-center gap-2 mb-1">
+          <div className="flex items-center gap-2 mb-1 flex-wrap">
             <span className="text-[10px] text-amber-400 font-extrabold uppercase tracking-widest">{t.brandName}</span>
-            <span className="bg-emerald-500 text-white text-[8px] font-black px-1.5 py-0.5 rounded">ADMIN MODULE</span>
+            <span className="bg-emerald-500 text-white text-[8px] font-black px-1.5 py-0.5 rounded">ADMIN CONSOLE</span>
+            <span className="bg-amber-500/10 text-amber-400 text-[8px] font-black px-1.5 py-0.5 rounded border border-amber-500/20 uppercase tracking-wider">{adminPermissionTier}</span>
           </div>
           <h2 className="text-2xl font-black font-sans tracking-tight">Admin Dashboard</h2>
         </div>
-        <button
-          onClick={fetchAdminData}
-          disabled={loading}
-          className="bg-slate-800 hover:bg-slate-700 text-white border border-slate-700 px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer"
-        >
-          <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-          <span>Sync Data</span>
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={fetchAdminData}
+            disabled={loading}
+            className="bg-slate-800 hover:bg-slate-700 text-white border border-slate-700 px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+            <span>Sync Data</span>
+          </button>
+          {onLogoutAdmin && (
+            <button
+              onClick={onLogoutAdmin}
+              className="bg-rose-950/20 hover:bg-rose-900 border border-rose-500/20 text-rose-400 hover:text-white px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer"
+            >
+              <AlertTriangle className="w-3.5 h-3.5" />
+              <span>Lock Console</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Main Grid: Tabs Sidebar + Panel */}
@@ -733,24 +1111,35 @@ export default function AdminDashboard({
             { id: 'crm', label: t.crmSystem, icon: Users },
             { id: 'ticketing', label: '🎫 Tickets & WhatsApp', icon: Ticket },
             { id: 'cms', label: t.cmsManager, icon: BookOpen },
+            { id: 'blogs', label: '📝 Blog Articles', icon: FileEdit },
+            { id: 'coupons', label: '🎟️ Promo Codes & Coupons', icon: Tag },
             { id: 'logs', label: t.auditLogs, icon: ShieldAlert },
             { id: 'ai', label: t.aiStudioConsole, icon: Sparkles },
             { id: 'sheets', label: '🟢 Google Sheets Sync', icon: FileSpreadsheet }
           ].map(tab => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
+            const isUnlocked = isTabUnlocked(tab.id);
             return (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id as any)}
-                className={`flex items-center gap-3 py-3 px-4 rounded-xl text-xs md:text-sm font-bold text-left transition-all cursor-pointer ${
+                disabled={!isUnlocked}
+                onClick={() => isUnlocked && setActiveTab(tab.id as any)}
+                className={`flex items-center justify-between py-3 px-4 rounded-xl text-xs md:text-sm font-bold text-left transition-all cursor-pointer ${
                   isActive 
                     ? 'bg-gradient-to-r from-emerald-500/20 to-emerald-600/10 border-l-4 border-emerald-500 text-white font-black' 
-                    : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
+                    : isUnlocked
+                    ? 'text-slate-400 hover:text-white hover:bg-slate-800/50'
+                    : 'text-slate-600 opacity-40 cursor-not-allowed'
                 }`}
               >
-                <Icon className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-                <span>{tab.label}</span>
+                <div className="flex items-center gap-3">
+                  <Icon className={`w-4 h-4 flex-shrink-0 ${isUnlocked ? 'text-emerald-400' : 'text-slate-600'}`} />
+                  <span>{tab.label}</span>
+                </div>
+                {!isUnlocked && (
+                  <span className="text-[9px] text-rose-500 font-extrabold uppercase bg-rose-500/10 px-1.5 py-0.5 rounded border border-rose-500/20 tracking-wider">LOCKED</span>
+                )}
               </button>
             );
           })}
@@ -854,11 +1243,171 @@ export default function AdminDashboard({
 
           {/* 2. Operations Workflow tab */}
           {activeTab === 'operations' && (
-            <div className="space-y-6 animate-fade-in overflow-x-auto">
-              <h4 className="text-sm font-bold uppercase text-slate-400 tracking-wider mb-2">Live Excursion Ledger & Chauffeur Assignments</h4>
+            <div className="space-y-6 animate-fade-in">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <div>
+                  <h4 className="text-sm font-bold uppercase text-slate-400 tracking-wider">Live Excursion Ledger & Chauffeur Assignments</h4>
+                  <p className="text-[10px] text-slate-500 font-medium">Manage existing bookings, assign chauffeurs and guides, or create a direct manual entry below.</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={handleExportCSV}
+                    className="bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs py-2 px-4 rounded-xl flex items-center gap-1.5 transition-all shadow-md cursor-pointer"
+                  >
+                    <FileSpreadsheet className="w-4 h-4" />
+                    <span>Export Reports (CSV)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsManualBookingOpen(!isManualBookingOpen)}
+                    className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-black text-xs py-2 px-4 rounded-xl flex items-center gap-1.5 transition-all shadow-md cursor-pointer"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>{isManualBookingOpen ? 'Close Form' : 'Add Manual Booking'}</span>
+                  </button>
+                </div>
+              </div>
+
+              {isManualBookingOpen && (
+                <form onSubmit={handleCreateManualBooking} className="bg-slate-800/40 border border-slate-700/50 p-5 rounded-2xl space-y-4 animate-fade-in text-xs">
+                  <h5 className="text-amber-400 font-extrabold uppercase tracking-wider text-[10px]">Create Manual Sovereign Reservation</h5>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-slate-400 font-bold mb-1">Select Excursion</label>
+                      <select
+                        value={manualTourId}
+                        onChange={(e) => setManualTourId(e.target.value)}
+                        className="bg-slate-900 border border-slate-700 rounded-lg p-2 text-white w-full focus:outline-none cursor-pointer"
+                      >
+                        {tours.map(t => (
+                          <option key={t.id} value={t.id}>{lang === 'ar' ? t.title.ar : t.title.en} (${t.priceUSD}/guest)</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-slate-400 font-bold mb-1">Customer Full Name</label>
+                      <input
+                        required
+                        type="text"
+                        value={manualCustomerName}
+                        onChange={(e) => setManualCustomerName(e.target.value)}
+                        placeholder="e.g. Lord Charles Spencer"
+                        className="bg-slate-900 border border-slate-700 rounded-lg p-2 text-white w-full focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-slate-400 font-bold mb-1">Customer Email</label>
+                      <input
+                        required
+                        type="email"
+                        value={manualCustomerEmail}
+                        onChange={(e) => setManualCustomerEmail(e.target.value)}
+                        placeholder="guest@domain.com"
+                        className="bg-slate-900 border border-slate-700 rounded-lg p-2 text-white w-full focus:outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div>
+                      <label className="block text-slate-400 font-bold mb-1">Phone Number</label>
+                      <input
+                        type="text"
+                        value={manualCustomerPhone}
+                        onChange={(e) => setManualCustomerPhone(e.target.value)}
+                        placeholder="+20 12..."
+                        className="bg-slate-900 border border-slate-700 rounded-lg p-2 text-white w-full focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-slate-400 font-bold mb-1">Nationality</label>
+                      <input
+                        type="text"
+                        value={manualCustomerNationality}
+                        onChange={(e) => setManualCustomerNationality(e.target.value)}
+                        placeholder="e.g. Germany"
+                        className="bg-slate-900 border border-slate-700 rounded-lg p-2 text-white w-full focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-slate-400 font-bold mb-1">Expedition Date</label>
+                      <input
+                        type="date"
+                        value={manualDate}
+                        onChange={(e) => setManualDate(e.target.value)}
+                        className="bg-slate-900 border border-slate-700 rounded-lg p-2 text-white w-full focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-slate-400 font-bold mb-1">Traveler Guest Count</label>
+                      <input
+                        type="number"
+                        min={1}
+                        value={manualTravelerCount}
+                        onChange={(e) => setManualTravelerCount(parseInt(e.target.value) || 1)}
+                        className="bg-slate-900 border border-slate-700 rounded-lg p-2 text-white w-full focus:outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-slate-400 font-bold mb-1">Pickup Hotel / Yacht Marina</label>
+                      <input
+                        type="text"
+                        value={manualPickupHotel}
+                        onChange={(e) => setManualPickupHotel(e.target.value)}
+                        placeholder="e.g. Marriott Mena House"
+                        className="bg-slate-900 border border-slate-700 rounded-lg p-2 text-white w-full focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-slate-400 font-bold mb-1">Room / Yacht Suite Number</label>
+                      <input
+                        type="text"
+                        value={manualRoomNumber}
+                        onChange={(e) => setManualRoomNumber(e.target.value)}
+                        placeholder="e.g. Suite 404"
+                        className="bg-slate-900 border border-slate-700 rounded-lg p-2 text-white w-full focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-slate-400 font-bold mb-1">Payment Settlement Method</label>
+                      <select
+                        value={manualPaymentMethod}
+                        onChange={(e) => setManualPaymentMethod(e.target.value)}
+                        className="bg-slate-900 border border-slate-700 rounded-lg p-2 text-white w-full focus:outline-none cursor-pointer"
+                      >
+                        <option value="Cash">Cash / Pay at Pickup</option>
+                        <option value="Credit Card">Credit Card (Stripe pre-paid)</option>
+                        <option value="Bank Transfer">VIP Wire Transfer</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-400 font-bold mb-1">Special Concierge Requests</label>
+                    <textarea
+                      value={manualSpecialRequests}
+                      onChange={(e) => setManualSpecialRequests(e.target.value)}
+                      placeholder="e.g. Kosher champagne, strictly private Egyptologist, custom high tea..."
+                      rows={2}
+                      className="bg-slate-900 border border-slate-700 rounded-lg p-2 text-white w-full focus:outline-none"
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 px-6 rounded-xl transition-all cursor-pointer"
+                  >
+                    Insert Sovereign Booking Ledger
+                  </button>
+                </form>
+              )}
               
-              <div className="bg-slate-800/20 border border-slate-800 rounded-2xl overflow-hidden">
-                <table className="w-full text-left border-collapse text-xs md:text-sm">
+              <div className="bg-slate-800/20 border border-slate-800 rounded-2xl overflow-x-auto">
+                <table className="w-full text-left border-collapse text-xs md:text-sm min-w-[700px]">
                   <thead>
                     <tr className="bg-slate-800/50 border-b border-slate-700 text-slate-400 font-bold">
                       <th className="p-3 text-[10px] uppercase">{lang === 'ar' ? 'الرمز' : 'RESERVATION'}</th>
@@ -889,7 +1438,22 @@ export default function AdminDashboard({
                         <td className="p-3 space-y-2">
                           {/* Driver assign */}
                           <div>
-                            <label className="block text-[8px] uppercase text-slate-500 font-bold">{t.driver}</label>
+                            <div className="flex justify-between items-center mb-1">
+                              <label className="block text-[8px] uppercase text-slate-500 font-bold">{t.driver}</label>
+                              {b.driverName && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedStaffName(b.driverName || '');
+                                    setSelectedStaffRole('driver');
+                                    setIsProfileModalOpen(true);
+                                  }}
+                                  className="text-[8px] font-black uppercase text-emerald-400 hover:text-emerald-300 hover:underline cursor-pointer bg-transparent border-none p-0 inline-flex items-center"
+                                >
+                                  {lang === 'ar' ? 'عرض الملف' : 'View Profile'}
+                                </button>
+                              )}
+                            </div>
                             <input
                               type="text"
                               value={b.driverName || ''}
@@ -900,7 +1464,22 @@ export default function AdminDashboard({
                           </div>
                           {/* Guide assign */}
                           <div>
-                            <label className="block text-[8px] uppercase text-slate-500 font-bold">{t.guide}</label>
+                            <div className="flex justify-between items-center mb-1">
+                              <label className="block text-[8px] uppercase text-slate-500 font-bold">{t.guide}</label>
+                              {b.guideName && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedStaffName(b.guideName || '');
+                                    setSelectedStaffRole('guide');
+                                    setIsProfileModalOpen(true);
+                                  }}
+                                  className="text-[8px] font-black uppercase text-amber-400 hover:text-amber-300 hover:underline cursor-pointer bg-transparent border-none p-0 inline-flex items-center"
+                                >
+                                  {lang === 'ar' ? 'عرض الملف' : 'View Profile'}
+                                </button>
+                              )}
+                            </div>
                             <input
                               type="text"
                               value={b.guideName || ''}
@@ -931,6 +1510,12 @@ export default function AdminDashboard({
                               {t.refundBtn}
                             </button>
                           )}
+                          <button
+                            onClick={() => handleDeleteBooking(b.id)}
+                            className="bg-rose-600/15 hover:bg-rose-600 border border-rose-500/25 text-rose-400 hover:text-white font-bold text-[9px] w-full py-1.5 rounded-md transition-colors uppercase tracking-wider block cursor-pointer mt-1"
+                          >
+                            ❌ Delete Booking
+                          </button>
                         </td>
                       </tr>
                     ))}
@@ -1362,6 +1947,13 @@ export default function AdminDashboard({
                               <option value="in_progress">In Progress</option>
                               <option value="resolved">Resolved</option>
                             </select>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteTicket(ticket.id)}
+                              className="bg-rose-950/20 hover:bg-rose-650/20 border border-rose-500/30 text-rose-400 font-bold text-[10px] px-2.5 py-1 rounded-lg cursor-pointer transition-all uppercase"
+                            >
+                              Delete
+                            </button>
                           </div>
                         </div>
 
@@ -1646,145 +2238,242 @@ export default function AdminDashboard({
               
               {/* Add/Edit Tour Form */}
               <div className="bg-slate-800/20 border border-slate-800 p-5 rounded-2xl">
-                <div className="flex justify-between items-center mb-4">
+                <div className="flex flex-wrap justify-between items-center gap-4 border-b border-slate-800/60 pb-3 mb-4">
                   <h4 className="text-xs font-bold uppercase text-amber-400 tracking-wider">
                     {editingTourId ? 'CMS Corporate - Edit Luxury Excursion' : 'CMS Corporate - Catalog New Luxury Excursion'}
                   </h4>
-                  {editingTourId && (
+                  <div className="flex items-center gap-3">
                     <button
-                      onClick={handleCancelEdit}
-                      className="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold px-3 py-1 rounded-lg border border-slate-700 transition-colors cursor-pointer"
+                      type="button"
+                      onClick={() => setIsLivePreviewOpen(!isLivePreviewOpen)}
+                      className={`text-xs font-black px-3.5 py-1.5 rounded-xl border transition-all cursor-pointer flex items-center gap-1.5 ${
+                        isLivePreviewOpen 
+                          ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-md animate-pulse' 
+                          : 'bg-slate-900 text-slate-400 border-slate-750 hover:bg-slate-850 hover:text-slate-300'
+                      }`}
                     >
-                      Cancel Edit
+                      <Sparkles className="w-3.5 h-3.5" />
+                      <span>{isLivePreviewOpen ? 'Hide Live Preview' : 'Show Live Preview'}</span>
                     </button>
+                    {editingTourId && (
+                      <button
+                        onClick={handleCancelEdit}
+                        className="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold px-3 py-1.5 rounded-xl border border-slate-700 transition-colors cursor-pointer"
+                      >
+                        Cancel Edit
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                <div className={`grid grid-cols-1 ${isLivePreviewOpen ? 'lg:grid-cols-12 gap-6' : ''}`}>
+                  <form onSubmit={handleSaveTour} className={`space-y-4 ${isLivePreviewOpen ? 'lg:col-span-7 border-r border-slate-800/80 pr-6' : 'w-full'}`}>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div>
+                        <label className="block text-[10px] text-slate-400 uppercase font-bold mb-1">Title (English)</label>
+                        <input
+                          required
+                          type="text"
+                          value={newTourTitleEn}
+                          onChange={(e) => setNewTourTitleEn(e.target.value)}
+                          placeholder="e.g. VIP Pyramids Helicopter Safari"
+                          className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-xs w-full focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] text-slate-400 uppercase font-bold mb-1">Title (Arabic)</label>
+                        <input
+                          required
+                          type="text"
+                          value={newTourTitleAr}
+                          onChange={(e) => setNewTourTitleAr(e.target.value)}
+                          placeholder="e.g. رحلة الهليكوبتر الملكية للأهرامات"
+                          className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-xs w-full focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] text-slate-400 uppercase font-bold mb-1">Price (USD)</label>
+                        <input
+                          required
+                          type="number"
+                          value={newTourPrice}
+                          onChange={(e) => setNewTourPrice(parseInt(e.target.value) || 0)}
+                          className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-xs w-full focus:outline-none"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-[10px] text-slate-400 uppercase font-bold mb-1">Description (English)</label>
+                        <textarea
+                          value={newTourDescriptionEn}
+                          onChange={(e) => setNewTourDescriptionEn(e.target.value)}
+                          placeholder="Enter premium English description or leave blank for a luxurious auto-generated draft."
+                          rows={2}
+                          className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-xs w-full focus:outline-none resize-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] text-slate-400 uppercase font-bold mb-1">Description (Arabic)</label>
+                        <textarea
+                          value={newTourDescriptionAr}
+                          onChange={(e) => setNewTourDescriptionAr(e.target.value)}
+                          placeholder="أدخل الوصف باللغة العربية أو اتركه فارغاً للحصول على مسودة تلقائية فاخرة."
+                          rows={2}
+                          className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-xs w-full focus:outline-none resize-none font-sans"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                      <div>
+                        <label className="block text-[10px] text-slate-400 uppercase font-bold mb-1">Category</label>
+                        <select
+                          value={newTourCategory}
+                          onChange={(e) => setNewTourCategory(e.target.value)}
+                          className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-xs w-full focus:outline-none cursor-pointer"
+                        >
+                          <option value="Historical Tours">Historical Tours</option>
+                          <option value="Luxury Cruises">Luxury Cruises</option>
+                          <option value="VIP Yacht Charters">VIP Yacht Charters</option>
+                          <option value="Desert Safaris">Desert Safaris</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-[10px] text-slate-400 uppercase font-bold mb-1">Destination</label>
+                        <select
+                          value={newTourDestination}
+                          onChange={(e) => setNewTourDestination(e.target.value)}
+                          className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-xs w-full focus:outline-none cursor-pointer"
+                        >
+                          <option value="Cairo">Cairo</option>
+                          <option value="Luxor">Luxor</option>
+                          <option value="Sharm El Sheikh">Sharm El Sheikh</option>
+                          <option value="Aswan">Aswan</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-[10px] text-slate-400 uppercase font-bold mb-1">Duration</label>
+                        <input
+                          type="text"
+                          value={newTourDuration}
+                          onChange={(e) => setNewTourDuration(e.target.value)}
+                          placeholder="e.g. Full Day"
+                          className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-xs w-full focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] text-slate-400 uppercase font-bold mb-1">Capacity (Travelers)</label>
+                        <input
+                          type="number"
+                          value={newTourCapacity}
+                          onChange={(e) => setNewTourCapacity(parseInt(e.target.value) || 0)}
+                          className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-xs w-full focus:outline-none"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex justify-end pt-2">
+                      <button
+                        type="submit"
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs py-2.5 px-6 rounded-lg flex items-center justify-center gap-1.5 cursor-pointer shadow-lg transition-all"
+                      >
+                        {editingTourId ? (
+                          <>
+                            <CheckCircle2 className="w-4 h-4" />
+                            <span>Update Excursion</span>
+                          </>
+                        ) : (
+                          <>
+                            <Plus className="w-4 h-4" />
+                            <span>{lang === 'ar' ? 'إدراج بالـ CMS' : 'Add Tour'}</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </form>
+
+                  {isLivePreviewOpen && (
+                    <div className="lg:col-span-5 space-y-4 animate-fade-in flex flex-col justify-start">
+                      <div className="flex items-center justify-between border-b border-slate-800/80 pb-2">
+                        <div className="flex items-center gap-1.5">
+                          <Sparkles className="w-4 h-4 text-amber-400 animate-pulse" />
+                          <span className="text-[10px] font-extrabold uppercase text-amber-400 tracking-wider">Customer Live Preview</span>
+                        </div>
+                        <div className="flex gap-1 bg-slate-950 p-1 rounded-lg border border-slate-850">
+                          <button
+                            type="button"
+                            onClick={() => setPreviewLang('en')}
+                            className={`text-[9px] px-2.5 py-0.5 rounded font-black uppercase transition-all ${
+                              previewLang === 'en' ? 'bg-amber-500 text-slate-950 shadow' : 'text-slate-400 hover:text-slate-200'
+                            }`}
+                          >
+                            EN
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setPreviewLang('ar')}
+                            className={`text-[9px] px-2.5 py-0.5 rounded font-black uppercase transition-all ${
+                              previewLang === 'ar' ? 'bg-amber-500 text-slate-950 shadow' : 'text-slate-400 hover:text-slate-200'
+                            }`}
+                          >
+                            AR
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="w-full max-w-sm mx-auto bg-white rounded-3xl border border-slate-200 shadow-xl overflow-hidden flex flex-col justify-between hover:shadow-2xl transition-all duration-300 text-slate-900 pb-4">
+                        <div className="relative h-44 overflow-hidden bg-slate-100">
+                          <img
+                            src="https://images.unsplash.com/photo-1539650116574-8efeb43e2750?auto=format&fit=crop&q=80&w=1200"
+                            alt="Pyramids Cover"
+                            className="w-full h-full object-cover"
+                            referrerPolicy="no-referrer"
+                          />
+                          <div className="absolute top-3 left-3 bg-slate-950/75 backdrop-blur-md text-white text-[9px] font-bold uppercase px-2.5 py-0.5 rounded-full border border-white/10">
+                            {newTourDestination || 'Cairo'}
+                          </div>
+                          <div className="absolute bottom-3 right-3 bg-white/95 backdrop-blur-md text-slate-900 px-2 py-0.5 rounded-lg flex items-center gap-0.5 shadow font-bold text-[10px]">
+                            <Star className="w-3 h-3 text-amber-500 fill-amber-500" />
+                            <span>5.0</span>
+                          </div>
+                        </div>
+
+                        <div className="p-5 flex-1 flex flex-col justify-between">
+                          <div className="space-y-1.5">
+                            <span className="text-[9px] text-emerald-600 font-extrabold uppercase tracking-wider">{newTourCategory || 'Historical Tours'}</span>
+                            <h3 className="text-sm font-bold text-slate-900 line-clamp-2 leading-tight tracking-tight">
+                              {previewLang === 'ar' 
+                                ? (newTourTitleAr || 'العنوان الفاخر باللغة العربية') 
+                                : (newTourTitleEn || 'VIP Royal Luxury Tour Title')}
+                            </h3>
+                            <p className="text-slate-500 text-[11px] line-clamp-3 leading-relaxed font-medium">
+                              {previewLang === 'ar' 
+                                ? (newTourDescriptionAr || 'وصف فاخر لخدمة السفر المصممة خصيصًا لنخبة المسافرين...') 
+                                : (newTourDescriptionEn || 'Bespoke high-hospitality expedition featuring Mercedes V-Class chauffeur, private guides, and gourmet custom services...')}
+                            </p>
+                          </div>
+
+                          <div className="h-[1px] bg-slate-100 my-3" />
+
+                          <div className="flex items-center justify-between text-xs">
+                            <div className="space-y-0.5">
+                              <span className="block text-[8px] text-slate-400 font-bold uppercase">PER GUEST</span>
+                              <span className="text-sm font-black text-slate-900">
+                                {formatLocalPrice(newTourPrice || 300)}
+                              </span>
+                            </div>
+                            <div className="flex flex-col items-end text-[9px] text-slate-400 font-semibold space-y-0.5">
+                              <span>⏱️ {newTourDuration || 'Full Day'}</span>
+                              <span>👥 Max {newTourCapacity || 8} guests</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                   )}
                 </div>
-                <form onSubmit={handleSaveTour} className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div>
-                      <label className="block text-[10px] text-slate-400 uppercase font-bold mb-1">Title (English)</label>
-                      <input
-                        required
-                        type="text"
-                        value={newTourTitleEn}
-                        onChange={(e) => setNewTourTitleEn(e.target.value)}
-                        placeholder="e.g. VIP Pyramids Helicopter Safari"
-                        className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-xs w-full focus:outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[10px] text-slate-400 uppercase font-bold mb-1">Title (Arabic)</label>
-                      <input
-                        required
-                        type="text"
-                        value={newTourTitleAr}
-                        onChange={(e) => setNewTourTitleAr(e.target.value)}
-                        placeholder="e.g. رحلة الهليكوبتر الملكية للأهرامات"
-                        className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-xs w-full focus:outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[10px] text-slate-400 uppercase font-bold mb-1">Price (USD)</label>
-                      <input
-                        required
-                        type="number"
-                        value={newTourPrice}
-                        onChange={(e) => setNewTourPrice(parseInt(e.target.value))}
-                        className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-xs w-full focus:outline-none"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-[10px] text-slate-400 uppercase font-bold mb-1">Description (English)</label>
-                      <textarea
-                        value={newTourDescriptionEn}
-                        onChange={(e) => setNewTourDescriptionEn(e.target.value)}
-                        placeholder="Enter premium English description or leave blank for a luxurious auto-generated draft."
-                        rows={2}
-                        className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-xs w-full focus:outline-none resize-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[10px] text-slate-400 uppercase font-bold mb-1">Description (Arabic)</label>
-                      <textarea
-                        value={newTourDescriptionAr}
-                        onChange={(e) => setNewTourDescriptionAr(e.target.value)}
-                        placeholder="أدخل الوصف باللغة العربية أو اتركه فارغاً للحصول على مسودة تلقائية فاخرة."
-                        rows={2}
-                        className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-xs w-full focus:outline-none resize-none font-sans"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <div>
-                      <label className="block text-[10px] text-slate-400 uppercase font-bold mb-1">Category</label>
-                      <select
-                        value={newTourCategory}
-                        onChange={(e) => setNewTourCategory(e.target.value)}
-                        className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-xs w-full focus:outline-none cursor-pointer"
-                      >
-                        <option value="Historical Tours">Historical Tours</option>
-                        <option value="Luxury Cruises">Luxury Cruises</option>
-                        <option value="VIP Yacht Charters">VIP Yacht Charters</option>
-                        <option value="Desert Safaris">Desert Safaris</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-[10px] text-slate-400 uppercase font-bold mb-1">Destination</label>
-                      <select
-                        value={newTourDestination}
-                        onChange={(e) => setNewTourDestination(e.target.value)}
-                        className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-xs w-full focus:outline-none cursor-pointer"
-                      >
-                        <option value="Cairo">Cairo</option>
-                        <option value="Luxor">Luxor</option>
-                        <option value="Sharm El Sheikh">Sharm El Sheikh</option>
-                        <option value="Aswan">Aswan</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-[10px] text-slate-400 uppercase font-bold mb-1">Duration</label>
-                      <input
-                        type="text"
-                        value={newTourDuration}
-                        onChange={(e) => setNewTourDuration(e.target.value)}
-                        placeholder="e.g. Full Day"
-                        className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-xs w-full focus:outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[10px] text-slate-400 uppercase font-bold mb-1">Capacity (Travelers)</label>
-                      <input
-                        type="number"
-                        value={newTourCapacity}
-                        onChange={(e) => setNewTourCapacity(parseInt(e.target.value))}
-                        className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-xs w-full focus:outline-none"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="flex justify-end pt-2">
-                    <button
-                      type="submit"
-                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs py-2.5 px-6 rounded-lg flex items-center justify-center gap-1.5 cursor-pointer shadow-lg transition-all"
-                    >
-                      {editingTourId ? (
-                        <>
-                          <CheckCircle2 className="w-4 h-4" />
-                          <span>Update Excursion</span>
-                        </>
-                      ) : (
-                        <>
-                          <Plus className="w-4 h-4" />
-                          <span>{lang === 'ar' ? 'إدراج بالـ CMS' : 'Add Tour'}</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
-                </form>
               </div>
 
               {/* Active Catalog List */}
@@ -1824,21 +2513,161 @@ export default function AdminDashboard({
           )}
 
           {/* 5. Security Audit Logs tab */}
-          {activeTab === 'logs' && (
-            <div className="space-y-4 animate-fade-in font-mono text-xs">
-              <h4 className="text-sm font-bold uppercase text-slate-400 tracking-wider font-sans mb-2">Security Audit Logs</h4>
-              <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 max-h-[380px] overflow-y-auto space-y-3 shadow-inner">
-                {analytics.auditLogs.map((log: AuditLog) => (
-                  <div key={log.id} className="border-b border-slate-900 pb-2 leading-relaxed">
-                    <span className="text-slate-500">[{new Date(log.timestamp).toISOString()}]</span>{' '}
-                    <span className="text-emerald-400 font-extrabold">{log.action}</span>{' '}
-                    <span className="text-slate-400">({log.user}):</span>{' '}
-                    <span className="text-slate-300">{log.details}</span>
+          {activeTab === 'logs' && (() => {
+            const getLogCategory = (action: string): string => {
+              const act = action.toUpperCase();
+              if (act.includes('TOUR')) return 'tours';
+              if (act.includes('BOOKING') || act.includes('REFUND') || act.includes('UPGRADE') || act.includes('EXPORT') || act.includes('MANUAL')) return 'bookings';
+              if (act.includes('CRM') || act.includes('TICKET') || act.includes('CUSTOMER') || act.includes('REPLY')) return 'crm_tickets';
+              if (act.includes('COUPON') || act.includes('BLOG')) return 'coupons_blogs';
+              return 'system_security';
+            };
+
+            const getLogCategoryColor = (category: string) => {
+              switch (category) {
+                case 'tours': return 'bg-amber-500/15 text-amber-400 border-amber-500/20';
+                case 'bookings': return 'bg-emerald-500/15 text-emerald-400 border-emerald-500/20';
+                case 'crm_tickets': return 'bg-sky-500/15 text-sky-400 border-sky-500/20';
+                case 'coupons_blogs': return 'bg-fuchsia-500/15 text-fuchsia-400 border-fuchsia-500/20';
+                default: return 'bg-slate-500/15 text-slate-400 border-slate-500/20';
+              }
+            };
+
+            const getLogCategoryLabel = (category: string) => {
+              switch (category) {
+                case 'tours': return 'Excursions';
+                case 'bookings': return 'Reservations';
+                case 'crm_tickets': return 'CRM & Helpdesk';
+                case 'coupons_blogs': return 'Promotions';
+                default: return 'System Admin';
+              }
+            };
+
+            const filteredLogs = (analytics?.auditLogs || []).filter((log: AuditLog) => {
+              const category = getLogCategory(log.action);
+              const matchesFilter = logFilter === 'all' || category === logFilter;
+              const searchLower = logSearch.toLowerCase();
+              const matchesSearch = 
+                log.action.toLowerCase().includes(searchLower) ||
+                log.user.toLowerCase().includes(searchLower) ||
+                log.details.toLowerCase().includes(searchLower);
+              return matchesFilter && matchesSearch;
+            });
+
+            return (
+              <div className="space-y-6 animate-fade-in text-xs font-sans">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                  <div>
+                    <h4 className="text-sm font-bold uppercase text-slate-400 tracking-wider">Security & Operations Audit Ledger</h4>
+                    <p className="text-[10px] text-slate-500 font-medium">Real-time tracking of all CRUD, operational modifications, and secure reports exported by system administrators.</p>
                   </div>
-                ))}
+                  <button
+                    type="button"
+                    onClick={fetchAdminData}
+                    className="bg-slate-800 hover:bg-slate-750 text-slate-300 font-bold text-xs py-1.5 px-3.5 rounded-lg border border-slate-700 transition-colors cursor-pointer flex items-center gap-1"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    <span>Refresh Logs</span>
+                  </button>
+                </div>
+
+                {/* Filters Row */}
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 bg-slate-800/10 border border-slate-800/80 p-4 rounded-2xl">
+                  {/* Search bar */}
+                  <div className="lg:col-span-4 relative flex items-center">
+                    <Search className="w-4 h-4 text-slate-500 absolute left-3 pointer-events-none" />
+                    <input
+                      type="text"
+                      value={logSearch}
+                      onChange={(e) => setLogSearch(e.target.value)}
+                      placeholder="Search by action, user, details..."
+                      className="bg-slate-900/60 border border-slate-700 rounded-xl pl-9 pr-4 py-2 text-white text-xs w-full focus:outline-none focus:border-slate-550 transition-colors"
+                    />
+                  </div>
+
+                  {/* Filter Pills */}
+                  <div className="lg:col-span-8 flex flex-wrap items-center gap-2">
+                    {[
+                      { id: 'all', label: 'All Operations' },
+                      { id: 'tours', label: 'Tours CRUD' },
+                      { id: 'bookings', label: 'Reservations' },
+                      { id: 'crm_tickets', label: 'CRM & Tickets' },
+                      { id: 'coupons_blogs', label: 'Promotions' },
+                      { id: 'system_security', label: 'System Admin' }
+                    ].map(pill => (
+                      <button
+                        key={pill.id}
+                        type="button"
+                        onClick={() => setLogFilter(pill.id)}
+                        className={`px-3 py-1.5 rounded-xl border font-semibold text-[10px] transition-all cursor-pointer ${
+                          logFilter === pill.id
+                            ? 'bg-amber-500 text-slate-950 border-amber-400 font-black shadow-sm'
+                            : 'bg-slate-900 text-slate-400 border-slate-800 hover:bg-slate-850 hover:text-slate-300'
+                        }`}
+                      >
+                        {pill.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Logs List Container */}
+                <div className="bg-slate-950 border border-slate-800 rounded-2xl shadow-inner overflow-hidden">
+                  <div className="max-h-[500px] overflow-y-auto divide-y divide-slate-900">
+                    {filteredLogs.length === 0 ? (
+                      <div className="p-8 text-center text-slate-500 font-sans font-medium space-y-1">
+                        <p className="text-xs">No matching administrative operations found.</p>
+                        <p className="text-[10px] text-slate-600">Try adjusting your filters or search keywords.</p>
+                      </div>
+                    ) : (
+                      filteredLogs.map((log: AuditLog) => {
+                        const category = getLogCategory(log.action);
+                        const isSystem = log.user.toLowerCase().includes('system');
+                        return (
+                          <div key={log.id} className="p-4 hover:bg-slate-900/40 transition-colors flex flex-col md:flex-row md:items-center justify-between gap-3 font-mono">
+                            <div className="space-y-1.5">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="text-slate-500 text-[10px] font-medium font-sans">
+                                  {new Date(log.timestamp).toLocaleString(undefined, {
+                                    year: 'numeric',
+                                    month: '2-digit',
+                                    day: '2-digit',
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                    second: '2-digit',
+                                    hour12: false
+                                  })}
+                                </span>
+                                <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-wider border font-sans ${getLogCategoryColor(category)}`}>
+                                  {getLogCategoryLabel(category)}
+                                </span>
+                                <span className="text-white font-extrabold text-[11px] font-sans">
+                                  {log.action}
+                                </span>
+                              </div>
+                              <p className="text-slate-300 text-[11px] leading-relaxed font-sans font-medium">
+                                {log.details}
+                              </p>
+                            </div>
+
+                            <div className="flex items-center gap-2 shrink-0 md:text-right font-sans">
+                              <span className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border ${
+                                isSystem 
+                                  ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' 
+                                  : 'bg-slate-800 text-slate-300 border-slate-700/50'
+                              }`}>
+                                👤 {log.user}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* 6. AI Studio Executive tab */}
           {activeTab === 'ai' && (
@@ -2074,9 +2903,363 @@ export default function AdminDashboard({
             </div>
           )}
 
+          {activeTab === 'coupons' && (
+            <div className="space-y-6 animate-fade-in">
+              <div className="bg-slate-800/40 p-6 rounded-2xl border border-slate-800 space-y-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-3 bg-amber-500/10 rounded-xl border border-amber-500/20 text-amber-400">
+                    <Tag className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-black tracking-tight">Promo Codes & Coupons Management</h3>
+                    <p className="text-slate-400 text-[11px] uppercase tracking-wider font-extrabold">Generate and track luxury incentive vouchers</p>
+                  </div>
+                </div>
+                <div className="h-[1px] bg-slate-800" />
+                
+                <form onSubmit={handleSaveCoupon} className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end bg-slate-900/60 p-4 rounded-xl border border-slate-800 text-xs">
+                  <div>
+                    <label className="block text-slate-400 font-bold mb-1">Coupon Code</label>
+                    <input
+                      required
+                      type="text"
+                      value={newCouponCode}
+                      onChange={(e) => setNewCouponCode(e.target.value)}
+                      placeholder="e.g. LUXURY20"
+                      className="bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white w-full focus:outline-none uppercase"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-slate-400 font-bold mb-1">Discount %</label>
+                    <input
+                      required
+                      type="number"
+                      min={1}
+                      max={100}
+                      value={newCouponDiscount}
+                      onChange={(e) => setNewCouponDiscount(parseInt(e.target.value) || 10)}
+                      className="bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white w-full focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-slate-400 font-bold mb-1">Valid Until</label>
+                    <input
+                      required
+                      type="date"
+                      value={newCouponValidUntil}
+                      onChange={(e) => setNewCouponValidUntil(e.target.value)}
+                      className="bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white w-full focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <button
+                      type="submit"
+                      className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-black py-2.5 px-4 rounded-lg w-full transition-colors cursor-pointer"
+                    >
+                      {editingCouponCode ? 'Update Coupon' : 'Create Coupon'}
+                    </button>
+                  </div>
+                </form>
+              </div>
+
+              <div className="bg-slate-800/20 border border-slate-800 rounded-2xl overflow-hidden">
+                <table className="w-full text-left border-collapse text-xs md:text-sm">
+                  <thead>
+                    <tr className="bg-slate-800/50 border-b border-slate-700 text-slate-400 font-bold">
+                      <th className="p-3 text-[10px] uppercase">Coupon Code</th>
+                      <th className="p-3 text-[10px] uppercase">Discount %</th>
+                      <th className="p-3 text-[10px] uppercase">Valid Until</th>
+                      <th className="p-3 text-[10px] uppercase text-center">Status</th>
+                      <th className="p-3 text-[10px] uppercase text-center">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800 font-medium">
+                    {coupons.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="p-4 text-center text-slate-500 italic">
+                          No active promo codes currently configured.
+                        </td>
+                      </tr>
+                    ) : (
+                      coupons.map((c) => (
+                        <tr key={c.code} className="hover:bg-slate-800/25">
+                          <td className="p-3">
+                            <span className="font-mono text-amber-400 font-black">{c.code}</span>
+                          </td>
+                          <td className="p-3">
+                            <span className="font-bold text-emerald-400">{c.discountPercent}% Off</span>
+                          </td>
+                          <td className="p-3">
+                            <span className="text-slate-300">{c.validUntil}</span>
+                          </td>
+                          <td className="p-3 text-center">
+                            <button
+                              onClick={() => handleToggleCoupon(c.code, c.active)}
+                              className={`px-2 py-1 rounded text-[10px] font-bold ${
+                                c.active 
+                                  ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' 
+                                  : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
+                              }`}
+                            >
+                              {c.active ? 'ACTIVE' : 'INACTIVE'}
+                            </button>
+                          </td>
+                          <td className="p-3 text-center space-x-2">
+                            <button
+                              onClick={() => {
+                                setEditingCouponCode(c.code);
+                                setNewCouponCode(c.code);
+                                setNewCouponDiscount(c.discountPercent);
+                                setNewCouponValidUntil(c.validUntil);
+                              }}
+                              className="text-amber-400 hover:text-amber-300 font-bold"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              onClick={() => handleDeleteCoupon(c.code)}
+                              className="text-rose-400 hover:text-rose-300 font-bold"
+                            >
+                              Delete
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'blogs' && (
+            <div className="space-y-6 animate-fade-in">
+              <div className="bg-slate-800/40 p-6 rounded-2xl border border-slate-800 space-y-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-3 bg-emerald-500/10 rounded-xl border border-emerald-500/20 text-emerald-400">
+                    <FileEdit className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-black tracking-tight">Sovereign Blog Articles Manager</h3>
+                    <p className="text-slate-400 text-[11px] uppercase tracking-wider font-extrabold">Publish editorial highlights and luxury updates</p>
+                  </div>
+                </div>
+                <div className="h-[1px] bg-slate-800" />
+
+                <form onSubmit={handleSaveBlog} className="space-y-4 text-xs">
+                  <h4 className="text-amber-400 font-extrabold uppercase tracking-wider text-[10px]">
+                    {editingBlogId ? 'Edit Editorial Article' : 'Compose New Article'}
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-slate-400 font-bold mb-1">Title (English)</label>
+                      <input
+                        required
+                        type="text"
+                        value={newBlogTitleEn}
+                        onChange={(e) => {
+                          setNewBlogTitleEn(e.target.value);
+                          if (!editingBlogId) {
+                            setNewBlogSlug(e.target.value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, ''));
+                          }
+                        }}
+                        placeholder="e.g. Sunset champagne yacht excursions"
+                        className="bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white w-full focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-slate-400 font-bold mb-1">Title (Arabic)</label>
+                      <input
+                        type="text"
+                        value={newBlogTitleAr}
+                        onChange={(e) => setNewBlogTitleAr(e.target.value)}
+                        placeholder="العنوان باللغة العربية"
+                        className="bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white w-full focus:outline-none text-right"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-slate-400 font-bold mb-1">Category</label>
+                      <select
+                        value={newBlogCategory}
+                        onChange={(e) => setNewBlogCategory(e.target.value)}
+                        className="bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white w-full focus:outline-none cursor-pointer"
+                      >
+                        <option value="VIP Highlights">VIP Highlights</option>
+                        <option value="Yachting Ledger">Yachting Ledger</option>
+                        <option value="Cultural Expeditions">Cultural Expeditions</option>
+                        <option value="Hurghada Excursions">Hurghada Excursions</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-slate-400 font-bold mb-1">Cover Image URL</label>
+                      <input
+                        required
+                        type="text"
+                        value={newBlogImage}
+                        onChange={(e) => setNewBlogImage(e.target.value)}
+                        className="bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white w-full focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-slate-400 font-bold mb-1">URL Slug</label>
+                      <input
+                        required
+                        type="text"
+                        value={newBlogSlug}
+                        onChange={(e) => setNewBlogSlug(e.target.value)}
+                        placeholder="sunset-yacht-excursions"
+                        className="bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white w-full focus:outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-slate-400 font-bold mb-1">Short Summary (English)</label>
+                      <textarea
+                        required
+                        value={newBlogDescriptionEn}
+                        onChange={(e) => setNewBlogDescriptionEn(e.target.value)}
+                        rows={2}
+                        placeholder="A brief summary for previews..."
+                        className="bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white w-full focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-slate-400 font-bold mb-1">Short Summary (Arabic)</label>
+                      <textarea
+                        value={newBlogDescriptionAr}
+                        onChange={(e) => setNewBlogDescriptionAr(e.target.value)}
+                        rows={2}
+                        placeholder="ملخص قصير باللغة العربية..."
+                        className="bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white w-full focus:outline-none text-right"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-slate-400 font-bold mb-1">Main Article Body (English)</label>
+                      <textarea
+                        required
+                        value={newBlogBodyEn}
+                        onChange={(e) => setNewBlogBodyEn(e.target.value)}
+                        rows={6}
+                        placeholder="Rich editorial prose..."
+                        className="bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white w-full focus:outline-none font-sans"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-slate-400 font-bold mb-1">Main Article Body (Arabic)</label>
+                      <textarea
+                        value={newBlogBodyAr}
+                        onChange={(e) => setNewBlogBodyAr(e.target.value)}
+                        rows={6}
+                        placeholder="نص المقال باللغة العربية..."
+                        className="bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-white w-full focus:outline-none text-right font-sans"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <button
+                      type="submit"
+                      className="bg-emerald-600 hover:bg-emerald-500 text-white font-black py-2.5 px-6 rounded-xl transition-all cursor-pointer"
+                    >
+                      {editingBlogId ? 'Publish Changes' : 'Publish Article'}
+                    </button>
+                    {editingBlogId && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingBlogId(null);
+                          setNewBlogTitleEn('');
+                          setNewBlogTitleAr('');
+                          setNewBlogDescriptionEn('');
+                          setNewBlogDescriptionAr('');
+                          setNewBlogBodyEn('');
+                          setNewBlogBodyAr('');
+                          setNewBlogSlug('');
+                        }}
+                        className="bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold py-2.5 px-6 rounded-xl transition-all cursor-pointer"
+                      >
+                        Cancel Edit
+                      </button>
+                    )}
+                  </div>
+                </form>
+              </div>
+
+              {/* Blog articles list table */}
+              <div className="bg-slate-800/20 border border-slate-800 rounded-2xl overflow-hidden">
+                <table className="w-full text-left border-collapse text-xs md:text-sm">
+                  <thead>
+                    <tr className="bg-slate-800/50 border-b border-slate-700 text-slate-400 font-bold">
+                      <th className="p-3 text-[10px] uppercase">Cover</th>
+                      <th className="p-3 text-[10px] uppercase">Article Details</th>
+                      <th className="p-3 text-[10px] uppercase">Category</th>
+                      <th className="p-3 text-[10px] uppercase text-center">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800 font-medium">
+                    {blogs.length === 0 ? (
+                      <tr>
+                        <td colSpan={4} className="p-4 text-center text-slate-500 italic">
+                          No articles registered on database.
+                        </td>
+                      </tr>
+                    ) : (
+                      blogs.map((b) => (
+                        <tr key={b.id} className="hover:bg-slate-800/25">
+                          <td className="p-3">
+                            <img src={b.image} alt={b.title.en} className="w-12 h-8 object-cover rounded-md border border-slate-700" />
+                          </td>
+                          <td className="p-3">
+                            <span className="font-bold text-slate-200 block">{b.title.en}</span>
+                            <span className="text-[10px] text-slate-500 font-mono">slug: {b.slug}</span>
+                          </td>
+                          <td className="p-3">
+                            <span className="bg-slate-800 text-slate-300 border border-slate-750 px-2 py-0.5 rounded text-[10px] font-bold">
+                              {b.category}
+                            </span>
+                          </td>
+                          <td className="p-3 text-center space-x-2">
+                            <button
+                              onClick={() => handleEditBlogClick(b)}
+                              className="text-amber-400 hover:text-amber-300 font-bold"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              onClick={() => handleDeleteBlog(b.id)}
+                              className="text-rose-400 hover:text-rose-300 font-bold"
+                            >
+                              Delete
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
         </div>
 
       </div>
+      {/* Staff Profile Modal */}
+      <ProfileModal
+        isOpen={isProfileModalOpen}
+        onClose={() => setIsProfileModalOpen(false)}
+        staffName={selectedStaffName}
+        role={selectedStaffRole}
+        lang={lang}
+      />
     </div>
   );
 

@@ -217,6 +217,68 @@ const initialTours: Tour[] = [
     ],
     capacity: 12,
     availableDates: ['2026-07-03', '2026-07-05', '2026-07-07', '2026-07-09']
+  },
+  {
+    id: 'tour-4',
+    title: {
+      en: 'Sovereign Hurghada Private Yacht & Red Sea Safari',
+      ar: 'رحلة يخت الغردقة السيادية الخاصة وسفاري البحر الأحمر'
+    },
+    description: {
+      en: "Set sail from our agency's home base in Hurghada. Cruise in ultimate elegance aboard a pristine private motor yacht. Includes a private diving/snorkeling instructor, bespoke beach setup on Giftun Island, personal onboard butler service, and a freshly prepared seafood feast of lobster and sea bass.",
+      ar: 'أبحر من مقر وكالتنا الرئيسي في الغردقة. استمتع برحلتك بأناقة مطلقة على متن يخت خاص فائق الجودة. تشمل الجولة مدرب غوص وسنوركلينج خاص، تجهيزاً مميزاً على شواطئ جزيرة جفتون، خدمة خادم شخصي على متن اليخت، ووجبة بحرية طازجة من الكركند وقاروص البحر.'
+    },
+    category: 'VIP Yacht Charters',
+    destination: 'Hurghada',
+    images: [
+      'https://images.unsplash.com/photo-1559136555-9303baea8ebd?auto=format&fit=crop&q=80&w=1200',
+      'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&q=80&w=1200'
+    ],
+    video: 'https://assets.mixkit.co/videos/preview/mixkit-modern-luxury-yacht-sailing-the-sea-43285-large.mp4',
+    duration: 'Full Day (8 Hours)',
+    rating: 4.99,
+    reviewCount: 112,
+    priceUSD: 850,
+    itinerary: [
+      {
+        day: 1,
+        title: { en: 'Mercedes V-Class Transfer & Marina Boarding', ar: 'توصيل مرسيدس V-Class والصعود في المارينا' },
+        description: {
+          en: 'Our private chauffeur collects you from your resort. Board your immaculate private yacht with a premium welcome toast.',
+          ar: 'يصحبك سائقنا الخاص من منتجعك بسيارة مرسيدس. اصعد إلى يختك الخاص الرائع مع تحية ترحيبية فاخرة.'
+        }
+      },
+      {
+        day: 2,
+        title: { en: 'Elite Giftun Island Private Shore Haven', ar: 'ملاذ شاطئ جزيرة جفتون الخاص للنخبة' },
+        description: {
+          en: 'Step onto a pristine white-sand beach prepared exclusively for you with premium sunbeds, umbrellas, and fully catered cold refreshments.',
+          ar: 'خطوة على الرمال البيضاء النقية لشاطئ مجهز خصيصاً لك بأسرة شمسية مظللة ومشروبات باردة منعشة.'
+        }
+      },
+      {
+        day: 3,
+        title: { en: 'Gourmet Seafood Feast & Sunset Cruise', ar: 'وليمة مأكولات بحرية فاخرة وإبحار الغروب' },
+        description: {
+          en: 'Relish a premium lobster, prawn, and sea bass grill prepared by your onboard private chef, followed by a sunset cruise back to Hurghada Marina.',
+          ar: 'استمتع بغداء مشاوي فاخر من الكركند، الجمبري وقاروص البحر طازجاً من إعداد طاهيك الخاص على متن اليخت، تليها جولة غروب ساحرة ممتدة لعودتنا.'
+        }
+      }
+    ],
+    faqs: [
+      {
+        question: { en: 'Where is the agency office located?', ar: 'أين يقع مكتب الوكالة؟' },
+        answer: { en: "Our premier agency headquarters is located directly in the luxury marina sector of Hurghada, offering seamless local support.", ar: 'يقع المقر الرئيسي الفاخر لوكالتنا مباشرةً في قطاع مارينا الغردقة الفاخر، لنقدم لك دعماً محلياً متكاملاً طوال رحلتك.' }
+      }
+    ],
+    pickupZones: ['Hurghada Hotels', 'El Gouna Resorts', 'Sahl Hasheesh Luxury Lodges'],
+    hotels: ['The Oberoi Sahl Hasheesh', 'Steigenberger ALDAU Beach', 'Rixos Premium Magawish'],
+    extras: [
+      { id: 'ext-8', name: { en: 'Professional Drone & Underwater Footage Package', ar: 'باقة تصوير احترافي بالدرون والكاميرات المائية' }, priceUSD: 180 },
+      { id: 'ext-9', name: { en: 'Premium Champagne Bottle & Caviar Board', ar: 'زجاجة مشروب فوار فاخر وطبق كافيار' }, priceUSD: 320 }
+    ],
+    capacity: 10,
+    availableDates: ['2026-07-03', '2026-07-04', '2026-07-05', '2026-07-06', '2026-07-07', '2026-07-08', '2026-07-09']
   }
 ];
 
