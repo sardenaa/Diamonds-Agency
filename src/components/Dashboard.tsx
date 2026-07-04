@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Ticket, Calendar, ShieldAlert, Award, MessageSquare, Bell, CreditCard, Send, Plus, Sparkles, User, RefreshCw, Smartphone, ShieldCheck, Fingerprint, Lock, Unlock, Activity, CheckCircle2, UserPlus, Gift, Copy, Mail, ExternalLink, Share2, Compass, Trophy, Gem, X, Star } from 'lucide-react';
+import { Ticket, Calendar, ShieldAlert, Award, MessageSquare, Bell, CreditCard, Send, Plus, Sparkles, User, RefreshCw, Smartphone, ShieldCheck, Fingerprint, Lock, Unlock, Activity, CheckCircle2, UserPlus, Gift, Copy, Mail, ExternalLink, Share2, Compass, Trophy, Gem, X, Star, Camera } from 'lucide-react';
 import { Booking, CurrencyConfig, CustomerCRM, SupportMessage, WhatsAppMessage, SupportTicket } from '../types.js';
 import { translations } from '../translations.js';
 import LoyaltyTier, { TIER_CONFIGS } from './LoyaltyTier.js';
@@ -175,6 +175,61 @@ ${shareUrl}`;
   const [isSubmittingReview, setIsSubmittingReview] = useState<boolean>(false);
   const [reviewSuccessMsg, setReviewSuccessMsg] = useState<string | null>(null);
 
+  // Live Camera / Photo uploader states
+  const [reviewPhoto, setReviewPhoto] = useState<string | null>(null);
+  const [cameraActive, setCameraActive] = useState<boolean>(false);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const videoRef = React.useRef<HTMLVideoElement | null>(null);
+
+  const startCamera = async () => {
+    setCameraError(null);
+    setCameraActive(true);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+      }
+    } catch (err: any) {
+      console.error('Camera access error:', err);
+      setCameraError(lang === 'ar' ? 'فشل الوصول إلى الكاميرا. يرجى التحقق من الأذونات.' : 'Camera access failed. Please verify permissions.');
+    }
+  };
+
+  const stopCamera = () => {
+    if (videoRef.current && videoRef.current.srcObject) {
+      const stream = videoRef.current.srcObject as MediaStream;
+      stream.getTracks().forEach(track => track.stop());
+      videoRef.current.srcObject = null;
+    }
+    setCameraActive(false);
+  };
+
+  const capturePhoto = () => {
+    if (videoRef.current) {
+      const canvas = document.createElement('canvas');
+      canvas.width = 640;
+      canvas.height = 480;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+        const dataUrl = canvas.toDataURL('image/jpeg');
+        setReviewPhoto(dataUrl);
+      }
+      stopCamera();
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setReviewPhoto(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   const resetReviewForm = () => {
     setReviewOverallRating(5);
     setReviewChauffeurRating(5);
@@ -187,6 +242,9 @@ ${shareUrl}`;
     setReviewCateringComment('');
     setReviewGeneralComment('');
     setReviewSuccessMsg(null);
+    setReviewPhoto(null);
+    setCameraActive(false);
+    setCameraError(null);
   };
 
   const handleReviewSubmit = async (bookingId: string) => {
@@ -203,7 +261,8 @@ ${shareUrl}`;
             itinerary: { rating: reviewItineraryRating, comment: reviewItineraryComment },
             catering: { rating: reviewCateringRating, comment: reviewCateringComment }
           },
-          generalComment: reviewGeneralComment
+          generalComment: reviewGeneralComment,
+          photoUri: reviewPhoto
         })
       });
 
@@ -1275,6 +1334,95 @@ ${shareUrl}`;
                                 />
                               </div>
 
+                              {/* Expedition Photo Capture Segment */}
+                              <div className="space-y-2 pt-3 border-t border-slate-150 animate-fade-in">
+                                <label className="block text-slate-700 font-extrabold flex items-center gap-1.5">
+                                  <Camera className="w-4 h-4 text-emerald-600" />
+                                  <span>{lang === 'ar' ? '٤. التقاط أو إرفاق صورة من تجربتك' : '4. Capture or Attach Expedition Photo (Optional)'}</span>
+                                </label>
+
+                                <div className="bg-slate-100/80 rounded-xl p-4 border border-dashed border-slate-300 space-y-3">
+                                  {!reviewPhoto && !cameraActive && (
+                                    <div className="flex flex-col sm:flex-row gap-2 justify-center items-center">
+                                      <button
+                                        type="button"
+                                        onClick={startCamera}
+                                        className="w-full sm:w-auto bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs py-2 px-4 rounded-lg transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+                                      >
+                                        <Camera className="w-3.5 h-3.5" />
+                                        <span>{lang === 'ar' ? 'تشغيل الكاميرا والتقاط صورة' : 'Capture Live Photo'}</span>
+                                      </button>
+
+                                      <label className="w-full sm:w-auto bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 font-bold text-xs py-2 px-4 rounded-lg transition-colors cursor-pointer flex items-center justify-center gap-1.5 text-center">
+                                        <Plus className="w-3.5 h-3.5" />
+                                        <span>{lang === 'ar' ? 'اختيار ملف صورة' : 'Upload from Device'}</span>
+                                        <input
+                                          type="file"
+                                          accept="image/*"
+                                          onChange={handleFileChange}
+                                          className="hidden"
+                                        />
+                                      </label>
+                                    </div>
+                                  )}
+
+                                  {cameraActive && (
+                                    <div className="space-y-2">
+                                      <div className="relative aspect-video max-w-sm mx-auto bg-black rounded-lg overflow-hidden border border-slate-300">
+                                        <video
+                                          ref={videoRef}
+                                          autoPlay
+                                          playsInline
+                                          className="w-full h-full object-cover"
+                                        />
+                                      </div>
+                                      {cameraError && (
+                                        <p className="text-[10px] text-red-500 font-bold text-center">{cameraError}</p>
+                                      )}
+                                      <div className="flex justify-center gap-2">
+                                        <button
+                                          type="button"
+                                          onClick={capturePhoto}
+                                          className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs py-1.5 px-3 rounded-lg transition-colors cursor-pointer"
+                                        >
+                                          {lang === 'ar' ? '📸 التقاط الصورة الآن' : '📸 Take Photo'}
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={stopCamera}
+                                          className="bg-slate-500 hover:bg-slate-600 text-white font-bold text-xs py-1.5 px-3 rounded-lg transition-colors cursor-pointer"
+                                        >
+                                          {lang === 'ar' ? 'إلغاء' : 'Cancel'}
+                                        </button>
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {reviewPhoto && (
+                                    <div className="space-y-2 flex flex-col items-center">
+                                      <div className="relative w-36 h-28 bg-slate-950 rounded-xl overflow-hidden border-2 border-amber-400 shadow-md">
+                                        <img
+                                          src={reviewPhoto}
+                                          alt="Captured Expedition"
+                                          className="w-full h-full object-cover"
+                                        />
+                                        <button
+                                          type="button"
+                                          onClick={() => setReviewPhoto(null)}
+                                          className="absolute top-1 right-1 bg-rose-600 hover:bg-rose-700 text-white p-1 rounded-full cursor-pointer transition-colors"
+                                          title="Remove Photo"
+                                        >
+                                          <X className="w-3 h-3" />
+                                        </button>
+                                      </div>
+                                      <p className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">
+                                        {lang === 'ar' ? 'تم إرفاق الصورة وتجهيزها للنشر' : 'Expedition photo attached successfully'}
+                                      </p>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+
                               {/* Action buttons */}
                               <div className="flex justify-end gap-3 pt-3 border-t border-slate-150 animate-fade-in">
                                 <button
@@ -1310,20 +1458,38 @@ ${shareUrl}`;
             {/* Right Column: Mini Loyalty Tracker */}
             <div className="lg:col-span-1 space-y-6">
               {(() => {
-                const actualTierKey = bookingCount >= 4 ? 'Diamond' : bookingCount === 3 ? 'Platinum' : bookingCount === 2 ? 'Gold' : bookingCount === 1 ? 'Silver' : 'Bronze';
-                const config = TIER_CONFIGS[actualTierKey];
+                const totalSpentUSD = crmProfile?.totalSpentUSD || 0;
+                let actualTierKey = 'Bronze';
+                if (totalSpentUSD >= 12000) actualTierKey = 'Diamond';
+                else if (totalSpentUSD >= 5000) actualTierKey = 'Gold';
+                else if (totalSpentUSD >= 1500) actualTierKey = 'Silver';
+
+                const config = TIER_CONFIGS[actualTierKey] || TIER_CONFIGS.Bronze;
                 const IconComponent = config ? config.icon : Award;
                 
                 // Next tier calculation
                 const getNext = () => {
-                  if (actualTierKey === 'Bronze') return { nameEn: 'Silver Sovereign', nameAr: 'الفضية السيادية', target: 1 };
-                  if (actualTierKey === 'Silver') return { nameEn: 'Gold Majesty', nameAr: 'الذهبية المهيبة', target: 2 };
-                  if (actualTierKey === 'Gold') return { nameEn: 'Platinum Paramount', nameAr: 'البلاتينية الرفيعة', target: 3 };
-                  if (actualTierKey === 'Platinum') return { nameEn: 'Royal Diamond Executive', nameAr: 'الماسية الملكية التنفيذية', target: 4 };
+                  if (actualTierKey === 'Bronze') return { nameEn: 'Silver Sovereign', nameAr: 'الفضية السيادية', targetSpend: 1500 };
+                  if (actualTierKey === 'Silver') return { nameEn: 'Gold Majesty', nameAr: 'الذهبية المهيبة', targetSpend: 5000 };
+                  if (actualTierKey === 'Gold') return { nameEn: 'Royal Diamond Executive', nameAr: 'الماسية الملكية التنفيذية', targetSpend: 12000 };
                   return null;
                 };
                 const next = getNext();
-                const totalSpentUSD = crmProfile?.totalSpentUSD || 0;
+
+                const getProgressPercentage = (spend: number) => {
+                  if (spend <= 0) return 0;
+                  if (spend < 1500) {
+                    return (spend / 1500) * 33.3;
+                  } else if (spend < 5000) {
+                    return 33.3 + ((spend - 1500) / (5000 - 1500)) * 33.3;
+                  } else if (spend < 12000) {
+                    return 66.6 + ((spend - 5000) / (12000 - 5000)) * 33.3;
+                  } else {
+                    return 100;
+                  }
+                };
+
+                const smoothPercent = getProgressPercentage(totalSpentUSD);
 
                 return (
                   <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm space-y-6 relative overflow-hidden">
@@ -1355,34 +1521,68 @@ ${shareUrl}`;
                       </h5>
                       <p className="text-[10px] text-slate-300 font-medium mt-1 leading-snug">
                         {lang === 'ar' 
-                          ? `${bookingCount} رحلات فاخرة مؤكدة ومكتملة`
-                          : `${bookingCount} verified elite voyage${bookingCount === 1 ? '' : 's'} logged`
+                          ? `رتبة مخصصة بناءً على إجمالي الإنفاق الفاخر`
+                          : `Sovereign tier computed from luxury spend`
                         }
                       </p>
 
                       <div className="mt-4 pt-3 border-t border-white/10 flex justify-between text-[10px] font-bold text-slate-300">
-                        <span>{lang === 'ar' ? 'نقاط ماس:' : 'MAS Points:'} {(bookingCount * 1500).toLocaleString()}</span>
+                        <span>{lang === 'ar' ? 'نقاط ماس:' : 'MAS Points:'} {Math.round(totalSpentUSD * 0.5).toLocaleString()}</span>
                         <span>{lang === 'ar' ? 'الإنفاق:' : 'Spend:'} ${totalSpentUSD.toLocaleString()} USD</span>
                       </div>
                     </div>
 
                     {/* Progress to Next Milestone */}
                     {next && (
-                      <div className="space-y-2">
+                      <div className="space-y-3">
                         <div className="flex justify-between text-[10px] font-bold text-slate-600 uppercase">
-                          <span>{lang === 'ar' ? `الرحلات: ${bookingCount} / ${next.target}` : `Voyages: ${bookingCount} / ${next.target}`}</span>
-                          <span className="text-amber-600">{lang === 'ar' ? `التالي: ${next.nameAr}` : `Next: ${next.nameEn}`}</span>
+                          <span>{lang === 'ar' ? `الإنفاق: $${totalSpentUSD.toLocaleString()}` : `Spend: $${totalSpentUSD.toLocaleString()}`}</span>
+                          <span className="text-amber-600">{lang === 'ar' ? `التالي: ${next.nameAr} ($${next.targetSpend})` : `Next: ${next.nameEn} ($${next.targetSpend})`}</span>
                         </div>
-                        <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden border border-slate-200/50">
-                          <div 
-                            className="h-full bg-amber-400 rounded-full transition-all duration-500"
-                            style={{ width: `${Math.min(100, (bookingCount / next.target) * 100)}%` }}
-                          />
+
+                        {/* Milestone Stepper mini progress bar with custom badge icons */}
+                        <div className="relative pt-4 pb-2 px-1">
+                          {/* Track line */}
+                          <div className="absolute top-1/2 left-0 right-0 h-1 bg-slate-100 -translate-y-1/2 rounded-full overflow-hidden border border-slate-200/50">
+                            <div 
+                              className="h-full bg-gradient-to-r from-amber-500 to-emerald-400 rounded-full transition-all duration-700"
+                              style={{ width: `${smoothPercent}%` }}
+                            />
+                          </div>
+                          
+                          {/* Milestones badge markers */}
+                          <div className="flex justify-between items-center relative z-10">
+                            {[
+                              { label: 'Bronze', spend: 0, icon: Compass },
+                              { label: 'Silver', spend: 1500, icon: Award },
+                              { label: 'Gold', spend: 5000, icon: Trophy },
+                              { label: 'Diamond', spend: 12000, icon: Gem }
+                            ].map((milestoneItem, idx) => {
+                              const isUnl = totalSpentUSD >= milestoneItem.spend;
+                              const MIcon = milestoneItem.icon;
+                              
+                              return (
+                                <div key={milestoneItem.label} className="flex flex-col items-center">
+                                  <div className={`w-5.5 h-5.5 rounded-full border flex items-center justify-center transition-all duration-500 ${
+                                    isUnl 
+                                      ? 'bg-slate-900 border-amber-500 text-amber-500 shadow-sm' 
+                                      : 'bg-slate-50 border-slate-200 text-slate-400'
+                                  }`}>
+                                    <MIcon className="w-2.5 h-2.5" />
+                                  </div>
+                                  <span className="text-[7px] font-bold text-slate-400 mt-1">
+                                    ${milestoneItem.spend >= 1000 ? `${milestoneItem.spend/1000}k` : '0'}
+                                  </span>
+                                </div>
+                              );
+                            })}
+                          </div>
                         </div>
+
                         <p className="text-[10px] text-slate-400 font-semibold leading-relaxed">
                           {lang === 'ar' 
-                            ? `احجز وأكمل ${next.target - bookingCount} رحلة أخرى لفتح فئة ${next.nameAr} والامتيازات المرافقة.`
-                            : `Complete ${next.target - bookingCount} more luxury booking${next.target - bookingCount === 1 ? '' : 's'} to unlock ${next.nameEn} status benefits.`
+                            ? `أنفق $${(next.targetSpend - totalSpentUSD).toLocaleString()} إضافية لفتح فئة ${next.nameAr} والامتيازات المرافقة.`
+                            : `Spend $${(next.targetSpend - totalSpentUSD).toLocaleString()} more to unlock ${next.nameEn} status benefits.`
                           }
                         </p>
                       </div>

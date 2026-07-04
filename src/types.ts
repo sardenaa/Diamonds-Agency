@@ -88,6 +88,7 @@ export interface Booking {
     icon?: string;
   };
   review?: BookingReview;
+  metadata?: Record<string, any>;
 }
 
 export interface ComponentReview {

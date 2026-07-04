@@ -415,7 +415,14 @@ MAS Agency Royal Concierge Division`;
     }
 
     const booking = db.bookings[index];
-    const reviewData = req.body; // { overallRating, components: { chauffeur, guide, itinerary, catering }, generalComment }
+    const reviewData = req.body; // { overallRating, components: { chauffeur, guide, itinerary, catering }, generalComment, photoUri }
+
+    if (!booking.metadata) {
+      booking.metadata = {};
+    }
+    if (reviewData.photoUri) {
+      booking.metadata.reviewPhotoUri = reviewData.photoUri;
+    }
 
     booking.review = {
       submittedAt: new Date().toISOString(),
