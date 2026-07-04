@@ -245,6 +245,144 @@ export default function App() {
       ? `${localTotal} ${activeCurrency.symbol}`
       : `${activeCurrency.symbol}${localTotal}`;
 
+    // Gallery images selection logic
+    const tourId = sharedBooking.tourId;
+    const tourTitleEn = (sharedBooking.tourTitle?.en || '').toLowerCase();
+    
+    let galleryImages = [
+      {
+        url: 'https://images.unsplash.com/photo-1503177119275-0aa32b31d468?auto=format&fit=crop&q=80&w=600',
+        title: isAr ? 'الهرم الأكبر بالجيزة' : 'The Great Pyramid of Giza',
+        category: isAr ? 'موقع أثري' : 'Historical Site'
+      },
+      {
+        url: 'https://images.unsplash.com/photo-1539650116574-8efeb43e2750?auto=format&fit=crop&q=80&w=600',
+        title: isAr ? 'الرحلة الملكية على الجمال' : 'Royal Camel Expedition',
+        category: isAr ? 'سفاري الصحراء' : 'Desert Safari'
+      },
+      {
+        url: 'https://images.unsplash.com/photo-1580834316135-26dbcc09be35?auto=format&fit=crop&q=80&w=600',
+        title: isAr ? 'تمثال أبو الهول الأسطوري' : 'The Great Sphinx Guarding',
+        category: isAr ? 'عجيبة قديمة' : 'Ancient Marvel'
+      },
+      {
+        url: 'https://images.unsplash.com/photo-1544644181-1484b3fdfc62?auto=format&fit=crop&q=80&w=600',
+        title: isAr ? 'أعمدة معبد الكرنك' : 'Karnak Temple Pillars',
+        category: isAr ? 'العمارة الفرعونية' : 'Dynastic Architecture'
+      },
+      {
+        url: 'https://images.unsplash.com/photo-1569263979104-865ab7cd8d13?auto=format&fit=crop&q=80&w=600',
+        title: isAr ? 'يخت سيادي خاص بطول 80 قدمًا' : 'Sovereign 80ft Private Yacht',
+        category: isAr ? 'ميثاق خاص' : 'Private Charter'
+      },
+      {
+        url: 'https://images.unsplash.com/photo-1544551763-46a013bb70d5?auto=format&fit=crop&q=80&w=600',
+        title: isAr ? 'سفاري الشعاب المرجانية برأس محمد' : 'Ras Mohammed Reef Safari',
+        category: isAr ? 'استكشاف الأعماق' : 'Marine Exploration'
+      }
+    ];
+
+    if (tourId === 'tour-1' || tourTitleEn.includes('pyramid') || tourTitleEn.includes('cairo') || tourTitleEn.includes('sphinx')) {
+      galleryImages = [
+        {
+          url: 'https://images.unsplash.com/photo-1503177119275-0aa32b31d468?auto=format&fit=crop&q=80&w=600',
+          title: isAr ? 'الهرم الأكبر بالجيزة' : 'The Great Pyramid of Giza',
+          category: isAr ? 'موقع أثري' : 'Historical Site'
+        },
+        {
+          url: 'https://images.unsplash.com/photo-1539650116574-8efeb43e2750?auto=format&fit=crop&q=80&w=600',
+          title: isAr ? 'الرحلة الملكية على الجمال' : 'Royal Camel Expedition',
+          category: isAr ? 'سفاري الصحراء' : 'Desert Safari'
+        },
+        {
+          url: 'https://images.unsplash.com/photo-1580834316135-26dbcc09be35?auto=format&fit=crop&q=80&w=600',
+          title: isAr ? 'تمثال أبو الهول الأسطوري' : 'The Great Sphinx Guarding',
+          category: isAr ? 'عجيبة قديمة' : 'Ancient Marvel'
+        },
+        {
+          url: 'https://images.unsplash.com/photo-1553913861-c0fddf2619ee?auto=format&fit=crop&q=80&w=600',
+          title: isAr ? 'القاهرة ونهر النيل الذهبي' : 'Cairo & The Golden Nile',
+          category: isAr ? 'إطلالة بانورامية' : 'Panoramic View'
+        },
+        {
+          url: 'https://images.unsplash.com/photo-1601579621414-ab7e31b7be2a?auto=format&fit=crop&q=80&w=600',
+          title: isAr ? 'شارع المعز التاريخي' : 'El Moez Historic Street',
+          category: isAr ? 'التراث الثقافي' : 'Cultural Heritage'
+        },
+        {
+          url: 'https://images.unsplash.com/photo-1568322422390-0ec4fc98fa35?auto=format&fit=crop&q=80&w=600',
+          title: isAr ? 'غروب الشمس السيادي فوق الجيزة' : 'Sovereign Sunset Over Giza',
+          category: isAr ? 'مشاهدة خاصة' : 'Elite Viewing'
+        }
+      ];
+    } else if (tourId === 'tour-2' || tourTitleEn.includes('nile') || tourTitleEn.includes('dahabiya') || tourTitleEn.includes('luxor') || tourTitleEn.includes('aswan')) {
+      galleryImages = [
+        {
+          url: 'https://images.unsplash.com/photo-1544644181-1484b3fdfc62?auto=format&fit=crop&q=80&w=600',
+          title: isAr ? 'أعمدة معبد الكرنك' : 'Karnak Temple Pillars',
+          category: isAr ? 'العمارة الفرعونية' : 'Dynastic Architecture'
+        },
+        {
+          url: 'https://images.unsplash.com/photo-1543051932-6ef9fecfbc80?auto=format&fit=crop&q=80&w=600',
+          title: isAr ? 'المحاريب المقدسة' : 'The Sacred Sanctuaries',
+          category: isAr ? 'جوهرة أثرية' : 'Archaeological Jewel'
+        },
+        {
+          url: 'https://images.unsplash.com/photo-1506973035872-a4ec16b8e8d9?auto=format&fit=crop&q=80&w=600',
+          title: isAr ? 'إبحار الدهبية الخاصة في النيل' : 'Private Nile Dahabiya Sailing',
+          category: isAr ? 'إبحار ملكي' : 'Sovereign Cruise'
+        },
+        {
+          url: 'https://images.unsplash.com/photo-1502475418167-15c0f40a158e?auto=format&fit=crop&q=80&w=600',
+          title: isAr ? 'معبد الملكة حتشبسوت' : 'Queen Hatshepsut Temple',
+          category: isAr ? 'الإرث الفرعوني' : 'Pharaonic Legacy'
+        },
+        {
+          url: 'https://images.unsplash.com/photo-1599818815128-444c18c187be?auto=format&fit=crop&q=80&w=600',
+          title: isAr ? 'الواجهة المهيبة لأبو سمبل' : 'Abu Simbel Majestic Facade',
+          category: isAr ? 'صرح ملكي' : 'Imperial Monument'
+        },
+        {
+          url: 'https://images.unsplash.com/photo-1572252009286-268acec5a0af?auto=format&fit=crop&q=80&w=600',
+          title: isAr ? 'شفق النيل الذهبي' : 'Nile River Golden Twilight',
+          category: isAr ? 'أمسية خاصة' : 'Bespoke Evening'
+        }
+      ];
+    } else if (tourId === 'tour-3' || tourTitleEn.includes('sharm') || tourTitleEn.includes('yacht') || tourTitleEn.includes('red sea') || tourTitleEn.includes('reef')) {
+      galleryImages = [
+        {
+          url: 'https://images.unsplash.com/photo-1569263979104-865ab7cd8d13?auto=format&fit=crop&q=80&w=600',
+          title: isAr ? 'يخت سيادي خاص بطول 80 قدمًا' : 'Sovereign 80ft Private Yacht',
+          category: isAr ? 'ميثاق خاص' : 'Private Charter'
+        },
+        {
+          url: 'https://images.unsplash.com/photo-1544551763-46a013bb70d5?auto=format&fit=crop&q=80&w=600',
+          title: isAr ? 'سفاري الشعاب المرجانية برأس محمد' : 'Ras Mohammed Reef Safari',
+          category: isAr ? 'استكشاف الأعماق' : 'Marine Exploration'
+        },
+        {
+          url: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&q=80&w=600',
+          title: isAr ? 'مياه سيناء الفيروزية' : 'Crystalline Sinai Waters',
+          category: isAr ? 'ملاذ ساحلي' : 'Coastal Sanctuary'
+        },
+        {
+          url: 'https://images.unsplash.com/photo-1533105079780-92b9be482077?auto=format&fit=crop&q=80&w=600',
+          title: isAr ? 'أفق البحر الأحمر الذهبي' : 'Red Sea Golden Horizon',
+          category: isAr ? 'غروب الشمس الساحر' : 'Sunbed Sunset'
+        },
+        {
+          url: 'https://images.unsplash.com/photo-1546026423-cc4642628d2b?auto=format&fit=crop&q=80&w=600',
+          title: isAr ? 'حدائق المرجان الملونة' : 'Sub-aquatic Coral Gardens',
+          category: isAr ? 'محمية طبيعية' : 'Eco-Safari VIP'
+        },
+        {
+          url: 'https://images.unsplash.com/photo-1607627000458-210e8d261a7b?auto=format&fit=crop&q=80&w=600',
+          title: isAr ? 'مرسى الخليج الخاص' : 'Private Cove Anchorage',
+          category: isAr ? 'ملاذ مخصص' : 'Bespoke Escape'
+        }
+      ];
+    }
+
     return (
       <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between overflow-x-hidden font-sans" dir={isAr ? 'rtl' : 'ltr'}>
         {/* Public Header */}
@@ -414,6 +552,51 @@ export default function App() {
             <div className="flex justify-between items-center bg-slate-950 p-5 rounded-2xl border border-slate-800">
               <span className="text-xs font-black uppercase text-slate-400 tracking-wider">TOTAL LEDGER VALUE</span>
               <span className="text-lg md:text-2xl font-black text-emerald-400 font-sans tracking-tight">{formattedPrice}</span>
+            </div>
+          </div>
+
+          {/* Tour Gallery Section */}
+          <div className="space-y-4">
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-2 border-b border-slate-900 pb-3">
+              <div>
+                <span className="text-[10px] text-amber-500 font-mono font-black uppercase tracking-widest block">
+                  {isAr ? 'معرض الصور الحصري' : 'EXCLUSIVE DESTINATION GALLERY'}
+                </span>
+                <h3 className="text-lg md:text-xl font-black text-white uppercase tracking-tight">
+                  {isAr ? 'معرض معالم الجولة الملكية' : 'Tour Expedition Gallery'}
+                </h3>
+              </div>
+              <p className="text-[11px] text-slate-500 font-semibold max-w-xs md:text-right">
+                {isAr
+                  ? 'لقطات حية وحصرية من المعالم والوجهات الفاخرة المخصصة المشمولة بمسارك.'
+                  : 'Candid snapshots representing the legendary destinations integrated into your itinerary.'}
+              </p>
+            </div>
+
+            {/* Masonry Grid Layout */}
+            <div className="columns-1 sm:columns-2 md:columns-3 gap-4 [column-fill:_balance] box-border pt-2">
+              {galleryImages.map((img, idx) => (
+                <div 
+                  key={idx} 
+                  className="break-inside-avoid mb-4 overflow-hidden rounded-3xl border border-slate-800 bg-slate-900/60 group relative cursor-pointer"
+                >
+                  <img
+                    src={img.url}
+                    alt={img.title}
+                    referrerPolicy="no-referrer"
+                    className="w-full object-cover rounded-3xl hover:scale-105 transition-transform duration-500"
+                  />
+                  {/* Subtle luxurious ambient overlay on hover */}
+                  <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 p-5 flex flex-col justify-end">
+                    <span className="text-[9px] text-amber-400 font-black uppercase tracking-widest block mb-0.5">
+                      {img.category}
+                    </span>
+                    <h4 className="text-xs font-black text-white leading-snug">
+                      {img.title}
+                    </h4>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
 
