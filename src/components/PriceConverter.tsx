@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Coins, RefreshCw, X, ArrowUpDown, ChevronDown, Check, TrendingUp, Info } from 'lucide-react';
-import { CurrencyConfig } from '../types.js';
+import { CurrencyConfig, AppLanguage } from '../types.js';
 
 interface PriceConverterProps {
-  lang: 'en' | 'ar';
+  lang: AppLanguage;
   currencies: CurrencyConfig[];
   onUpdateRates: (newRates: CurrencyConfig[]) => void;
 }
@@ -265,7 +265,7 @@ export default function PriceConverter({ lang, currencies, onUpdateRates }: Pric
           {/* Footer branding */}
           <div className="bg-slate-50 p-3 border-t border-slate-100 flex items-center gap-1.5 justify-center text-[9px] text-slate-400 font-bold uppercase tracking-wider">
             <Info className="w-3.5 h-3.5 text-slate-400" />
-            <span>Sovereign Financial Ledger v1.4</span>
+            <span>{lang === 'ar' ? 'أسعار الصرف الرسمية المحدثة' : 'OFFICIAL LIVE EXCHANGE RATES'}</span>
           </div>
 
         </div>

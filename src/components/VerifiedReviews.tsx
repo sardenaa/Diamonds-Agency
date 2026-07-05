@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Star, ChevronLeft, ChevronRight, CheckCircle2, Quote, Award, Sparkles, ShieldCheck, Play, Pause } from 'lucide-react';
 import { tokens } from '../theme/tokens.js';
+import { AppLanguage } from '../types.js';
 
 interface Testimonial {
   id: number;
@@ -128,7 +129,7 @@ const CATEGORY_LABELS = {
   Elite: { en: 'Elite Scholar Safaris', ar: 'رحلات الأكاديميين الفاخرة' }
 };
 
-export default function VerifiedReviews({ lang }: { lang: 'en' | 'ar' }) {
+export default function VerifiedReviews({ lang }: { lang: AppLanguage }) {
   const [activeCategory, setActiveCategory] = useState<'All' | 'Heritage' | 'Cruises' | 'Aviation' | 'Elite'>('All');
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(true);

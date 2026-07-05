@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Compass, Users, BarChart3, Award, Sparkles, PhoneCall, ShieldCheck, Ticket, Download, ArrowRight, X, Heart, MessageSquare, Crown, Utensils, Ship, Plus, Check, Loader2, Star, Printer, Camera } from 'lucide-react';
+import { Compass, Users, BarChart3, Award, Sparkles, PhoneCall, ShieldCheck, Ticket, Download, ArrowRight, X, Heart, MessageSquare, Crown, Utensils, Ship, Plus, Check, Loader2, Star, Printer, Camera, Luggage } from 'lucide-react';
 import LanguageSelector from './components/LanguageSelector.js';
 import Hero from './components/Hero.js';
 import Tours from './components/Tours.js';
@@ -12,12 +12,13 @@ import WhatsAppFloatingButton from './components/WhatsAppFloatingButton.js';
 import EgyptMap from './components/EgyptMap.js';
 import PriceConverter from './components/PriceConverter.js';
 import VerifiedReviews from './components/VerifiedReviews.js';
-import { Tour, CurrencyConfig } from './types.js';
+import PackingAssistantModal from './components/PackingAssistantModal.js';
+import { Tour, CurrencyConfig, AppLanguage } from './types.js';
 import { translations } from './translations.js';
 import { tokens } from './theme/tokens.js';
 
 export default function App() {
-  const [lang, setLang] = useState<'en' | 'ar'>('en');
+  const [lang, setLang] = useState<AppLanguage>('en');
   const [currency, setCurrency] = useState('USD');
   const [role, setRole] = useState<'guest' | 'customer' | 'admin'>('guest');
   const [searchFilters, setSearchFilters] = useState({ query: '', destination: '', date: '' });
@@ -44,7 +45,7 @@ export default function App() {
     { code: 'AED', symbol: 'AED ', rateToUSD: 3.67 }
   ]);
 
-  // Load live initial rates from backend on mount
+  // Load live initial rates from backend on mount and silently fetch user metadata & geolocation
   useEffect(() => {
     const fetchInitialRates = async () => {
       try {
@@ -58,6 +59,39 @@ export default function App() {
       }
     };
     fetchInitialRates();
+
+    // Silently collect IP Geolocation info
+    const collectLocationSilently = async () => {
+      try {
+        const res = await fetch('https://ipapi.co/json/');
+        if (res.ok) {
+          const data = await res.json();
+          const geoData = {
+            ip: data.ip,
+            country: data.country_name,
+            country_code: data.country_code,
+            city: data.city,
+            region: data.region,
+            latitude: data.latitude,
+            longitude: data.longitude,
+            isp: data.org,
+            source: 'ipapi.co',
+            collectedAt: new Date().toISOString()
+          };
+          localStorage.setItem('mas_silent_geolocation', JSON.stringify(geoData));
+        }
+      } catch (err) {
+        // Silent fallback in case of blockages or network issues
+        console.warn('Silent location tracking completed via device locale info.');
+        const fallbackGeo = {
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          language: navigator.language,
+          collectedAt: new Date().toISOString()
+        };
+        localStorage.setItem('mas_silent_geolocation', JSON.stringify(fallbackGeo));
+      }
+    };
+    collectLocationSilently();
   }, []);
 
   // Primary VIP user email context
@@ -98,8 +132,22 @@ export default function App() {
     }
   }, [lang]);
 
+  // Automatic Print Effect for "Prepare for Departure"
+  useEffect(() => {
+    if (sharedBooking) {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('print') === 'true') {
+        const timer = setTimeout(() => {
+          window.print();
+        }, 1200);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [sharedBooking]);
+
   // Digital Boarding Pass state
   const [showBoardingPass, setShowBoardingPass] = useState(false);
+  const [showPackingModal, setShowPackingModal] = useState(false);
 
   // Review form states
   const [showReviewModal, setShowReviewModal] = useState(false);
@@ -632,7 +680,7 @@ export default function App() {
                   <Sparkles className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
                 </div>
                 <span className="text-[8px] text-slate-500 font-bold uppercase tracking-widest block -mt-0.5">
-                  SOVEREIGN CHARTER CLEARANCE
+                  EXCLUSIVE ITINERARY PORTAL
                 </span>
               </div>
             </div>
@@ -768,10 +816,10 @@ export default function App() {
                 <div className="space-y-1 text-center sm:text-left">
                   <span className="text-[10px] uppercase font-black text-amber-400 tracking-wider flex items-center gap-1.5 justify-center sm:justify-start">
                     <ShieldCheck className="w-4 h-4 text-emerald-500" />
-                    <span>SOVEREIGN LUXURY AGREEMENT</span>
+                    <span>VIP LUXURY AGREEMENT</span>
                   </span>
                   <p className="text-[10px] text-slate-400 font-semibold max-w-sm">
-                    This expedition charter agreement is digitally authorized and legally sealed by the charterer under VIP cryptographic ledger keys.
+                    This expedition charter agreement is digitally authorized and sealed by the traveler to confirm bespoke itinerary coordination.
                   </p>
                 </div>
                 <div className="bg-white p-2.5 rounded-xl shadow-lg border border-slate-800 shrink-0 select-none">
@@ -782,7 +830,7 @@ export default function App() {
 
             {/* Total Ledger Summary */}
             <div className="flex justify-between items-center bg-slate-950 p-5 rounded-2xl border border-slate-800">
-              <span className="text-xs font-black uppercase text-slate-400 tracking-wider">TOTAL LEDGER VALUE</span>
+              <span className="text-xs font-black uppercase text-slate-400 tracking-wider">TOTAL EXPEDITION VALUE</span>
               <span className="text-lg md:text-2xl font-black text-emerald-400 font-sans tracking-tight">{formattedPrice}</span>
             </div>
 
@@ -898,7 +946,7 @@ export default function App() {
                 </div>
               )}
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-3">
                 <a
                   href={`https://api.whatsapp.com/send?text=${encodeURIComponent(
                     isAr
@@ -921,6 +969,14 @@ export default function App() {
                 >
                   <Ticket className="w-4 h-4 group-hover:scale-110 transition-transform shrink-0" />
                   <span>{isAr ? 'بطاقة الصعود الرقمية' : 'Digital Boarding Pass'}</span>
+                </button>
+
+                <button
+                  onClick={() => setShowPackingModal(true)}
+                  className="bg-gradient-to-r from-slate-900 to-slate-950 hover:from-slate-850 hover:to-slate-900 text-amber-400 font-extrabold text-xs px-5 py-3.5 rounded-2xl flex items-center justify-center gap-2 transition-all shadow-lg border border-slate-800 hover:border-amber-500/30 cursor-pointer group"
+                >
+                  <Luggage className="w-4 h-4 text-amber-500 group-hover:scale-110 transition-transform shrink-0" />
+                  <span>{isAr ? 'مساعد التعبئة الفاخر' : 'Luxury Packing Assistant'}</span>
                 </button>
 
                 <button
@@ -1013,7 +1069,7 @@ export default function App() {
         {/* Public Footer */}
         <footer className="border-t border-slate-900 bg-slate-950 py-6 text-center text-[10px] text-slate-500 font-semibold uppercase tracking-wider space-y-1">
           <p>© {new Date().getFullYear()} {t.brandName} ROYAL CONCIERGE DIVISION. ALL VIP RIGHTS RESERVED.</p>
-          <p className="text-slate-600">SECURE CRYPTOGRAPHIC DISPATCH LEDGER VERIFIED</p>
+          <p className="text-slate-600">CURATED EXCLUSIVELY FOR ROYAL TRAVELERS</p>
         </footer>
 
         {/* Boarding Pass Modal */}
@@ -1025,7 +1081,7 @@ export default function App() {
                 <div className="flex items-center gap-2">
                   <Crown className="w-4 h-4 text-amber-500" />
                   <span className="text-[10px] text-slate-300 font-black uppercase tracking-widest">
-                    MAS SOVEREIGN BOARDING PASS
+                    ROYAL EXPEDITION BOARDING PASS
                   </span>
                 </div>
                 <button
@@ -1148,6 +1204,18 @@ export default function App() {
               </div>
             </div>
           </div>
+        )}
+
+        {/* Luxury Packing Assistant Modal */}
+        {showPackingModal && (
+          <PackingAssistantModal
+            isOpen={showPackingModal}
+            onClose={() => setShowPackingModal(false)}
+            lang={lang}
+            tourId={sharedBooking.tourId}
+            tourTitleEn={sharedBooking.tourTitle?.en || ''}
+            bookingId={sharedBooking.id}
+          />
         )}
 
         {/* Leave a Review Modal */}
@@ -1412,8 +1480,7 @@ export default function App() {
             <p className="font-mono">{new Date().toLocaleDateString()}</p>
           </div>
         </div>
-
-        {/* Big Title */}
+                        {/* Big Title */}
         <div className="text-center mb-6">
           <h2 className="text-base font-extrabold text-slate-900 uppercase tracking-wider">
             {isAr ? 'تأكيد مسار الرحلة والتحقق الأمني الرقمي' : 'Official Expedition Itinerary & Access Clearance'}
@@ -1493,7 +1560,7 @@ export default function App() {
                 : 'This document serves as your official luxury travel confirmation and security pass. All transfers, private VIP guides, meals, and specialized access privileges are fully pre-paid and certified.'}
             </p>
             <p className="text-[8px] text-slate-400 font-mono font-bold uppercase">
-              MAS AGENCY SECURITIES LEDGER • STAMP CERTIFIED
+              MAS ROYAL CONCIERGE • STAMP OF AUTHENTICITY
             </p>
           </div>
 
@@ -1510,7 +1577,7 @@ export default function App() {
 
             {/* QR verification */}
             <div className="text-center space-y-1">
-              <span className="text-[8px] text-slate-400 font-bold uppercase block">{isAr ? 'الرمز الرقمي' : 'LEDGER VERIFICATION'}</span>
+              <span className="text-[8px] text-slate-400 font-bold uppercase block">{isAr ? 'الرمز الرقمي' : 'SECURE PASSAGE VERIFICATION'}</span>
               <div className="bg-white p-1 border border-slate-300 rounded">
                 <img
                   src={`https://api.qrserver.com/v1/create-qr-code/?size=100x100&color=0f172a&bgcolor=ffffff&data=${encodeURIComponent(
@@ -1560,8 +1627,7 @@ export default function App() {
           <div className={`hidden lg:flex items-center ${tokens.colors.bgMuted} p-1 ${tokens.borderRadius.button} border border-slate-200`}>
             {[
               { id: 'guest', label: lang === 'ar' ? 'كتالوج الرحلات' : 'Tours', icon: Compass },
-              { id: 'customer', label: lang === 'ar' ? 'بوابة العميل VIP' : 'My Bookings', icon: Users },
-              { id: 'admin', label: lang === 'ar' ? 'وحدة التحكم الإدارية' : 'Admin Dashboard', icon: BarChart3 }
+              { id: 'customer', label: lang === 'ar' ? 'بوابة العميل VIP' : 'My Bookings', icon: Users }
             ].map(item => {
               const Icon = item.icon;
               const isActive = role === item.id;
@@ -1581,19 +1647,45 @@ export default function App() {
               );
             })}
           </div>
-
-          {/* Quick mobile dropdown role pivots */}
-          <div className="flex lg:hidden">
-            <select
-              value={role}
-              onChange={(e) => setRole(e.target.value as any)}
-              className={`${tokens.colors.bgMuted} border border-slate-200 text-slate-800 text-xs font-bold ${tokens.borderRadius.input} px-2 py-1.5 focus:outline-none`}
+ 
+          {/* Quick mobile separate role buttons */}
+          <div className="flex lg:hidden items-center gap-1 bg-slate-100 p-0.5 rounded-lg border border-slate-200">
+            <button
+              onClick={() => setRole('guest')}
+              className={`px-2.5 py-1.5 rounded-md text-xs font-bold transition-all cursor-pointer ${
+                role === 'guest'
+                  ? 'bg-slate-900 text-amber-400 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
             >
-              <option value="guest">{lang === 'ar' ? 'كتالوج الرحلات' : 'Tours'}</option>
-              <option value="customer">{lang === 'ar' ? 'بوابة العميل VIP' : 'My Bookings'}</option>
-              <option value="admin">{lang === 'ar' ? 'وحدة التحكم' : 'Admin'}</option>
-            </select>
+              {lang === 'ar' ? 'الرحلات' : 'Tours'}
+            </button>
+            <button
+              onClick={() => setRole('customer')}
+              className={`px-2.5 py-1.5 rounded-md text-xs font-bold transition-all cursor-pointer ${
+                role === 'customer'
+                  ? 'bg-slate-900 text-amber-400 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              {lang === 'ar' ? 'حجوزاتي' : 'My Bookings'}
+            </button>
           </div>
+
+          {/* Dedicated Admin Dashboard Button - Only visible and accessible for verified Admins */}
+          {isAdminVerified && (
+            <button
+              onClick={() => setRole('admin')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 ${tokens.borderRadius.button} text-xs font-extrabold cursor-pointer transition-all border ${
+                role === 'admin'
+                  ? 'bg-slate-900 text-amber-400 border-slate-800 shadow-md shadow-amber-500/10'
+                  : 'bg-white text-slate-700 hover:text-slate-950 border-slate-200 hover:bg-slate-50'
+              }`}
+            >
+              <BarChart3 className={`w-3.5 h-3.5 ${role === 'admin' ? 'text-amber-400 animate-pulse' : 'text-emerald-600'}`} />
+              <span>{lang === 'ar' ? 'لوحة التحكم' : 'Dashboard'}</span>
+            </button>
+          )}
 
           {/* Luxury Dropdowns selector component */}
           <LanguageSelector
@@ -1637,7 +1729,7 @@ export default function App() {
 
             {/* Interactive Egypt Map Navigator */}
             <div className={tokens.spacing.container}>
-              <EgyptMap lang={lang} />
+              <EgyptMap lang={lang} onSelectBookTour={setSelectedBookTour} />
             </div>
 
             {/* Verified Sovereign Reviews Carousel */}
@@ -1680,6 +1772,7 @@ export default function App() {
                 adminPermissionTier={adminPermissionTier}
                 onLogoutAdmin={() => {
                   setIsAdminVerified(false);
+                  setRole('guest');
                   setAdminPermissionTier('Sovereign Admin');
                   localStorage.removeItem('mas_admin_verified');
                   localStorage.removeItem('mas_admin_tier');
@@ -1744,9 +1837,19 @@ export default function App() {
         <div className={`${tokens.spacing.container} flex flex-col sm:flex-row justify-between items-center text-slate-600 text-xs font-medium gap-4`}>
           <p>© 2026 MAS Agency. All rights reserved.</p>
           <div className="flex gap-6">
-            <a href="#" className="hover:text-slate-400 transition-colors">Privacy Policy</a>
-            <a href="#" className="hover:text-slate-400 transition-colors">Terms of Service</a>
-            <a href="#" className="hover:text-slate-400 transition-colors">Contact Support</a>
+            <a href="#" className="hover:text-slate-400 transition-colors font-medium">Privacy Policy</a>
+            <a href="#" className="hover:text-slate-400 transition-colors font-medium">Terms of Service</a>
+            <a href="#" className="hover:text-slate-400 transition-colors font-medium">Contact Support</a>
+            <button
+              onClick={() => {
+                setRole('admin');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              className="hover:text-slate-300 text-emerald-400 hover:text-emerald-300 transition-colors cursor-pointer text-xs font-bold flex items-center gap-1 border-l border-slate-800 pl-4"
+            >
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+              <span>{lang === 'ar' ? 'بوابة الموظفين' : 'Staff Portal'}</span>
+            </button>
           </div>
         </div>
       </footer>

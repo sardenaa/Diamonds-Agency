@@ -1,8 +1,9 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { RotateCcw, ShieldCheck, PenTool } from 'lucide-react';
+import { AppLanguage } from '../types.js';
 
 interface SignaturePadProps {
-  lang: 'en' | 'ar';
+  lang: AppLanguage;
   onSave: (signatureDataUrl: string | null) => void;
 }
 

@@ -46,6 +46,7 @@ The application is built on a modern, high-performance full-stack TypeScript arc
 - **VIP Guest Dashboard**:
   - **Download Ticket (PDF)**: Accesses an elegant, print-ready digital boarding pass and security voucher.
   - **Luxury Agreement (PDF)**: Instantly generates and downloads a legally formal, gold-accented service contract embedding their exact touchscreen signature, electronic timestamp, and binding quality covenants.
+  - **Luxury Packing Assistant**: A bespoke pre-travel checklist customized per tour environment (Desert Safari, Nile Cruise, or Red Sea Yachting) configured for English and Arabic. It features pre-loaded luxury and credential checklists, a personal custom item creator, progress indicators, and secure local storage storage.
   - **Live Chat**: Allows customers to interact directly with their designated private butler.
   - **Booking Coordination**: Instantly launch WhatsApp chat directly from the active ticket to synchronize schedules with their private driver or assigned Egyptologist.
 
@@ -59,6 +60,15 @@ The application is built on a modern, high-performance full-stack TypeScript arc
   - **AI Copilot**: Uses Gemini to auto-draft support ticket replies or write brand-new, compelling tour descriptions on-the-fly.
 - **CMS Control**: Dynamically create, edit, or delete bespoke itineraries.
 - **Google Sheets Sync**: Sign in with Google to synchronize the entire bookings ledger into a centralized spreadsheet.
+
+---
+
+## 🎨 Design System & Refinement Principles
+
+MAS implements a highly customized, eye-safe midnight luxury visual identity. Recent design updates focus heavily on **Architectural Honesty** and **Anti-AI-Slop** constraints:
+- **Clean Luxury Typography**: Space Grotesk display headings paired with Inter body text and subtle JetBrains Mono micro-caps indicators.
+- **De-Cluttered Interface**: Replaced misleading tech-larping status bars and pseudo-cryptographic network logs (e.g., "SOVEREIGN TRUST PROTOCOL", "ENCLAVE ACTIVE") with highly professional, authentic hospitality terms (e.g., "SECURE PROFILE ENVELOPE", "SECURITY LOCK ACTIVE").
+- **Visual Micro-Interactions**: Enhanced hover states and smooth staggered animations on card entries via `motion/react` to guide traveler attention.
 
 ---
 

@@ -1,3 +1,5 @@
+export type AppLanguage = 'en' | 'ar' | 'pl' | 'cs' | 'de';
+
 export interface LocalizedText {
   en: string;
   ar: string;
@@ -6,6 +8,8 @@ export interface LocalizedText {
   fr?: string;
   es?: string;
   ru?: string;
+  pl?: string;
+  cs?: string;
 }
 
 export interface TourItinerary {

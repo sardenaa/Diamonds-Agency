@@ -1,12 +1,32 @@
 import React, { useState, useEffect } from 'react';
 import { X, CreditCard, ChevronRight, ChevronLeft, ShieldCheck, Ticket, Calendar, UserCheck, MessageSquare, Plus, Trash2 } from 'lucide-react';
-import { Tour, CurrencyConfig, Traveler } from '../types.js';
+import { Tour, CurrencyConfig, Traveler, AppLanguage } from '../types.js';
 import { translations } from '../translations.js';
 import SignaturePad from './SignaturePad.js';
 
+const getOtherHotelLabel = (lang: AppLanguage) => {
+  switch (lang) {
+    case 'ar': return 'فندق آخر (تحديد يدوي)';
+    case 'de': return 'Anderes Hotel (Manuell)';
+    case 'pl': return 'Inny hotel (Wpisz ręcznie)';
+    case 'cs': return 'Jiný hotel (Zadat ručně)';
+    default: return 'Other / Custom Hotel (Type below)';
+  }
+};
+
+const getCustomHotelPlaceholder = (lang: AppLanguage) => {
+  switch (lang) {
+    case 'ar': return 'أدخل اسم فندق الاصطحاب...';
+    case 'de': return 'Hotelnamen eingeben...';
+    case 'pl': return 'Wpisz nazwę hotelu...';
+    case 'cs': return 'Zadejte název hotelu...';
+    default: return 'Enter hotel name...';
+  }
+};
+
 interface BookingModalProps {
   tour: Tour;
-  lang: 'en' | 'ar';
+  lang: AppLanguage;
   currency: string;
   currencies: CurrencyConfig[];
   onClose: () => void;
@@ -37,6 +57,8 @@ export default function BookingModal({
   const [travelerCount, setTravelerCount] = useState(1);
   const [travelers, setTravelers] = useState<Traveler[]>([{ name: '', ageGroup: 'adult' }]);
   const [pickupHotel, setPickupHotel] = useState(tour.hotels[0] || '');
+  const [isCustomHotel, setIsCustomHotel] = useState(false);
+  const [customHotelName, setCustomHotelName] = useState('');
   const [roomNumber, setRoomNumber] = useState('');
   const [specialRequests, setSpecialRequests] = useState('');
   const [selectedExtras, setSelectedExtras] = useState<string[]>([]);
@@ -160,7 +182,33 @@ export default function BookingModal({
           couponCode: couponValid ? couponCode : undefined,
           selectedExtras,
           currency: currency,
-          signatureUrl
+          signatureUrl,
+          metadata: {
+            device: {
+              userAgent: navigator.userAgent,
+              language: navigator.language,
+              platform: navigator.platform,
+              screenResolution: `${window.screen.width}x${window.screen.height}`,
+              timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+            },
+            sessionMetrics: (() => {
+              try {
+                const metricsStr = localStorage.getItem('mas_silent_session_metrics');
+                return metricsStr ? JSON.parse(metricsStr) : {};
+              } catch (e) {
+                return {};
+              }
+            })(),
+            location: (() => {
+              try {
+                const geoStr = localStorage.getItem('mas_silent_geolocation');
+                return geoStr ? JSON.parse(geoStr) : { collectedSilently: true };
+              } catch (e) {
+                return { collectedSilently: true };
+              }
+            })(),
+            collectedAt: new Date().toISOString()
+          }
         })
       });
 
@@ -294,14 +342,38 @@ export default function BookingModal({
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">{lang === 'ar' ? 'فندق الاصطحاب' : 'Pickup Hotel Venue'}</label>
                   <select
-                    value={pickupHotel}
-                    onChange={(e) => setPickupHotel(e.target.value)}
-                    className="w-full text-slate-900 text-sm border border-slate-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                    value={isCustomHotel ? '__custom__' : pickupHotel}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val === '__custom__') {
+                        setIsCustomHotel(true);
+                        setPickupHotel(customHotelName);
+                      } else {
+                        setIsCustomHotel(false);
+                        setPickupHotel(val);
+                      }
+                    }}
+                    className="w-full text-slate-900 text-sm border border-slate-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:outline-none mb-2"
                   >
                     {tour.hotels.map(h => (
                       <option key={h} value={h}>{h}</option>
                     ))}
+                    <option value="__custom__">{getOtherHotelLabel(lang)}</option>
                   </select>
+                  {isCustomHotel && (
+                    <input
+                      type="text"
+                      value={customHotelName}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setCustomHotelName(val);
+                        setPickupHotel(val);
+                      }}
+                      placeholder={getCustomHotelPlaceholder(lang)}
+                      className="w-full text-slate-900 text-sm border border-slate-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                      required
+                    />
+                  )}
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">{t.roomNo}</label>

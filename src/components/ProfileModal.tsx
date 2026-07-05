@@ -1,13 +1,14 @@
 import React from 'react';
 import { X, Award, Globe, ShieldCheck, Star, Clock, Heart } from 'lucide-react';
 import { getStaffProfile } from '../data/profiles.js';
+import { AppLanguage } from '../types.js';
 
 interface ProfileModalProps {
   isOpen: boolean;
   onClose: () => void;
   staffName: string;
   role: 'guide' | 'driver';
-  lang: 'en' | 'ar';
+  lang: AppLanguage;
 }
 
 export default function ProfileModal({

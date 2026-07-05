@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { Ticket, Calendar, ShieldAlert, Award, MessageSquare, Bell, CreditCard, Send, Plus, Sparkles, User, RefreshCw, Smartphone, ShieldCheck, Fingerprint, Lock, Unlock, Activity, CheckCircle2, UserPlus, Gift, Copy, Mail, ExternalLink, Share2, Compass, Trophy, Gem, X, Star, Camera } from 'lucide-react';
-import { Booking, CurrencyConfig, CustomerCRM, SupportMessage, WhatsAppMessage, SupportTicket } from '../types.js';
+import { Booking, CurrencyConfig, CustomerCRM, SupportMessage, WhatsAppMessage, SupportTicket, AppLanguage } from '../types.js';
 import { translations } from '../translations.js';
 import LoyaltyTier, { TIER_CONFIGS } from './LoyaltyTier.js';
 import BookingCountdown from './BookingCountdown.js';
 import ProfileModal from './ProfileModal.js';
 
 interface DashboardProps {
-  lang: 'en' | 'ar';
+  lang: AppLanguage;
   currency: string;
   currencies: CurrencyConfig[];
   userEmail: string;
@@ -142,9 +142,9 @@ ${shareUrl}`;
       }
     }
     return [
-      { id: '1', eventEn: 'Sovereign SSL Handshake Completed', eventAr: 'اكتملت مصافحة SSL السيادية الآمنة', time: 'Just Now', ip: '197.34.112.9' },
+      { id: '1', eventEn: 'Secure profile session initialized', eventAr: 'تم بدء الجلسة الآمنة للملف الشخصي', time: 'Just Now', ip: '197.34.112.9' },
       { id: '2', eventEn: 'Device Authorized: iOS / Safari 19.4', eventAr: 'تفويض الجهاز المتصل: iOS / Safari 19.4', time: '10 minutes ago', ip: '197.34.112.9' },
-      { id: '3', eventEn: 'Sovereign Encryption Keys Generated', eventAr: 'إنشاء مفاتيح التشفير السيادية الخاصة', time: '20 minutes ago', ip: '197.34.112.9' }
+      { id: '3', eventEn: 'Profile security credentials verified', eventAr: 'تم التحقق من بيانات حماية الملف الشخصي', time: '20 minutes ago', ip: '197.34.112.9' }
     ];
   });
 
@@ -526,8 +526,8 @@ ${shareUrl}`;
       setBiometricsLinked(true);
       setScanStatus('success');
       
-      const eventEn = `Biometric Signature Verified (${type === 'face' ? 'Sovereign FaceID' : 'Sovereign TouchID'})`;
-      const eventAr = `تم تأكيد التوقيع البيومتري (${type === 'face' ? 'بصمة الوجه السيادية' : 'بصمة الإصبع السيادية'})`;
+      const eventEn = `Biometric Signature Verified (${type === 'face' ? 'Face Verification' : 'Fingerprint Verification'})`;
+      const eventAr = `تم تأكيد التوقيع البيومتري (${type === 'face' ? 'بصمة الوجه' : 'بصمة الإصبع'})`;
       const newLog = {
         id: String(Date.now()),
         eventEn,
@@ -848,6 +848,18 @@ ${shareUrl}`;
                         <span className="text-xs font-bold text-slate-500">{t.total}</span>
                         <span className="text-base font-black text-slate-800 font-sans">{formatLocalPrice(b.totalAmountUSD)}</span>
                       </div>
+
+                      <div className="pt-2">
+                        <a 
+                          href={`/?share-itinerary=${b.id}&print=true`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="w-full bg-slate-900 hover:bg-slate-850 text-amber-400 font-extrabold text-xs py-3 rounded-xl transition-all cursor-pointer text-center uppercase tracking-wider flex items-center justify-center gap-2 border border-slate-800 hover:border-amber-500/30 group"
+                        >
+                          <Compass className="w-4 h-4 text-amber-500 group-hover:rotate-45 transition-transform" />
+                          <span>{lang === 'ar' ? 'الاستعداد للمغادرة (المسار المطبوع)' : 'Prepare for Departure'}</span>
+                        </a>
+                      </div>
                     </div>
 
                     {/* Digital QR Ticket */}
@@ -878,10 +890,19 @@ ${shareUrl}`;
                       <div className="w-full space-y-2">
                         <p className="text-[9px] text-slate-400 font-medium mb-1">{lang === 'ar' ? 'يرجى تقديم رمز الـ QR لسائق المرسيدس عند الاصطحاب' : 'Scan this QR code with your driver at pickup.'}</p>
                         <a 
+                          href={`/?share-itinerary=${b.id}&print=true`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-500 hover:to-amber-600 text-slate-950 font-black text-xs w-full py-2.5 rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-md shadow-amber-500/15"
+                        >
+                          <Compass className="w-3.5 h-3.5 text-slate-950" />
+                          <span>{lang === 'ar' ? 'الاستعداد للمغادرة (طباعة)' : 'Prepare for Departure'}</span>
+                        </a>
+                        <a 
                           href={`/api/bookings/${b.id}/pdf`}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs w-full py-2 rounded-lg transition-colors cursor-pointer block text-center"
+                          className="bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs w-full py-2 rounded-lg transition-colors cursor-pointer block text-center border border-slate-700"
                         >
                           {lang === 'ar' ? 'تحميل التذكرة الإلكترونية (PDF)' : 'Download Ticket (PDF)'}
                         </a>
@@ -1953,14 +1974,14 @@ ${shareUrl}`;
               
               <div className="space-y-2 relative z-10">
                 <div className="flex items-center gap-2">
-                  <span className="text-[9px] bg-emerald-500 text-slate-950 px-2.5 py-1 rounded font-black uppercase tracking-widest animate-pulse">
-                    {lang === 'ar' ? 'درع الأمان السيادي' : 'SOVEREIGN TRUST PROTOCOL'}
+                  <span className="text-[9px] bg-emerald-500 text-slate-950 px-2.5 py-1 rounded font-black uppercase tracking-widest">
+                    {lang === 'ar' ? 'درع الأمان الرقمي' : 'SECURE PROFILE ENVELOPE'}
                   </span>
                   <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-ping" />
                 </div>
                 
                 <h3 className="text-xl font-bold font-sans tracking-tight">
-                  {lang === 'ar' ? 'الأمان البيومتري والتحقق من المعاملات' : 'Biometric Security & Transaction Protection'}
+                  {lang === 'ar' ? 'الأمان الرقمي والتحقق من المعاملات' : 'Secure Verification & Profile Protection'}
                 </h3>
                 <p className="text-slate-300 text-xs leading-relaxed max-w-2xl font-medium">
                   {lang === 'ar' 
@@ -1976,7 +1997,7 @@ ${shareUrl}`;
                   {biometricsLinked ? (
                     <span className="inline-flex items-center gap-1 text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-3 py-1 rounded-full font-bold" id="biometrics-active-badge">
                       <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-                      <span>{lang === 'ar' ? 'نشط ومحمي بالبصمة البيومترية السيادية' : 'Sovereign Biometric Vault Active'}</span>
+                      <span>{lang === 'ar' ? 'نشط ومحمي بالبصمة الرقمية الآمنة' : 'Secure Biometric Signature Active'}</span>
                     </span>
                   ) : (
                     <span className="inline-flex items-center gap-1 text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/30 px-3 py-1 rounded-full font-bold" id="biometrics-inactive-badge">
@@ -2004,10 +2025,10 @@ ${shareUrl}`;
                     
                     <div className="space-y-1">
                       <p className="text-xs font-black text-slate-300 uppercase tracking-widest">
-                        {lang === 'ar' ? 'جاري محاكاة اتصال مصافحة الأمان البيومتري...' : 'SIMULATING SECURE BIOMETRIC HANDSHAKE...'}
+                        {lang === 'ar' ? 'جاري محاكاة اتصال مصافحة الأمان البيومتري...' : 'ESTABLISHING SECURE BIOMETRIC CONNECTION...'}
                       </p>
                       <p className="text-[10px] text-emerald-400 font-bold">
-                        {lang === 'ar' ? 'جاري محاذاة مستشعر البصمة مع مفاتيح التشفير السيادية...' : 'Aligning biometric sensor with Sovereign hardware keys...'}
+                        {lang === 'ar' ? 'جاري محاذاة مستشعر البصمة مع مفاتيح التشفير الآمنة...' : 'Aligning biometric sensor with secure hardware keys...'}
                       </p>
                     </div>
                   </div>
@@ -2077,8 +2098,8 @@ ${shareUrl}`;
                           </h4>
                           <p className="text-xs text-slate-500 mt-1">
                             {lang === 'ar' 
-                              ? `النوع النشط حاليًا: ${selectedBiometricType === 'face' ? 'بصمة الوجه الملكية' : 'بصمة الإصبع السيادية'}` 
-                              : `Registered credentials: ${selectedBiometricType === 'face' ? 'Sovereign FaceID' : 'Sovereign TouchID'}`}
+                              ? `النوع النشط حاليًا: ${selectedBiometricType === 'face' ? 'بصمة الوجه' : 'بصمة الإصبع'}` 
+                              : `Registered credentials: ${selectedBiometricType === 'face' ? 'Face Verification' : 'Fingerprint Verification'}`}
                           </p>
                         </div>
                       </div>
@@ -2159,7 +2180,7 @@ ${shareUrl}`;
                     <ShieldCheck className="w-5 h-5 text-emerald-600 mt-0.5" />
                     <div className="space-y-1">
                       <p className="text-xs font-bold text-slate-800">
-                        {lang === 'ar' ? 'شريحة الحماية والأجهزة المتصلة' : 'Hardware Secure Enclave Integration'}
+                        {lang === 'ar' ? 'تكامل المصادقة الثنائية الآمنة' : 'Secure Device Authentication'}
                       </p>
                       <p className="text-[10px] text-slate-500 leading-relaxed font-medium">
                         {lang === 'ar'
@@ -2176,7 +2197,7 @@ ${shareUrl}`;
                       <>
                         <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
                         <span className="text-emerald-700 uppercase tracking-wide font-black text-[10px]">
-                          {lang === 'ar' ? 'القفل النشط مفعل' : 'ENCLAVE ACTIVE'}
+                          {lang === 'ar' ? 'قفل الحماية نشط' : 'SECURITY LOCK ACTIVE'}
                         </span>
                       </>
                     ) : (
@@ -2463,7 +2484,7 @@ ${shareUrl}`;
                         <div className="flex justify-between items-end">
                           <div>
                             <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">
-                              {lang === 'ar' ? 'مجموع النقاط النشطة:' : 'CURRENT REWARD LEDGER:'}
+                              {lang === 'ar' ? 'مجموع النقاط النشطة:' : 'TOTAL ACTIVE REWARDS:'}
                             </span>
                             <span className="text-2xl font-black text-amber-500 font-sans tracking-tight">
                               {activePoints.toLocaleString()} <span className="text-xs font-bold text-slate-400">PTS</span>

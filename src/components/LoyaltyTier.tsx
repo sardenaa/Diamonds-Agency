@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { Award, ShieldCheck, Sparkles, Trophy, CheckCircle2, Lock, ArrowRight, Gem, Compass, Check, HelpCircle } from 'lucide-react';
-import { Booking } from '../types.js';
+import { Booking, AppLanguage } from '../types.js';
 import { tokens } from '../theme/tokens.js';
 
 interface LoyaltyTierProps {
-  lang: 'en' | 'ar';
+  lang: AppLanguage;
   bookings: Booking[];
   totalSpent: number;
 }

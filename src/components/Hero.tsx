@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { Search, MapPin, Calendar, Compass, Star } from 'lucide-react';
 import { translations } from '../translations.js';
+import { AppLanguage } from '../types.js';
 
 interface HeroProps {
-  lang: 'en' | 'ar';
+  lang: AppLanguage;
   onSearch: (filters: { query: string; destination: string; date: string }) => void;
 }
 

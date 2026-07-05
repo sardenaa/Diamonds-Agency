@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Calendar, Clock, Sparkles, Compass, MapPin, Ticket, Timer, ShieldCheck, HelpCircle } from 'lucide-react';
-import { Booking } from '../types.js';
+import { Booking, AppLanguage } from '../types.js';
 import ProfileModal from './ProfileModal.js';
 
 interface BookingCountdownProps {
   bookings: Booking[];
-  lang: 'en' | 'ar';
+  lang: AppLanguage;
 }
 
 interface SimulatedVoyage {

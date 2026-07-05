@@ -1,23 +1,44 @@
-import React, { useState } from 'react';
-import { MapPin, Sun, Compass, Building2, Car, Star, Navigation } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { MapPin, Sun, Compass, Building2, Car, Star, Navigation, X, Crown, Sparkles } from 'lucide-react';
+import { Tour, AppLanguage } from '../types.js';
 
 interface DestinationData {
   id: string;
-  name: { en: string; ar: string };
+  name: { en: string; ar: string; de?: string; pl?: string; cs?: string };
   coordinates: { x: string; y: string }; // Position percentages on the custom vector map
-  weather: { en: string; ar: string; temp: string };
-  attractions: { en: string[]; ar: string[] };
-  hotels: { en: string[]; ar: string[] };
-  transport: { en: string; ar: string };
-  tours: { en: string[]; ar: string[] };
+  weather: { en: string; ar: string; de?: string; pl?: string; cs?: string; temp: string };
+  attractions: { en: string[]; ar: string[]; de?: string[]; pl?: string[]; cs?: string[] };
+  hotels: { en: string[]; ar: string[]; de?: string[]; pl?: string[]; cs?: string[] };
+  transport: { en: string; ar: string; de?: string; pl?: string; cs?: string };
+  tours: { en: string[]; ar: string[]; de?: string[]; pl?: string[]; cs?: string[] };
 }
 
 interface EgyptMapProps {
-  lang: 'en' | 'ar';
+  lang: AppLanguage;
+  onSelectBookTour?: (tour: Tour) => void;
 }
 
-export default function EgyptMap({ lang }: EgyptMapProps) {
+export default function EgyptMap({ lang, onSelectBookTour }: EgyptMapProps) {
+  const getLocalizedValue = <T,>(obj: { en: T; ar: T; [key: string]: any }): T => {
+    if (lang === 'ar') return obj.ar;
+    return obj[lang] !== undefined ? obj[lang] : obj.en;
+  };
+
   const [selectedDestId, setSelectedDestId] = useState<string>('cairo');
+  const [activePopoverId, setActivePopoverId] = useState<string | null>(null);
+  const [tours, setTours] = useState<Tour[]>([]);
+
+  // Fetch real tour list to map direct booking shortcuts
+  useEffect(() => {
+    fetch('/api/tours')
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data)) {
+          setTours(data);
+        }
+      })
+      .catch(err => console.error('Error fetching tours in EgyptMap:', err));
+  }, []);
 
   const destinations: DestinationData[] = [
     {
@@ -134,8 +155,71 @@ export default function EgyptMap({ lang }: EgyptMapProps) {
 
   const selectedDest = destinations.find(d => d.id === selectedDestId) || destinations[0];
 
+  // Helper to match destination ID to database Tour ID
+  const getMatchedTourForDestination = (destId: string): Tour | null => {
+    let targetId = 'tour-1';
+    if (destId === 'luxor' || destId === 'aswan') {
+      targetId = 'tour-2';
+    } else if (destId === 'sharm') {
+      targetId = 'tour-3';
+    } else if (destId === 'hurghada') {
+      targetId = 'tour-4';
+    }
+    return tours.find(t => t.id === targetId) || null;
+  };
+
+  // Click on map pin: open popover and track interaction silently
+  const handlePinClick = (destId: string) => {
+    setSelectedDestId(destId);
+    setActivePopoverId(destId);
+
+    // Silently log viewed destination in local storage for booking checkout metadata
+    try {
+      const currentSessionsStr = localStorage.getItem('mas_silent_session_metrics') || '{}';
+      const metrics = JSON.parse(currentSessionsStr);
+      metrics.viewedDestinations = metrics.viewedDestinations || [];
+      if (!metrics.viewedDestinations.includes(destId)) {
+        metrics.viewedDestinations.push(destId);
+      }
+      metrics.lastInteraction = new Date().toISOString();
+      localStorage.setItem('mas_silent_session_metrics', JSON.stringify(metrics));
+    } catch (e) {
+      console.warn('Silent metrics tracking write bypassed:', e);
+    }
+  };
+
+  // Intelligent positioning styling to stay within map frame
+  const getPopoverStyle = (dest: DestinationData) => {
+    const xPct = parseFloat(dest.coordinates.x);
+    const yPct = parseFloat(dest.coordinates.y);
+    
+    const style: React.CSSProperties = {
+      position: 'absolute',
+      zIndex: 40,
+    };
+    
+    // Vertical positioning
+    if (yPct > 60) {
+      style.bottom = `calc(100% - ${dest.coordinates.y} + 15px)`;
+    } else {
+      style.top = `calc(${dest.coordinates.y} + 15px)`;
+    }
+    
+    // Horizontal positioning
+    if (xPct > 75) {
+      style.right = `calc(100% - ${dest.coordinates.x} - 25px)`;
+    } else if (xPct < 25) {
+      style.left = `calc(${dest.coordinates.x} - 25px)`;
+    } else {
+      style.left = dest.coordinates.x;
+      style.transform = 'translateX(-50%)';
+    }
+    
+    return style;
+  };
+
   return (
-    <section className="bg-slate-950 text-white rounded-3xl border border-slate-900 overflow-hidden shadow-2xl p-6 md:p-10 space-y-8 relative">
+    <section id="luxury-egypt-map" className="bg-slate-950 text-white rounded-3xl border border-slate-900 overflow-hidden shadow-2xl p-6 md:p-10 space-y-8 relative">
       <div className="absolute inset-0 bg-gradient-to-tr from-slate-950 via-slate-950/90 to-emerald-950/10 pointer-events-none" />
       
       {/* Editorial Title */}
@@ -158,7 +242,7 @@ export default function EgyptMap({ lang }: EgyptMapProps) {
       <div className="relative z-10 grid grid-cols-1 lg:grid-cols-12 gap-8 items-stretch">
         
         {/* Interactive Map Visual Stage (Left 7 Columns) */}
-        <div className="lg:col-span-7 bg-slate-900/40 rounded-2xl border border-slate-800/80 p-4 flex flex-col justify-between relative min-h-[340px] md:min-h-[460px] overflow-hidden">
+        <div className="lg:col-span-7 bg-slate-900/40 rounded-2xl border border-slate-800/80 p-4 flex flex-col justify-between relative min-h-[360px] md:min-h-[480px] overflow-hidden">
           {/* Abstract Egyptian Map Graphic Design */}
           <div className="absolute inset-0 opacity-15 pointer-events-none">
             {/* Styled background lines */}
@@ -171,9 +255,9 @@ export default function EgyptMap({ lang }: EgyptMapProps) {
           </div>
 
           {/* Map Compass Accent */}
-          <div className="absolute bottom-4 left-4 flex items-center gap-2 text-slate-500 text-[10px] font-mono">
+          <div className="absolute bottom-4 left-4 flex items-center gap-2 text-slate-500 text-[10px]">
             <Navigation className="w-4 h-4 text-amber-500 animate-pulse rotate-45" />
-            <span>MAS NAVIGATION LEDGER v4.1</span>
+            <span>{lang === 'ar' ? 'البوصلة التفاعلية للموقع' : 'INTERACTIVE COMPASS NAVIGATOR'}</span>
           </div>
 
           {/* Dynamic Map Pins */}
@@ -183,7 +267,7 @@ export default function EgyptMap({ lang }: EgyptMapProps) {
               return (
                 <button
                   key={dest.id}
-                  onClick={() => setSelectedDestId(dest.id)}
+                  onClick={() => handlePinClick(dest.id)}
                   style={{ top: dest.coordinates.y, left: dest.coordinates.x }}
                   className="absolute transform -translate-x-1/2 -translate-y-1/2 group cursor-pointer transition-all focus:outline-none"
                 >
@@ -199,16 +283,119 @@ export default function EgyptMap({ lang }: EgyptMapProps) {
                       ? 'bg-amber-500 border-amber-400 text-slate-950 scale-105 font-black' 
                       : 'bg-slate-950/90 border-slate-800 text-slate-300 group-hover:text-white'
                   }`}>
-                    {lang === 'ar' ? dest.name.ar : dest.name.en}
+                    {getLocalizedValue(dest.name)}
                   </div>
                 </button>
               );
             })}
+
+            {/* FLOATING TOUR HIGHLIGHT POPOVER CARD */}
+            {activePopoverId && (() => {
+              const popoverDest = destinations.find(d => d.id === activePopoverId);
+              if (!popoverDest) return null;
+              const matchedTour = getMatchedTourForDestination(popoverDest.id);
+              
+              return (
+                <div 
+                  style={getPopoverStyle(popoverDest)}
+                  className="bg-slate-950/95 backdrop-blur-xl border border-amber-500/50 rounded-2xl p-4 shadow-2xl w-72 md:w-80 text-white animate-fade-in space-y-3 z-40"
+                >
+                  <div className="flex justify-between items-start">
+                    <div className="flex items-center gap-1.5">
+                      <Sparkles className="w-4 h-4 text-amber-400 fill-amber-400" />
+                      <div>
+                        <span className="text-[8px] text-amber-400 font-extrabold tracking-widest uppercase block">
+                          {lang === 'ar' ? 'معالم مميزة' : 'EXCLUSIVE HIGHLIGHT'}
+                        </span>
+                        <h4 className="text-xs font-black font-serif text-white">
+                          {getLocalizedValue(popoverDest.name)}
+                        </h4>
+                      </div>
+                    </div>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setActivePopoverId(null);
+                      }}
+                      className="text-slate-400 hover:text-white transition-colors cursor-pointer p-1 rounded-full hover:bg-slate-800"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+
+                  {/* Highlights attractions */}
+                  <div className="space-y-1 text-slate-300 text-[10px]">
+                    <div className="font-bold text-slate-400">
+                      {lang === 'ar' ? 'الأماكن البارزة لزيارتها:' : 'Top Experiences:'}
+                    </div>
+                    <ul className="list-disc pl-4 space-y-0.5 leading-relaxed font-medium">
+                      {getLocalizedValue(popoverDest.attractions).map((attr, idx) => (
+                        <li key={idx}>{attr}</li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  {/* Curated Tour Booking Shortcut */}
+                  {matchedTour ? (
+                    <div className="pt-2 border-t border-slate-900 space-y-2">
+                      <div className="flex justify-between items-center bg-slate-900/90 p-2 rounded-lg border border-slate-800">
+                        <div className="truncate max-w-[150px] pr-2 text-left">
+                          <span className="text-[7px] text-emerald-400 font-bold uppercase tracking-wider block">
+                            {lang === 'ar' ? 'جولة التوقيع الموصى بها' : 'RECOMMENDED ROYAL TOUR'}
+                          </span>
+                          <span className="text-[10px] font-bold text-slate-200 block truncate" title={getLocalizedValue(matchedTour.title)}>
+                            {getLocalizedValue(matchedTour.title)}
+                          </span>
+                        </div>
+                        <div className="text-right flex-shrink-0">
+                          <span className="text-[7px] text-slate-400 block uppercase font-bold">
+                            {lang === 'ar' ? 'تبدأ من' : 'FROM'}
+                          </span>
+                          <span className="text-[11px] font-black text-amber-400">
+                            ${matchedTour.priceUSD}
+                          </span>
+                        </div>
+                      </div>
+
+                      {onSelectBookTour ? (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onSelectBookTour(matchedTour);
+                          }}
+                          className="w-full bg-amber-500 hover:bg-amber-600 text-slate-950 font-black text-[10px] py-2 px-3 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 uppercase tracking-wider shadow-lg hover:shadow-amber-500/20"
+                        >
+                          <Crown className="w-3.5 h-3.5 fill-slate-950" />
+                          <span>{lang === 'ar' ? 'احجز فوراً الآن' : 'Instant Book Tour'}</span>
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => {
+                            const element = document.getElementById('excursions-grid');
+                            if (element) {
+                              element.scrollIntoView({ behavior: 'smooth' });
+                            }
+                          }}
+                          className="w-full bg-slate-800 hover:bg-slate-700 text-white font-bold text-[10px] py-2 px-3 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                        >
+                          <Compass className="w-3.5 h-3.5 text-amber-500" />
+                          <span>{lang === 'ar' ? 'عرض الجولات المتاحة' : 'View Excursions'}</span>
+                        </button>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="text-[9px] text-slate-500 italic text-center pt-2 border-t border-slate-900">
+                      {lang === 'ar' ? 'الرحلة مخصصة بالكامل' : 'Bespoke Private Itinerary Only'}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
           </div>
 
           {/* Quick Help Tip */}
           <div className="bg-slate-950/60 backdrop-blur-md px-3 py-1.5 rounded-lg border border-slate-800/60 max-w-xs text-[10px] font-semibold text-slate-400">
-            {lang === 'ar' ? '💡 انقر على النقاط الذهبية لتغيير الوجهة الاستكشافية' : '💡 Select the golden pins to chart your itinerary'}
+            {lang === 'ar' ? '💡 انقر على النقاط الذهبية لتغيير الوجهة الاستكشافية وعرض حجزها الفوري' : '💡 Select the golden pins to chart your itinerary & book instantly'}
           </div>
         </div>
 
@@ -218,17 +405,17 @@ export default function EgyptMap({ lang }: EgyptMapProps) {
           {/* Top Info Header */}
           <div className="space-y-3">
             <div className="flex justify-between items-center">
-              <span className="text-[9px] text-emerald-400 font-extrabold tracking-widest uppercase font-mono">
-                {selectedDest.id.toUpperCase()} SECTOR ACTIVES
+              <span className="text-[10px] text-emerald-400 font-extrabold tracking-widest uppercase">
+                {lang === 'ar' ? 'تفاصيل الوجهة الملكية' : 'ROYAL EXPEDITION HUB'}
               </span>
               <div className="flex items-center gap-1.5 bg-amber-500/10 border border-amber-500/20 text-amber-400 text-[10px] font-extrabold px-2.5 py-1 rounded-full">
                 <Sun className="w-3.5 h-3.5 fill-amber-400" />
-                <span>{lang === 'ar' ? selectedDest.weather.ar : selectedDest.weather.en}</span>
+                <span>{getLocalizedValue(selectedDest.weather)}</span>
               </div>
             </div>
 
             <h3 className="text-xl md:text-2xl font-black font-serif text-white tracking-tight border-b border-slate-800 pb-3">
-              {lang === 'ar' ? selectedDest.name.ar : selectedDest.name.en}
+              {getLocalizedValue(selectedDest.name)}
             </h3>
           </div>
 
@@ -242,7 +429,7 @@ export default function EgyptMap({ lang }: EgyptMapProps) {
                 <span>{lang === 'ar' ? 'الرحلات الملكية التوقيعية' : 'Curated Sovereign Excursions'}</span>
               </span>
               <ul className="space-y-1.5 pl-5 list-disc text-slate-300 text-xs font-semibold">
-                {(lang === 'ar' ? selectedDest.tours.ar : selectedDest.tours.en).map((tour, i) => (
+                {getLocalizedValue(selectedDest.tours).map((tour, i) => (
                   <li key={i} className="hover:text-white transition-colors leading-relaxed">
                     {tour}
                   </li>
@@ -257,7 +444,7 @@ export default function EgyptMap({ lang }: EgyptMapProps) {
                 <span>{lang === 'ar' ? 'الفنادق والمنتجعات الشريكة' : 'Elite Partner Hotels'}</span>
               </span>
               <ul className="space-y-1.5 pl-5 list-disc text-slate-300 text-xs font-semibold">
-                {(lang === 'ar' ? selectedDest.hotels.ar : selectedDest.hotels.en).map((hotel, i) => (
+                {getLocalizedValue(selectedDest.hotels).map((hotel, i) => (
                   <li key={i} className="hover:text-white transition-colors leading-relaxed">
                     {hotel}
                   </li>
@@ -272,7 +459,7 @@ export default function EgyptMap({ lang }: EgyptMapProps) {
                 <span>{lang === 'ar' ? 'الخدمة اللوجستية والأسطول' : 'Sovereign Transport Fleets'}</span>
               </span>
               <p className="text-slate-300 text-xs leading-relaxed pl-5 font-semibold">
-                {lang === 'ar' ? selectedDest.transport.ar : selectedDest.transport.en}
+                {getLocalizedValue(selectedDest.transport)}
               </p>
             </div>
 
@@ -289,7 +476,7 @@ export default function EgyptMap({ lang }: EgyptMapProps) {
             className="w-full bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 text-white font-black text-xs py-3 rounded-xl transition-all cursor-pointer text-center uppercase tracking-wider flex items-center justify-center gap-2"
           >
             <Compass className="w-4 h-4 text-amber-400" />
-            <span>{lang === 'ar' ? 'تصفح جولات هذا القطاع' : `Browse Tours in ${selectedDest.name.en}`}</span>
+            <span>{lang === 'ar' ? 'تصفح جولات هذا القطاع' : `Browse Tours in ${getLocalizedValue(selectedDest.name)}`}</span>
           </button>
         </div>
 

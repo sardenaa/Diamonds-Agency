@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { ShieldCheck, Lock, Unlock, Key, AlertTriangle, Eye, EyeOff } from 'lucide-react';
+import { AppLanguage } from '../types.js';
 
 interface AdminSecurityGateProps {
-  lang: 'en' | 'ar';
+  lang: AppLanguage;
   onVerify: (tier: string) => void;
 }
 

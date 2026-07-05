@@ -1,9 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { MessageSquare, Send, X, Bot, Sparkles, Smile, Crown, Lock, Unlock, ArrowRight, ChevronRight, PhoneCall, Sparkle } from 'lucide-react';
 import { translations } from '../translations.js';
+import { AppLanguage } from '../types.js';
 
 interface ChatbotProps {
-  lang: 'en' | 'ar';
+  lang: AppLanguage;
 }
 
 interface Message {
@@ -328,9 +329,9 @@ How may I coordinate your private Egypt tour requirements today, Sir? I have als
                     <ArrowRight className="w-2.5 h-2.5" />
                   </button>
                 ) : (
-                  <span className="text-amber-600 flex items-center gap-0.5 text-[8px] uppercase tracking-wider">
-                    <span className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-ping" />
-                    <span>{lang === 'ar' ? 'متصل' : 'VIP ACTIVE'}</span>
+                  <span className="text-amber-600 flex items-center gap-1.5 text-[9px] font-black uppercase tracking-wider">
+                    <span className="w-1.5 h-1.5 bg-amber-500 rounded-full" />
+                    <span>{lang === 'ar' ? 'الخادم الشخصي متصل' : 'CONCIERGE CONNECTED'}</span>
                   </span>
                 )
               ) : (

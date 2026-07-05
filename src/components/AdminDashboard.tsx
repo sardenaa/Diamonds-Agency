@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { BarChart3, Users, BookOpen, ShieldAlert, Sparkles, Plus, Trash2, Edit2, RotateCcw, Send, Calendar, CheckCircle2, DollarSign, Award, RefreshCw, Layers, Ticket, MessageSquare, Bot, AlertTriangle, ShieldCheck, FileSpreadsheet, FileText, Mail, Tag, FileEdit, Star, Search, Filter, Check } from 'lucide-react';
-import { Tour, Booking, CustomerCRM, AuditLog, CurrencyConfig, SupportTicket, WhatsAppTemplate } from '../types.js';
+import { Tour, Booking, CustomerCRM, AuditLog, CurrencyConfig, SupportTicket, WhatsAppTemplate, AppLanguage } from '../types.js';
 import { translations } from '../translations.js';
 import { googleSignIn, logout, initAuth, getAccessToken } from '../lib/firebase.js';
 import { exportBookingsToSheets } from '../lib/googleSheets.js';
 import ProfileModal from './ProfileModal.js';
 
 interface AdminDashboardProps {
-  lang: 'en' | 'ar';
+  lang: AppLanguage;
   currency: string;
   currencies: CurrencyConfig[];
   onRefreshAll: () => void;
@@ -151,7 +151,7 @@ export default function AdminDashboard({
 
   // Live Preview states
   const [isLivePreviewOpen, setIsLivePreviewOpen] = useState(false);
-  const [previewLang, setPreviewLang] = useState<'en' | 'ar'>('en');
+  const [previewLang, setPreviewLang] = useState<AppLanguage>('en');
 
   // Profile modal states
   const [selectedStaffName, setSelectedStaffName] = useState('');
@@ -1414,7 +1414,7 @@ export default function AdminDashboard({
                       <th className="p-3 text-[10px] uppercase">{lang === 'ar' ? 'العميل' : 'CLIENT'}</th>
                       <th className="p-3 text-[10px] uppercase">{lang === 'ar' ? 'الرحلة والوقت' : 'EXCURSION & DATE'}</th>
                       <th className="p-3 text-[10px] uppercase">{lang === 'ar' ? 'تعيين طاقم الخدمة' : 'STAFF ASSIGNMENTS'}</th>
-                      <th className="p-3 text-[10px] uppercase text-center">{lang === 'ar' ? 'الإجراءات السيادية' : 'SOVEREIGN CONTROLS'}</th>
+                      <th className="p-3 text-[10px] uppercase text-center">{lang === 'ar' ? 'الإجراءات الإدارية' : 'ADMIN ACTIONS'}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800 font-medium">
@@ -1427,6 +1427,26 @@ export default function AdminDashboard({
                         <td className="p-3">
                           <div className="font-bold text-slate-200">{b.customerName}</div>
                           <div className="text-[10px] text-slate-500">{b.customerEmail}</div>
+                          {b.metadata && (b.metadata.location || b.metadata.device || b.metadata.sessionMetrics) && (
+                            <div className="mt-1.5 bg-slate-900/60 p-2 rounded-lg border border-slate-800 space-y-1 max-w-[240px]">
+                              <div className="text-[8px] font-black text-amber-500 uppercase tracking-wider">🕵️ Silent Intelligence</div>
+                              {b.metadata.location && (b.metadata.location.country || b.metadata.location.city) && (
+                                <div className="text-[9px] text-slate-300 leading-normal">
+                                  📍 <b>Geo:</b> {b.metadata.location.city || 'Unknown'}, {b.metadata.location.country || 'Unknown'} {b.metadata.location.ip && `(${b.metadata.location.ip})`}
+                                </div>
+                              )}
+                              {b.metadata.device && b.metadata.device.screenResolution && (
+                                <div className="text-[9px] text-slate-400 leading-normal">
+                                  💻 <b>Specs:</b> {b.metadata.device.platform || 'Browser'}, {b.metadata.device.screenResolution}
+                                </div>
+                              )}
+                              {b.metadata.sessionMetrics && b.metadata.sessionMetrics.viewedDestinations && b.metadata.sessionMetrics.viewedDestinations.length > 0 && (
+                                <div className="text-[9px] text-emerald-400 leading-normal">
+                                  🧭 <b>Clicked:</b> {b.metadata.sessionMetrics.viewedDestinations.join(', ')}
+                                </div>
+                              )}
+                            </div>
+                          )}
                         </td>
                         <td className="p-3">
                           <div className="text-slate-200 font-semibold truncate max-w-[150px]">{lang === 'ar' ? b.tourTitle.ar : b.tourTitle.en}</div>

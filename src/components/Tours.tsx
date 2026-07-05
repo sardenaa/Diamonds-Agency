@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Star, Clock, MapPin, Compass, ArrowLeft, CheckCircle2, AlertCircle, Sparkles, BookOpen, Layers, MessageSquare, ChevronDown, RefreshCw, X, Trash2 } from 'lucide-react';
-import { Tour, CurrencyConfig } from '../types.js';
+import { Tour, CurrencyConfig, AppLanguage } from '../types.js';
 import { translations } from '../translations.js';
 
 interface ToursProps {
-  lang: 'en' | 'ar';
+  lang: AppLanguage;
   currency: string;
   currencies: CurrencyConfig[];
   searchFilters: { query: string; destination: string; date: string };

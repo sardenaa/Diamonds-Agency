@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
+import { AppLanguage } from '../types.js';
 
 interface WhatsAppFloatingButtonProps {
-  lang: 'en' | 'ar';
+  lang: AppLanguage;
 }
 
 export default function WhatsAppFloatingButton({ lang }: WhatsAppFloatingButtonProps) {

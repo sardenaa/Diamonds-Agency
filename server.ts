@@ -178,7 +178,8 @@ async function startServer() {
       couponCode,
       selectedExtras, // array of extra IDs
       currency,
-      signatureUrl
+      signatureUrl,
+      metadata
     } = req.body;
 
     const tour = db.tours.find(t => t.id === tourId);
@@ -238,6 +239,7 @@ async function startServer() {
       qrCode: `MAS-QR-${bookingId}`,
       whatsappSent: true,
       signatureUrl,
+      metadata: metadata || {},
       createdAt: new Date().toISOString()
     };
 
