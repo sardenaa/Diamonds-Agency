@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Compass, Users, BarChart3, Award, Sparkles, PhoneCall, ShieldCheck, Ticket, Download, ArrowRight, X, Heart, MessageSquare, Crown, Utensils, Ship, Plus, Check, Loader2, Star, Printer, Camera, Luggage } from 'lucide-react';
+import { Compass, Users, BarChart3, Award, Sparkles, PhoneCall, ShieldCheck, Ticket, Download, ArrowRight, X, Heart, MessageSquare, Crown, Utensils, Ship, Plus, Check, Loader2, Star, Printer, Camera, Luggage, Wifi, WifiOff } from 'lucide-react';
 import LanguageSelector from './components/LanguageSelector.js';
 import Hero from './components/Hero.js';
 import Tours from './components/Tours.js';
@@ -148,6 +148,45 @@ export default function App() {
   // Digital Boarding Pass state
   const [showBoardingPass, setShowBoardingPass] = useState(false);
   const [showPackingModal, setShowPackingModal] = useState(false);
+
+  // Online / Offline connection state
+  const [isOnline, setIsOnline] = useState<boolean>(() => typeof navigator !== 'undefined' ? navigator.onLine : true);
+  const [showNetworkToast, setShowNetworkToast] = useState<boolean>(false);
+  const [toastType, setToastType] = useState<'online' | 'offline'>('offline');
+
+  useEffect(() => {
+    let hideTimer: any;
+
+    const handleOnline = () => {
+      setIsOnline(true);
+      setToastType('online');
+      setShowNetworkToast(true);
+      
+      // Auto-hide the "Restored" toast after 4 seconds
+      if (hideTimer) clearTimeout(hideTimer);
+      hideTimer = setTimeout(() => {
+        setShowNetworkToast(false);
+      }, 4000);
+    };
+
+    const handleOffline = () => {
+      setIsOnline(false);
+      setToastType('offline');
+      setShowNetworkToast(true);
+      
+      // Keep offline notice visible longer so the user is well informed
+      if (hideTimer) clearTimeout(hideTimer);
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+      if (hideTimer) clearTimeout(hideTimer);
+    };
+  }, []);
 
   // Review form states
   const [showReviewModal, setShowReviewModal] = useState(false);
@@ -1627,7 +1666,14 @@ export default function App() {
           <div className={`hidden lg:flex items-center ${tokens.colors.bgMuted} p-1 ${tokens.borderRadius.button} border border-slate-200`}>
             {[
               { id: 'guest', label: lang === 'ar' ? 'كتالوج الرحلات' : 'Tours', icon: Compass },
-              { id: 'customer', label: lang === 'ar' ? 'بوابة العميل VIP' : 'My Bookings', icon: Users }
+              { id: 'customer', label: lang === 'ar' ? 'بوابة العميل VIP' : 'My Bookings', icon: Users },
+              { 
+                id: 'admin', 
+                label: lang === 'ar' 
+                  ? (isAdminVerified ? 'لوحة التحكم' : 'الإدارة 🔒') 
+                  : (isAdminVerified ? 'Admin Dashboard' : 'Admin Console 🔒'), 
+                icon: BarChart3 
+              }
             ].map(item => {
               const Icon = item.icon;
               const isActive = role === item.id;
@@ -1652,7 +1698,7 @@ export default function App() {
           <div className="flex lg:hidden items-center gap-1 bg-slate-100 p-0.5 rounded-lg border border-slate-200">
             <button
               onClick={() => setRole('guest')}
-              className={`px-2.5 py-1.5 rounded-md text-xs font-bold transition-all cursor-pointer ${
+              className={`px-2 py-1.5 rounded-md text-[11px] font-bold transition-all cursor-pointer ${
                 role === 'guest'
                   ? 'bg-slate-900 text-amber-400 shadow-xs'
                   : 'text-slate-600 hover:text-slate-900'
@@ -1662,7 +1708,7 @@ export default function App() {
             </button>
             <button
               onClick={() => setRole('customer')}
-              className={`px-2.5 py-1.5 rounded-md text-xs font-bold transition-all cursor-pointer ${
+              className={`px-2 py-1.5 rounded-md text-[11px] font-bold transition-all cursor-pointer ${
                 role === 'customer'
                   ? 'bg-slate-900 text-amber-400 shadow-xs'
                   : 'text-slate-600 hover:text-slate-900'
@@ -1670,22 +1716,17 @@ export default function App() {
             >
               {lang === 'ar' ? 'حجوزاتي' : 'My Bookings'}
             </button>
-          </div>
-
-          {/* Dedicated Admin Dashboard Button - Only visible and accessible for verified Admins */}
-          {isAdminVerified && (
             <button
               onClick={() => setRole('admin')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 ${tokens.borderRadius.button} text-xs font-extrabold cursor-pointer transition-all border ${
+              className={`px-2 py-1.5 rounded-md text-[11px] font-bold transition-all cursor-pointer ${
                 role === 'admin'
-                  ? 'bg-slate-900 text-amber-400 border-slate-800 shadow-md shadow-amber-500/10'
-                  : 'bg-white text-slate-700 hover:text-slate-950 border-slate-200 hover:bg-slate-50'
+                  ? 'bg-slate-900 text-amber-400 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              <BarChart3 className={`w-3.5 h-3.5 ${role === 'admin' ? 'text-amber-400 animate-pulse' : 'text-emerald-600'}`} />
-              <span>{lang === 'ar' ? 'لوحة التحكم' : 'Dashboard'}</span>
+              {lang === 'ar' ? 'الإدارة 🔒' : 'Admin 🔒'}
             </button>
-          )}
+          </div>
 
           {/* Luxury Dropdowns selector component */}
           <LanguageSelector
@@ -1824,9 +1865,17 @@ export default function App() {
               <p>Email: luxury.operations@mas.agency</p>
               <p>Address: Terminal 4, Cairo Airport</p>
             </div>
-            <div className="bg-emerald-500/10 border border-emerald-500/20 px-3.5 py-1.5 rounded-lg inline-flex items-center gap-2">
-              <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-ping" />
-              <span className="text-emerald-400 text-[10px] font-black uppercase tracking-wider">All Systems Online</span>
+            <div className={`border px-3.5 py-1.5 rounded-lg inline-flex items-center gap-2 ${
+              isOnline 
+                ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' 
+                : 'bg-rose-500/10 border-rose-500/20 text-rose-400'
+            }`}>
+              <div className={`w-1.5 h-1.5 rounded-full ${isOnline ? 'bg-emerald-500 animate-ping' : 'bg-rose-500 animate-pulse'}`} />
+              <span className="text-[10px] font-black uppercase tracking-wider">
+                {isOnline 
+                  ? (lang === 'ar' ? 'جميع الأنظمة متصلة' : 'All Systems Online') 
+                  : (lang === 'ar' ? 'وضع عدم الاتصال' : 'Offline Mode')}
+              </span>
             </div>
           </div>
 
@@ -1858,6 +1907,67 @@ export default function App() {
       <Chatbot lang={lang} />
       <WhatsAppFloatingButton lang={lang} />
       <PriceConverter lang={lang} currencies={currencies} onUpdateRates={setCurrencies} />
+
+      {/* 4.5 Online/Offline Network Status Toast */}
+      {showNetworkToast && (
+        <div 
+          id="mas-network-toast"
+          className={`fixed bottom-24 md:bottom-28 left-4 md:left-8 z-50 max-w-sm w-[calc(100vw-2rem)] md:w-96 rounded-2xl p-4 shadow-xl border animate-fade-in transition-all duration-300 ${
+            toastType === 'offline' 
+              ? 'bg-slate-900 border-rose-500/30 text-white shadow-rose-950/20' 
+              : 'bg-slate-900 border-emerald-500/30 text-white shadow-emerald-950/20'
+          }`}
+          dir={lang === 'ar' ? 'rtl' : 'ltr'}
+        >
+          <div className="flex items-start gap-3">
+            <div className={`p-2 rounded-xl shrink-0 ${
+              toastType === 'offline' 
+                ? 'bg-rose-500/10 text-rose-400' 
+                : 'bg-emerald-500/10 text-emerald-400'
+            }`}>
+              {toastType === 'offline' ? (
+                <WifiOff className="w-5 h-5 animate-pulse" />
+              ) : (
+                <Wifi className="w-5 h-5" />
+              )}
+            </div>
+            <div className="flex-1 space-y-1">
+              <h5 className="font-bold text-xs md:text-sm text-slate-100 flex items-center gap-1.5">
+                {toastType === 'offline' ? (
+                  <>
+                    <span>{lang === 'ar' ? 'وضع عدم الاتصال بالإنترنت' : 'Offline Mode Active'}</span>
+                    <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping inline-block" />
+                  </>
+                ) : (
+                  <>
+                    <span>{lang === 'ar' ? 'تمت استعادة الاتصال' : 'Connection Restored'}</span>
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping inline-block" />
+                  </>
+                )}
+              </h5>
+              <p className="text-[11px] text-slate-300 leading-relaxed font-medium">
+                {toastType === 'offline' ? (
+                  lang === 'ar' 
+                    ? 'لقد انقطع اتصالك بالإنترنت. يمكنك الاستمرار في تصفح كتالوج الرحلات المتاحة محلياً.' 
+                    : 'You have lost internet connectivity. You can continue browsing the cached tour catalog offline.'
+                ) : (
+                  lang === 'ar' 
+                    ? 'تم استعادة اتصالك بالشبكة بنجاح وإعادة المزامنة مع خوادم كونسيرج ماس.' 
+                    : 'Your internet connection has been restored. Re-syncing with MAS Concierge servers.'
+                )}
+              </p>
+            </div>
+            <button 
+              id="close-network-toast-btn"
+              onClick={() => setShowNetworkToast(false)}
+              className="text-slate-400 hover:text-slate-200 cursor-pointer p-0.5 rounded transition-colors shrink-0"
+              aria-label="Close Notification"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* 5. Interactive Checkout Booking Modal Dialog */}
       {selectedBookTour && (
