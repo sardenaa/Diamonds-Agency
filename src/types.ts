@@ -84,6 +84,8 @@ export interface Booking {
   createdAt: string;
   detailsConfirmed?: boolean;
   detailsConfirmedAt?: string;
+  checkedIn?: boolean;
+  checkedInAt?: string;
   signatureUrl?: string;
   luxuryAddon?: {
     id: string;

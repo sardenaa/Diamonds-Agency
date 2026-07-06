@@ -91,7 +91,11 @@ export default function Hero({ lang, onSearch }: HeroProps) {
               type="text"
               placeholder={t.searchPlaceholder}
               value={query}
-              onChange={(e) => setQuery(e.target.value)}
+              onChange={(e) => {
+                const val = e.target.value;
+                setQuery(val);
+                onSearch({ query: val, destination, date });
+              }}
               className="bg-transparent w-full focus:outline-none text-white text-sm placeholder-slate-400 font-medium"
             />
           </div>
@@ -105,7 +109,11 @@ export default function Hero({ lang, onSearch }: HeroProps) {
               </label>
               <select
                 value={destination}
-                onChange={(e) => setDestination(e.target.value)}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setDestination(val);
+                  onSearch({ query, destination: val, date });
+                }}
                 className="bg-transparent w-full focus:outline-none text-white text-sm font-medium cursor-pointer border-none p-0 pr-6"
                 style={{ appearance: 'none', backgroundImage: 'url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'white\' stroke-width=\'2\' stroke-linecap=\'round\' stroke-linejoin=\'round\'%3E%3Cpolyline points=\'6 9 12 15 18 9\'%3E%3C/polyline%3E%3C/svg%3E")', backgroundPosition: lang === 'ar' ? 'left 0 center' : 'right 0 center', backgroundRepeat: 'no-repeat', backgroundSize: '12px' }}
               >
@@ -129,7 +137,11 @@ export default function Hero({ lang, onSearch }: HeroProps) {
               <input
                 type="date"
                 value={date}
-                onChange={(e) => setDate(e.target.value)}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setDate(val);
+                  onSearch({ query, destination, date: val });
+                }}
                 className="bg-transparent w-full focus:outline-none text-white text-xs font-medium cursor-pointer border-none p-0 [color-scheme:dark]"
               />
             </div>

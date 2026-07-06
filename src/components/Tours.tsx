@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Star, Clock, MapPin, Compass, ArrowLeft, CheckCircle2, AlertCircle, Sparkles, BookOpen, Layers, MessageSquare, ChevronDown, RefreshCw, X, Trash2 } from 'lucide-react';
 import { Tour, CurrencyConfig, AppLanguage } from '../types.js';
 import { translations } from '../translations.js';
+import LazyImage from './LazyImage.js';
 
 interface ToursProps {
   lang: AppLanguage;
@@ -9,6 +10,8 @@ interface ToursProps {
   currencies: CurrencyConfig[];
   searchFilters: { query: string; destination: string; date: string };
   onSelectBookTour: (tour: Tour) => void;
+  onCategoryChange?: (category: string) => void;
+  onSelectedTourChange?: (tour: Tour | null) => void;
 }
 
 export default function Tours({
@@ -16,7 +19,9 @@ export default function Tours({
   currency,
   currencies,
   searchFilters,
-  onSelectBookTour
+  onSelectBookTour,
+  onCategoryChange,
+  onSelectedTourChange
 }: ToursProps) {
   const t = translations[lang];
   const activeCurrency = currencies.find(c => c.code === currency) || currencies[0];
@@ -25,7 +30,31 @@ export default function Tours({
   const [loading, setLoading] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [selectedTour, setSelectedTour] = useState<Tour | null>(null);
+
+  useEffect(() => {
+    if (onCategoryChange) {
+      onCategoryChange(selectedCategory);
+    }
+  }, [selectedCategory, onCategoryChange]);
+
+  useEffect(() => {
+    if (onSelectedTourChange) {
+      onSelectedTourChange(selectedTour);
+    }
+  }, [selectedTour, onSelectedTourChange]);
   const [activeDetailTab, setActiveDetailTab] = useState<'overview' | 'itinerary' | 'faqs' | 'aiFeedback'>('overview');
+
+  // Local real-time full-text search & catalog filters
+  const [localQuery, setLocalQuery] = useState(searchFilters.query || '');
+  const [localLocation, setLocalLocation] = useState(searchFilters.destination || '');
+  const [selectedTag, setSelectedTag] = useState('All');
+  const [maxPrice, setMaxPrice] = useState<number>(2500);
+
+  // Sync with global filters from Hero
+  useEffect(() => {
+    if (searchFilters.query !== undefined) setLocalQuery(searchFilters.query);
+    if (searchFilters.destination !== undefined) setLocalLocation(searchFilters.destination);
+  }, [searchFilters]);
 
   // Tour spec comparison state
   const [compareList, setCompareList] = useState<Tour[]>([]);
@@ -89,17 +118,50 @@ export default function Tours({
     if (selectedCategory !== 'All' && tour.category !== selectedCategory) return false;
 
     // Destination check
-    if (searchFilters.destination && tour.destination.toLowerCase() !== searchFilters.destination.toLowerCase()) return false;
+    if (localLocation && tour.destination.toLowerCase() !== localLocation.toLowerCase()) return false;
 
     // Date check (if specified, ensure it is available)
     if (searchFilters.date && !tour.availableDates.includes(searchFilters.date)) return false;
 
-    // Search input keyword check
-    if (searchFilters.query) {
-      const keyword = searchFilters.query.toLowerCase();
+    // Price range check
+    if (tour.priceUSD > maxPrice) return false;
+
+    // Tag check
+    if (selectedTag !== 'All') {
+      const tagLower = selectedTag.toLowerCase();
+      const tagInTitle = (tour.title.en.toLowerCase().includes(tagLower) || tour.title.ar.toLowerCase().includes(tagLower));
+      const tagInDesc = (tour.description.en.toLowerCase().includes(tagLower) || tour.description.ar.toLowerCase().includes(tagLower));
+      const tagInCat = tour.category.toLowerCase().includes(tagLower);
+      if (!tagInTitle && !tagInDesc && !tagInCat) return false;
+    }
+
+    // Full-text keyword search check across titles, descriptions, itinerary, and FAQs
+    if (localQuery) {
+      const keyword = localQuery.toLowerCase();
       const titleMatch = (tour.title.en.toLowerCase().includes(keyword) || tour.title.ar.toLowerCase().includes(keyword));
       const descMatch = (tour.description.en.toLowerCase().includes(keyword) || tour.description.ar.toLowerCase().includes(keyword));
-      return titleMatch || descMatch;
+      const destMatch = tour.destination.toLowerCase().includes(keyword);
+      const catMatch = tour.category.toLowerCase().includes(keyword);
+      
+      // Deep itinerary search
+      const itineraryMatch = tour.itinerary.some(item => 
+        item.title.en.toLowerCase().includes(keyword) || 
+        item.title.ar.toLowerCase().includes(keyword) || 
+        item.description.en.toLowerCase().includes(keyword) || 
+        item.description.ar.toLowerCase().includes(keyword)
+      );
+
+      // Deep FAQ search
+      const faqMatch = tour.faqs.some(faq => 
+        faq.question.en.toLowerCase().includes(keyword) || 
+        faq.question.ar.toLowerCase().includes(keyword) || 
+        faq.answer.en.toLowerCase().includes(keyword) || 
+        faq.answer.ar.toLowerCase().includes(keyword)
+      );
+
+      if (!titleMatch && !descMatch && !destMatch && !catMatch && !itineraryMatch && !faqMatch) {
+        return false;
+      }
     }
 
     return true;
@@ -127,32 +189,135 @@ export default function Tours({
       
       {/* Selection Filter Bar & Compare Button */}
       {!selectedTour && (
-        <div className="flex flex-col md:flex-row justify-between items-center gap-4 border-b border-slate-200 pb-6">
-          <div className="flex gap-2 overflow-x-auto w-full md:w-auto no-scrollbar">
-            {categories.map((cat) => (
+        <div className="space-y-4 border-b border-slate-200 pb-6">
+          <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+            <div className="flex gap-2 overflow-x-auto w-full md:w-auto no-scrollbar">
+              {categories.map((cat) => (
+                <button
+                  key={cat}
+                  onClick={() => setSelectedCategory(cat)}
+                  className={`py-2 px-4 rounded-full text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
+                    selectedCategory === cat 
+                      ? 'bg-emerald-600 text-white shadow-sm' 
+                      : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                  }`}
+                >
+                  {cat === 'All' ? t.filterAll : cat}
+                </button>
+              ))}
+            </div>
+
+            {compareList.length > 0 && (
               <button
-                key={cat}
-                onClick={() => setSelectedCategory(cat)}
-                className={`py-2 px-4 rounded-full text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
-                  selectedCategory === cat 
-                    ? 'bg-emerald-600 text-white shadow-sm' 
-                    : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
-                }`}
+                onClick={() => setShowCompareModal(true)}
+                className="bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold px-5 py-2.5 rounded-full flex items-center gap-2 shadow hover:scale-[1.02] transition-transform cursor-pointer"
               >
-                {cat === 'All' ? t.filterAll : cat}
+                <Layers className="w-4 h-4 text-amber-400" />
+                <span>{t.compareBtn} ({compareList.length})</span>
               </button>
-            ))}
+            )}
           </div>
 
-          {compareList.length > 0 && (
-            <button
-              onClick={() => setShowCompareModal(true)}
-              className="bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold px-5 py-2.5 rounded-full flex items-center gap-2 shadow hover:scale-[1.02] transition-transform cursor-pointer"
-            >
-              <Layers className="w-4 h-4 text-amber-400" />
-              <span>{t.compareBtn} ({compareList.length})</span>
-            </button>
-          )}
+          {/* Real-time Search, Location, Price Slider, & Features Tags Panel */}
+          <div className="bg-slate-50 border border-slate-200/60 rounded-3xl p-5 md:p-6 space-y-5 shadow-xs">
+            {/* First Row: Search input and Location Selector */}
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
+              {/* Live Typing Full-Text Search */}
+              <div className="md:col-span-7 relative">
+                <span className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
+                  <Compass className="w-4 h-4 text-slate-400" />
+                </span>
+                <input
+                  type="text"
+                  value={localQuery}
+                  onChange={(e) => setLocalQuery(e.target.value)}
+                  placeholder={lang === 'ar' ? 'ابحث في العناوين، الوصف، خطوط السير، أو الأسئلة الشائعة...' : 'Search titles, descriptions, itineraries, or FAQs...'}
+                  className="w-full bg-white border border-slate-200 rounded-xl pl-9 pr-8 py-2.5 text-xs font-bold text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 transition-all shadow-2xs"
+                />
+                {localQuery && (
+                  <button
+                    onClick={() => setLocalQuery('')}
+                    className="absolute inset-y-0 right-3 flex items-center text-slate-400 hover:text-slate-600 cursor-pointer"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+
+              {/* Location Filter Dropdown */}
+              <div className="md:col-span-5 relative">
+                <span className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
+                  <MapPin className="w-4 h-4 text-emerald-600" />
+                </span>
+                <select
+                  value={localLocation}
+                  onChange={(e) => setLocalLocation(e.target.value)}
+                  className="w-full bg-white border border-slate-200 rounded-xl pl-9 pr-8 py-2.5 text-xs font-black text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 transition-all cursor-pointer shadow-2xs appearance-none"
+                >
+                  <option value="">{lang === 'ar' ? 'جميع الوجهات والمحافظات' : 'All Destinations'}</option>
+                  <option value="Cairo">{lang === 'ar' ? 'القاهرة' : 'Cairo'}</option>
+                  <option value="Luxor">{lang === 'ar' ? 'الأقصر' : 'Luxor'}</option>
+                  <option value="Aswan">{lang === 'ar' ? 'أسوان' : 'Aswan'}</option>
+                  <option value="Sharm El Sheikh">{lang === 'ar' ? 'شرم الشيخ' : 'Sharm El Sheikh'}</option>
+                  <option value="Hurghada">{lang === 'ar' ? 'الغردقة' : 'Hurghada'}</option>
+                </select>
+                <span className="absolute inset-y-0 right-3 flex items-center pointer-events-none">
+                  <ChevronDown className="w-4 h-4 text-slate-400" />
+                </span>
+              </div>
+            </div>
+
+            {/* Second Row: Price Range Slider & Features Tags */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center border-t border-slate-200/60 pt-4">
+              {/* Price Range Slider */}
+              <div className="lg:col-span-4 space-y-1.5">
+                <div className="flex justify-between items-center text-xs font-extrabold text-slate-700">
+                  <span>{lang === 'ar' ? 'الحد الأقصى للسعر' : 'Max Price Range'}</span>
+                  <span className="text-emerald-600 text-[13px]">
+                    {formatLocalPrice(maxPrice)}
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min="100"
+                  max="2500"
+                  step="50"
+                  value={maxPrice}
+                  onChange={(e) => setMaxPrice(Number(e.target.value))}
+                  className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-emerald-600 focus:outline-none"
+                />
+                <div className="flex justify-between text-[10px] font-bold text-slate-400">
+                  <span>{formatLocalPrice(100)}</span>
+                  <span>{formatLocalPrice(2500)}</span>
+                </div>
+              </div>
+
+              {/* Smart Feature Tags */}
+              <div className="lg:col-span-8 space-y-1.5">
+                <span className="block text-xs font-extrabold text-slate-700">
+                  {lang === 'ar' ? 'تصفية حسب الوسوم والسمات' : 'Filter by Tag Features'}
+                </span>
+                <div className="flex flex-wrap gap-1.5">
+                  {['All', 'VIP', 'Private', 'Gourmet', 'Historical', 'Adventure'].map((tag) => {
+                    const isActive = selectedTag === tag;
+                    return (
+                      <button
+                        key={tag}
+                        onClick={() => setSelectedTag(tag)}
+                        className={`text-[10px] font-extrabold px-3 py-1.5 rounded-lg border uppercase tracking-wider transition-all cursor-pointer ${
+                          isActive
+                            ? 'bg-amber-500 border-amber-500 text-slate-950 font-black shadow-xs'
+                            : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-800'
+                        }`}
+                      >
+                        {tag === 'All' ? (lang === 'ar' ? 'الكل' : 'All') : tag}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
@@ -168,7 +333,7 @@ export default function Tours({
               >
                 {/* Excursion Banner */}
                 <div className="relative h-56 overflow-hidden">
-                  <img
+                  <LazyImage
                     src={tour.images[0] || 'https://images.unsplash.com/photo-1503177119275-0aa32b31d468?auto=format&fit=crop&q=80&w=1200'}
                     alt={tour.title.en}
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
@@ -256,7 +421,7 @@ export default function Tours({
 
           {/* Banner Photo Section */}
           <div className="relative h-64 md:h-[400px] overflow-hidden">
-            <img
+            <LazyImage
               src={selectedTour.images[0]}
               alt={selectedTour.title.en}
               className="w-full h-full object-cover"
@@ -461,12 +626,14 @@ export default function Tours({
                       }
                     ].map((rev, i) => (
                       <div key={i} className="bg-slate-50 rounded-2xl border border-slate-200/60 p-5 shadow-sm text-xs leading-relaxed flex items-start gap-4 hover:border-slate-300 transition-colors">
-                        <img 
-                          src={rev.avatar} 
-                          alt={rev.name} 
-                          className="w-10 h-10 rounded-full object-cover border border-slate-200" 
-                          referrerPolicy="no-referrer" 
-                        />
+                        <div className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0 border border-slate-200">
+                          <LazyImage 
+                            src={rev.avatar} 
+                            alt={rev.name} 
+                            className="w-full h-full object-cover" 
+                            referrerPolicy="no-referrer" 
+                          />
+                        </div>
                         <div className="space-y-1.5 flex-1">
                           <div className="flex justify-between items-start">
                             <div>
@@ -528,7 +695,7 @@ export default function Tours({
                     <div key={c.id} className="border border-slate-150 p-4 rounded-2xl bg-slate-50/50 flex flex-col justify-between">
                       <div className="text-center pb-4 border-b border-slate-200">
                         <div className="h-20 w-full overflow-hidden rounded-lg mb-2">
-                          <img src={c.images[0]} alt={c.title.en} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                          <LazyImage src={c.images[0]} alt={c.title.en} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                         </div>
                         <h4 className="font-extrabold text-slate-800 line-clamp-2 h-10">{lang === 'ar' ? c.title.ar : c.title.en}</h4>
                       </div>

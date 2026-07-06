@@ -5,6 +5,7 @@ import { GoogleGenAI } from '@google/genai';
 import PDFDocument from 'pdfkit';
 import { getDB, saveDB, logAudit, DEFAULT_CURRENCIES } from './src/server/db.js';
 import { Tour, Booking, Review, Blog, Coupon, CustomerCRM } from './src/types.js';
+import { buildSitemapXml } from './src/utils/generate-sitemap.js';
 
 async function startServer() {
   const app = express();
@@ -71,6 +72,18 @@ async function startServer() {
   // ----------------------------------------------------
   // REST API Endpoints
   // ----------------------------------------------------
+
+  // Sitemap Route for Search Engine Crawlers
+  app.get('/sitemap.xml', (req, res) => {
+    try {
+      const xml = buildSitemapXml(`https://${req.get('host') || 'mas-sovereign-tours.com'}`);
+      res.header('Content-Type', 'application/xml');
+      res.send(xml);
+    } catch (error) {
+      console.error('Error generating dynamic sitemap.xml:', error);
+      res.status(500).send('Error generating sitemap');
+    }
+  });
 
   // 1. Currencies & Exchange Rates
   let currentCurrencies = JSON.parse(JSON.stringify(DEFAULT_CURRENCIES));
@@ -322,6 +335,85 @@ MAS Agency Royal Concierge Division`;
       booking: newBooking,
       whatsappAlert: `🔔 MAS WhatsApp: Reservation ${bookingId} confirmed! QR voucher sent to +1 415-555-2671.`
     });
+  });
+
+  app.post('/api/bookings/bulk-import', (req, res) => {
+    try {
+      const db = getDB();
+      const importedBookings = req.body;
+      if (!Array.isArray(importedBookings)) {
+        return res.status(400).json({ error: 'Payload must be an array of bookings' });
+      }
+
+      const addedBookings: Booking[] = [];
+      for (const item of importedBookings) {
+        const bookingId = item.id || `RES-${Math.floor(10000 + Math.random() * 90000)}`;
+        const tourId = item.tourId || (db.tours[0]?.id || 'tour-1');
+        const tour = db.tours.find(t => t.id === tourId) || db.tours[0];
+
+        const newBooking: Booking = {
+          id: bookingId,
+          tourId: tourId,
+          tourTitle: tour ? tour.title : { en: item.tourTitle?.en || 'Imported Expedition', ar: item.tourTitle?.ar || 'رحلة مستوردة' },
+          customerName: item.customerName || 'Anonymous Traveler',
+          customerEmail: item.customerEmail || 'imported@luxury-tours.com',
+          customerPhone: item.customerPhone || '+201000000000',
+          customerNationality: item.customerNationality || 'International',
+          travelerCount: Number(item.travelerCount) || 1,
+          travelers: item.travelers || [{ name: item.customerName || 'Anonymous Traveler', ageGroup: 'adult' }],
+          pickupHotel: item.pickupHotel || 'Four Seasons Cairo',
+          roomNumber: item.roomNumber || '707',
+          specialRequests: item.specialRequests || '',
+          date: item.date || new Date().toISOString().split('T')[0],
+          status: item.status || 'pending',
+          paymentStatus: item.paymentStatus || 'unpaid',
+          paymentMethod: item.paymentMethod || 'Cash',
+          amountPaidUSD: Number(item.amountPaidUSD) || 0,
+          totalAmountUSD: Number(item.totalAmountUSD) || (tour ? tour.priceUSD : 500),
+          currencyUsed: item.currencyUsed || 'USD',
+          qrCode: item.qrCode || `MAS-QR-${bookingId}`,
+          whatsappSent: false,
+          signatureUrl: item.signatureUrl || '',
+          metadata: item.metadata || {},
+          createdAt: item.createdAt || new Date().toISOString()
+        };
+
+        if (!db.bookings.some(b => b.id === bookingId)) {
+          db.bookings.push(newBooking);
+          addedBookings.push(newBooking);
+
+          let customer = db.crm.find(c => c.email.toLowerCase() === newBooking.customerEmail.toLowerCase());
+          if (!customer) {
+            db.crm.push({
+              email: newBooking.customerEmail,
+              name: newBooking.customerName,
+              phone: newBooking.customerPhone,
+              nationality: newBooking.customerNationality,
+              language: 'en',
+              tags: ['VIP', 'Imported'],
+              totalSpentUSD: newBooking.totalAmountUSD,
+              whatsappHistory: [],
+              supportHistory: [],
+              notes: `Imported via spreadsheet bulk ledger. Linked Reservation ID: ${newBooking.id}`,
+              createdAt: new Date().toISOString()
+            });
+          } else {
+            customer.totalSpentUSD += newBooking.totalAmountUSD;
+            if (!customer.tags.includes('Imported')) {
+              customer.tags.push('Imported');
+            }
+            customer.notes = (customer.notes || '') + ` | Import Linked Ref: ${newBooking.id}`;
+          }
+        }
+      }
+
+      saveDB(db);
+      logAudit('BOOKINGS_BULK_IMPORT', 'Sovereign Sync Engine', `Bulk imported ${addedBookings.length} booking ledgers`);
+      res.json({ success: true, count: addedBookings.length, bookings: addedBookings });
+    } catch (e: any) {
+      console.error('Bulk import failed:', e);
+      res.status(500).json({ error: 'Bulk import failed', details: e.message });
+    }
   });
 
   app.put('/api/bookings/:id', (req, res) => {
@@ -1743,6 +1835,66 @@ JSON Schema:
 
 
   // ----------------------------------------------------
+  // Production Readiness: Sitemap & Web Vitals Metrics
+  // ----------------------------------------------------
+
+  // 13. Dynamic sitemap.xml for search engines
+  app.get('/sitemap.xml', (req, res) => {
+    try {
+      const db = getDB();
+      const tours = db.tours || [];
+      const host = process.env.APP_URL || `https://${req.headers.host || 'egypt-luxury-tours.com'}`;
+      
+      let xml = `<?xml version="1.0" encoding="UTF-8"?>\n`;
+      xml += `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n`;
+      
+      // Homepage
+      xml += `  <url>\n`;
+      xml += `    <loc>${host}/</loc>\n`;
+      xml += `    <lastmod>${new Date().toISOString().split('T')[0]}</lastmod>\n`;
+      xml += `    <changefreq>daily</changefreq>\n`;
+      xml += `    <priority>1.0</priority>\n`;
+      xml += `  </url>\n`;
+
+      // Active Tours
+      tours.forEach((tour: any) => {
+        xml += `  <url>\n`;
+        xml += `    <loc>${host}/?tour=${tour.id}</loc>\n`;
+        xml += `    <lastmod>${new Date().toISOString().split('T')[0]}</lastmod>\n`;
+        xml += `    <changefreq>weekly</changefreq>\n`;
+        xml += `    <priority>0.8</priority>\n`;
+        xml += `  </url>\n`;
+      });
+
+      xml += `</urlset>\n`;
+
+      res.header('Content-Type', 'application/xml');
+      res.send(xml);
+    } catch (error) {
+      console.error('[SITEMAP] Error generating dynamic sitemap:', error);
+      res.status(500).send('Error generating sitemap');
+    }
+  });
+
+  // 14. Performance Vitals collector for production monitoring
+  app.post('/api/metrics', (req, res) => {
+    try {
+      const { metric, url } = req.body;
+      if (metric) {
+        console.log(`[PERF METRIC] ${metric.name}: ${metric.value.toFixed(2)} ms/score (${metric.rating.toUpperCase()}) on URL: ${url}`);
+        if (metric.rating === 'poor') {
+          logAudit('PERFORMANCE_WARN', 'Sovereign Monitor', `Web Vital Anomaly detected [${metric.name}]: score is ${metric.value.toFixed(2)} (POOR) on view ${url}`);
+        }
+      }
+      res.json({ success: true });
+    } catch (e: any) {
+      console.error('[PERF METRIC ERROR] Logging failed:', e);
+      res.status(500).json({ error: 'Failed to record diagnostic telemetry' });
+    }
+  });
+
+
+  // ----------------------------------------------------
   // Vite Integration & Static Asset Serving
   // ----------------------------------------------------
   if (process.env.NODE_ENV !== 'production') {
@@ -1757,6 +1909,34 @@ JSON Schema:
     app.get('*', (req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));
     });
+  }
+
+  // Pre-generate sitemap.xml on boot
+  try {
+    const fs = await import('fs');
+    const db = getDB();
+    const tours = db.tours || [];
+    const host = process.env.APP_URL || 'https://egypt-luxury-tours.com';
+    let xml = `<?xml version="1.0" encoding="UTF-8"?>\n`;
+    xml += `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n`;
+    xml += `  <url>\n    <loc>${host}/</loc>\n    <lastmod>${new Date().toISOString().split('T')[0]}</lastmod>\n    <changefreq>daily</changefreq>\n    <priority>1.0</priority>\n  </url>\n`;
+    tours.forEach((tour: any) => {
+      xml += `  <url>\n    <loc>${host}/?tour=${tour.id}</loc>\n    <lastmod>${new Date().toISOString().split('T')[0]}</lastmod>\n    <changefreq>weekly</changefreq>\n    <priority>0.8</priority>\n  </url>\n`;
+    });
+    xml += `</urlset>\n`;
+
+    const publicDir = path.join(process.cwd(), 'public');
+    if (fs.existsSync(publicDir)) {
+      fs.writeFileSync(path.join(publicDir, 'sitemap.xml'), xml, 'utf8');
+      console.log('[BOOT] Pre-generated public/sitemap.xml');
+    }
+    const distDir = path.join(process.cwd(), 'dist');
+    if (fs.existsSync(distDir)) {
+      fs.writeFileSync(path.join(distDir, 'sitemap.xml'), xml, 'utf8');
+      console.log('[BOOT] Pre-generated dist/sitemap.xml');
+    }
+  } catch (err) {
+    console.warn('[BOOT] Static sitemap pre-generation bypassed:', err);
   }
 
   app.listen(PORT, '0.0.0.0', () => {

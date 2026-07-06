@@ -5,6 +5,101 @@ import { translations } from '../translations.js';
 import { googleSignIn, logout, initAuth, getAccessToken } from '../lib/firebase.js';
 import { exportBookingsToSheets } from '../lib/googleSheets.js';
 import ProfileModal from './ProfileModal.js';
+import SovereignDashboardCharts from './SovereignDashboardCharts.js';
+
+interface SpreadsheetInputProps {
+  value: string;
+  placeholder?: string;
+  onSave: (newValue: string) => void;
+  status: 'idle' | 'saving' | 'saved' | 'error';
+  className?: string;
+}
+
+function SpreadsheetInput({ value, placeholder, onSave, status, className }: SpreadsheetInputProps) {
+  const [localVal, setLocalVal] = useState(value);
+
+  useEffect(() => {
+    setLocalVal(value);
+  }, [value]);
+
+  const handleBlur = () => {
+    if (localVal !== value) {
+      onSave(localVal);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.currentTarget.blur();
+    }
+  };
+
+  return (
+    <div className="relative w-full">
+      <input
+        type="text"
+        value={localVal}
+        onChange={(e) => setLocalVal(e.target.value)}
+        onBlur={handleBlur}
+        onKeyDown={handleKeyDown}
+        placeholder={placeholder}
+        className={`${className} pr-7`}
+      />
+      <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center pointer-events-none">
+        {status === 'saving' && (
+          <RefreshCw className="w-3.5 h-3.5 text-emerald-400 animate-spin" />
+        )}
+        {status === 'saved' && (
+          <Check className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
+        )}
+        {status === 'error' && (
+          <span className="text-[10px] text-rose-500 font-bold font-sans">!</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+interface SpreadsheetSelectProps {
+  value: string;
+  options: { value: string; label: string }[];
+  onSave: (newValue: string) => void;
+  status: 'idle' | 'saving' | 'saved' | 'error';
+  className?: string;
+}
+
+function SpreadsheetSelect({ value, options, onSave, status, className }: SpreadsheetSelectProps) {
+  const handleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    onSave(e.target.value);
+  };
+
+  return (
+    <div className="relative w-full">
+      <select
+        value={value}
+        onChange={handleChange}
+        className={`${className} pr-7 cursor-pointer`}
+      >
+        {options.map((opt) => (
+          <option key={opt.value} value={opt.value}>
+            {opt.label}
+          </option>
+        ))}
+      </select>
+      <div className="absolute right-6 top-1/2 -translate-y-1/2 flex items-center pointer-events-none">
+        {status === 'saving' && (
+          <RefreshCw className="w-3.5 h-3.5 text-emerald-400 animate-spin" />
+        )}
+        {status === 'saved' && (
+          <Check className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
+        )}
+        {status === 'error' && (
+          <span className="text-[10px] text-rose-500 font-bold">!</span>
+        )}
+      </div>
+    </div>
+  );
+}
 
 interface AdminDashboardProps {
   lang: AppLanguage;
@@ -31,6 +126,7 @@ export default function AdminDashboard({
     if (adminPermissionTier === 'Guest Relations Coordinator') return 'crm';
     return 'analytics';
   });
+  const [analyticsSubTab, setAnalyticsSubTab] = useState<'sovereign' | 'core'>('sovereign');
   const [analytics, setAnalytics] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [tours, setTours] = useState<Tour[]>([]);
@@ -46,6 +142,14 @@ export default function AdminDashboard({
   const [autoSync, setAutoSync] = useState<boolean>(() => {
     return localStorage.getItem('googleSheets_autoSync') === 'true';
   });
+
+  // Sovereign Ledger Import state variables
+  const [importStatus, setImportStatus] = useState<'idle' | 'importing' | 'success' | 'failed'>('idle');
+  const [importError, setImportError] = useState<string | null>(null);
+  const [importSuccessCount, setImportSuccessCount] = useState(0);
+  const [rawImportText, setRawImportText] = useState('');
+  const [dragActive, setDragActive] = useState(false);
+
 
   // Support Ticketing & WhatsApp Automation states
   const [tickets, setTickets] = useState<SupportTicket[]>([]);
@@ -87,6 +191,11 @@ export default function AdminDashboard({
   const [crmFormLanguage, setCrmFormLanguage] = useState('en');
   const [crmFormTagsString, setCrmFormTagsString] = useState('');
   const [crmFormNotes, setCrmFormNotes] = useState('');
+
+  // Operations spreadsheet search and status filters
+  const [opsSearchQuery, setOpsSearchQuery] = useState('');
+  const [opsStatusFilter, setOpsStatusFilter] = useState('all');
+  const [savingStatus, setSavingStatus] = useState<Record<string, 'idle' | 'saving' | 'saved' | 'error'>>({});
 
   // Bulk WhatsApp Blast states
   const [isBulkBlastOpen, setIsBulkBlastOpen] = useState(false);
@@ -292,10 +401,193 @@ export default function AdminDashboard({
     }
   };
 
+  const submitBulkImport = async (parsedList: any[]) => {
+    if (parsedList.length === 0) {
+      setImportStatus('failed');
+      setImportError(lang === 'ar' ? 'لم يتم العثور على أي بيانات حجز صالحة لاستيرادها.' : 'No valid booking records found to import.');
+      return;
+    }
+    setImportStatus('importing');
+    setImportError(null);
+    try {
+      const response = await fetch('/api/bookings/bulk-import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(parsedList)
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setImportSuccessCount(data.count || 0);
+        setImportStatus('success');
+        
+        await fetch('/api/audit-logs', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'BOOKINGS_IMPORTED',
+            user: googleUser?.email || 'Sovereign Admin',
+            details: `Successfully bulk imported ${data.count} booking records into Central Ledger.`
+          })
+        });
+
+        fetchAdminData();
+        onRefreshAll();
+      } else {
+        const errData = await response.json();
+        setImportStatus('failed');
+        setImportError(errData.details || errData.error || 'Server rejected bulk import.');
+      }
+    } catch (err: any) {
+      console.error(err);
+      setImportStatus('failed');
+      setImportError(err.message || 'Network error performing import.');
+    }
+  };
+
+  const parseAndImportCSV = (csvText: string) => {
+    try {
+      const lines = csvText.split('\n').map(line => line.trim()).filter(line => line.length > 0);
+      if (lines.length < 2) {
+        throw new Error(lang === 'ar' ? 'يجب أن يحتوي ملف CSV على سطر رأس وسطر بيانات واحد على الأقل.' : 'CSV must contain a header row and at least one data row.');
+      }
+
+      const headers = lines[0].split(',').map(h => h.replace(/^["']|["']$/g, '').trim().toLowerCase());
+      const dataRows = lines.slice(1);
+      
+      const parsedList: any[] = [];
+
+      dataRows.forEach(row => {
+        // Handle double quotes matching properly
+        const matches = row.match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g) || row.split(',');
+        const values = matches.map(v => v.replace(/^["']|["']$/g, '').trim());
+
+        const item: any = {};
+        const getVal = (keywords: string[]) => {
+          const index = headers.findIndex(h => keywords.some(k => h.includes(k)));
+          return index !== -1 ? values[index] : undefined;
+        };
+
+        const bookingId = getVal(['id', 'booking id', 'ref', 'reservation id']);
+        const customerName = getVal(['name', 'customer name', 'guest name', 'client name']);
+        const customerEmail = getVal(['email', 'customer email', 'guest email']);
+        const customerPhone = getVal(['phone', 'customer phone', 'mobile']);
+        const nationality = getVal(['nationality', 'country', 'origin']);
+        const travelerCount = getVal(['count', 'travelers count', 'guests count', 'pax']);
+        const departureDate = getVal(['date', 'departure date', 'expedition date']);
+        const status = getVal(['status', 'booking status']);
+        const paymentStatus = getVal(['payment status', 'pay status']);
+        const paymentMethod = getVal(['payment method', 'pay method', 'method']);
+        const amountPaid = getVal(['paid', 'amount paid']);
+        const totalAmount = getVal(['total', 'total amount', 'cost', 'price']);
+
+        item.id = bookingId || undefined;
+        item.customerName = customerName;
+        item.customerEmail = customerEmail;
+        item.customerPhone = customerPhone;
+        item.customerNationality = nationality;
+        item.travelerCount = travelerCount ? Number(travelerCount) : undefined;
+        item.date = departureDate;
+        item.status = status;
+        item.paymentStatus = paymentStatus;
+        item.paymentMethod = paymentMethod;
+        item.amountPaidUSD = amountPaid ? Number(amountPaid) : undefined;
+        item.totalAmountUSD = totalAmount ? Number(totalAmount) : undefined;
+
+        if (item.customerName || item.customerEmail) {
+          parsedList.push(item);
+        }
+      });
+
+      submitBulkImport(parsedList);
+    } catch (err: any) {
+      setImportStatus('failed');
+      setImportError(err.message || 'Failed to parse CSV format.');
+    }
+  };
+
+  const handleFileImport = (file: File) => {
+    setImportStatus('importing');
+    setImportError(null);
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const text = e.target?.result as string;
+        if (file.name.endsWith('.json')) {
+          const parsed = JSON.parse(text);
+          const list = Array.isArray(parsed) ? parsed : [parsed];
+          submitBulkImport(list);
+        } else if (file.name.endsWith('.csv') || text.includes(',')) {
+          parseAndImportCSV(text);
+        } else {
+          throw new Error('Unsupported file format. Please upload a .csv or .json file.');
+        }
+      } catch (err: any) {
+        setImportStatus('failed');
+        setImportError(err.message || 'Error reading or parsing file.');
+      }
+    };
+    reader.onerror = () => {
+      setImportStatus('failed');
+      setImportError('Failed to read uploaded file.');
+    };
+    reader.readAsText(file);
+  };
+
+  const handleTextImportSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!rawImportText.trim()) return;
+    try {
+      if (rawImportText.trim().startsWith('[') || rawImportText.trim().startsWith('{')) {
+        const parsed = JSON.parse(rawImportText);
+        const list = Array.isArray(parsed) ? parsed : [parsed];
+        submitBulkImport(list);
+      } else {
+        parseAndImportCSV(rawImportText);
+      }
+    } catch (err: any) {
+      setImportStatus('failed');
+      setImportError(err.message || 'Invalid JSON/CSV pasted text format.');
+    }
+  };
+
+  const handleDrag = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.type === "dragenter" || e.type === "dragover") {
+      setDragActive(true);
+    } else if (e.type === "dragleave") {
+      setDragActive(false);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      handleFileImport(e.dataTransfer.files[0]);
+    }
+  };
+
   const handleExportCSV = async () => {
     try {
-      if (bookings.length === 0) {
-        alert('No bookings available to export.');
+      const filteredBookings = bookings.filter(b => {
+        const matchesSearch = 
+          (b.id || '').toLowerCase().includes(opsSearchQuery.toLowerCase()) ||
+          (b.customerName || '').toLowerCase().includes(opsSearchQuery.toLowerCase()) ||
+          (b.customerEmail || '').toLowerCase().includes(opsSearchQuery.toLowerCase()) ||
+          (b.customerPhone || '').toLowerCase().includes(opsSearchQuery.toLowerCase()) ||
+          ((b.tourTitle && b.tourTitle.en) || '').toLowerCase().includes(opsSearchQuery.toLowerCase()) ||
+          ((b.tourTitle && b.tourTitle.ar) || '').toLowerCase().includes(opsSearchQuery.toLowerCase()) ||
+          (b.driverName || '').toLowerCase().includes(opsSearchQuery.toLowerCase()) ||
+          (b.guideName || '').toLowerCase().includes(opsSearchQuery.toLowerCase());
+          
+        const matchesStatus = opsStatusFilter === 'all' || b.status === opsStatusFilter;
+        return matchesSearch && matchesStatus;
+      });
+
+      if (filteredBookings.length === 0) {
+        alert('No bookings available in the current view to export.');
         return;
       }
       
@@ -318,7 +610,7 @@ export default function AdminDashboard({
         'Booking Date'
       ];
       
-      const rows = bookings.map(b => {
+      const rows = filteredBookings.map(b => {
         const titleEn = b.tourTitle?.en || '';
         const titleAr = b.tourTitle?.ar || '';
         const selectedTitle = lang === 'ar' ? titleAr : titleEn;
@@ -359,7 +651,7 @@ export default function AdminDashboard({
         body: JSON.stringify({
           action: 'BOOKINGS_EXPORTED_CSV',
           user: googleUser?.email || 'Admin Operations',
-          details: `Exported accounting CSV report of ${bookings.length} active bookings.`
+          details: `Exported accounting CSV report of ${filteredBookings.length} bookings from the active view.`
         })
       });
       fetchAdminData(); // Refresh the logs list!
@@ -368,6 +660,89 @@ export default function AdminDashboard({
       alert('Failed to export CSV report.');
     }
   };
+
+  const handleExportJSON = async () => {
+    try {
+      if (bookings.length === 0) {
+        alert('No bookings available to export.');
+        return;
+      }
+      const dataStr = JSON.stringify(bookings, null, 2);
+      const blob = new Blob([dataStr], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.setAttribute("href", url);
+      link.setAttribute("download", `MAS_Sovereign_Bookings_Report_${new Date().toISOString().split('T')[0]}.json`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      // Log activity to audit log on server
+      await fetch('/api/audit-logs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'BOOKINGS_EXPORTED_JSON',
+          user: googleUser?.email || 'Admin Operations',
+          details: `Exported JSON data ledger of ${bookings.length} active bookings.`
+        })
+      });
+      fetchAdminData(); // Refresh the logs list!
+    } catch (e) {
+      console.error(e);
+      alert('Failed to export JSON ledger.');
+    }
+  };
+
+  const bookingTrendsData = React.useMemo(() => {
+    const countsByDate: { [key: string]: { date: string; Bookings: number; Revenue: number } } = {};
+    bookings.forEach(b => {
+      const dateStr = b.date || b.createdAt?.split('T')[0] || 'Unknown';
+      if (!countsByDate[dateStr]) {
+        countsByDate[dateStr] = { date: dateStr, Bookings: 0, Revenue: 0 };
+      }
+      countsByDate[dateStr].Bookings += 1;
+      countsByDate[dateStr].Revenue += b.totalAmountUSD || 0;
+    });
+    return Object.values(countsByDate)
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+      .slice(-10);
+  }, [bookings]);
+
+  const destinationData = React.useMemo(() => {
+    const destCounts: { [key: string]: { name: string; Guests: number; Revenue: number } } = {};
+    bookings.forEach(b => {
+      const matchedTour = tours.find(t => t.id === b.tourId);
+      const dest = matchedTour?.destination || 'Cairo';
+      if (!destCounts[dest]) {
+        destCounts[dest] = { name: dest, Guests: 0, Revenue: 0 };
+      }
+      destCounts[dest].Guests += b.travelerCount || 1;
+      destCounts[dest].Revenue += b.totalAmountUSD || 0;
+    });
+    return Object.values(destCounts);
+  }, [bookings, tours]);
+
+  const revenueGrowthData = React.useMemo(() => {
+    const dailyRev: { [key: string]: number } = {};
+    bookings
+      .filter(b => b.status !== 'cancelled')
+      .forEach(b => {
+        const dateStr = b.createdAt?.split('T')[0] || b.date || 'Unknown';
+        dailyRev[dateStr] = (dailyRev[dateStr] || 0) + (b.totalAmountUSD || 0);
+      });
+    
+    const sortedDates = Object.keys(dailyRev).sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
+    let cumulative = 0;
+    return sortedDates.map(date => {
+      cumulative += dailyRev[date];
+      return {
+        date,
+        DailySales: dailyRev[date],
+        CumulativeRevenue: parseFloat(cumulative.toFixed(2))
+      };
+    }).slice(-15);
+  }, [bookings]);
 
   // Convert USD to local currency
   const toLocalPrice = (usdPrice: number) => {
@@ -396,6 +771,65 @@ export default function AdminDashboard({
       }
     } catch (e) {
       console.error(e);
+    }
+  };
+
+  // Operations: auto-save booking details (drivers, guides, status) on blur/select change
+  const handleAutoSaveBooking = async (id: string, updates: Partial<Booking>) => {
+    const fields = Object.keys(updates);
+    const keys = fields.map(f => `${id}-${f}`);
+    
+    setSavingStatus(prev => {
+      const updated = { ...prev };
+      keys.forEach(k => {
+        updated[k] = 'saving';
+      });
+      return updated;
+    });
+
+    try {
+      const res = await fetch(`/api/bookings/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates)
+      });
+      if (res.ok) {
+        setSavingStatus(prev => {
+          const updated = { ...prev };
+          keys.forEach(k => {
+            updated[k] = 'saved';
+          });
+          return updated;
+        });
+        fetchAdminData();
+        onRefreshAll();
+        setTimeout(() => {
+          setSavingStatus(prev => {
+            const updated = { ...prev };
+            keys.forEach(k => {
+              updated[k] = 'idle';
+            });
+            return updated;
+          });
+        }, 2500);
+      } else {
+        setSavingStatus(prev => {
+          const updated = { ...prev };
+          keys.forEach(k => {
+            updated[k] = 'error';
+          });
+          return updated;
+        });
+      }
+    } catch (e) {
+      console.error(e);
+      setSavingStatus(prev => {
+        const updated = { ...prev };
+        keys.forEach(k => {
+          updated[k] = 'error';
+        });
+        return updated;
+      });
     }
   };
 
@@ -432,6 +866,57 @@ export default function AdminDashboard({
       }
     } catch (e) {
       console.error(e);
+    }
+  };
+
+  // Operations: authorize premium VIP upgrade
+  const handleUpgradeBookingVIP = async (id: string) => {
+    const b = bookings.find(x => x.id === id);
+    if (!b) return;
+    if (b.specialRequests?.includes('Sovereign Elite Package')) {
+      alert('This reservation has already been upgraded to Sovereign Elite VIP status.');
+      return;
+    }
+    if (!confirm(`Are you absolutely certain you want to authorize a premium Sovereign Elite VIP upgrade for ${b.customerName}'s reservation? This adds $250 to the ledger total and registers the transaction in the security compliance audit logs.`)) {
+      return;
+    }
+
+    try {
+      const updatedTotal = b.totalAmountUSD + 250;
+      const updatedPaid = b.paymentStatus === 'paid' ? b.amountPaidUSD + 250 : b.amountPaidUSD;
+      const updatedRequests = (b.specialRequests ? b.specialRequests + '\n' : '') + '[ADMIN VIP UPGRADE]: Upgraded to Sovereign Elite Package (includes Private Helicopter Sphinx Flyover & Elite Royal Escort)';
+      
+      const res = await fetch(`/api/bookings/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          totalAmountUSD: updatedTotal,
+          amountPaidUSD: updatedPaid,
+          specialRequests: updatedRequests
+        })
+      });
+
+      if (res.ok) {
+        // Log to compliance audit logs
+        await fetch('/api/audit-logs', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'BOOKING_UPGRADED',
+            user: googleUser?.email || 'Admin Operations',
+            details: `Upgraded reservation ID ${id} (Customer: ${b.customerName}) to Sovereign Elite VIP status. Adjusted ledger total from $${b.totalAmountUSD} to $${updatedTotal}.`
+          })
+        });
+
+        alert('Sovereign Elite VIP Upgrade successfully authorized!');
+        fetchAdminData();
+        onRefreshAll();
+      } else {
+        alert('Failed to authorize VIP upgrade.');
+      }
+    } catch (e) {
+      console.error(e);
+      alert('Error authorizing VIP upgrade.');
     }
   };
 
@@ -1180,370 +1665,522 @@ export default function AdminDashboard({
                 </div>
               </div>
 
-              {/* Handcrafted Animated SVG Charts */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                
-                {/* Chart 1: Revenue by Excursion */}
-                <div className="bg-slate-800/30 border border-slate-800 p-5 rounded-2xl">
-                  <h4 className="text-xs font-bold uppercase text-slate-400 tracking-wider mb-4">Gross Revenue by Excursion (USD)</h4>
-                  <div className="space-y-4">
-                    {revenueByTour.map((t: any, idx: number) => {
-                      const maxRevenue = Math.max(...revenueByTour.map((x: any) => x.revenue)) || 1000;
-                      const percentage = (t.revenue / maxRevenue) * 100;
-                      return (
-                        <div key={idx} className="space-y-1 text-xs">
-                          <div className="flex justify-between font-bold text-slate-300">
-                            <span className="truncate max-w-[70%]">{t.name}</span>
-                            <span>{formatLocalPrice(t.revenue)}</span>
-                          </div>
-                          <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden relative">
-                            <div 
-                              className="bg-emerald-500 h-full rounded-full transition-all duration-1000"
-                              style={{ width: `${percentage}%` }}
-                            />
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
+              {/* Subtabs for Sovereign Insights vs Core Ledger */}
+              <div className="flex border-b border-slate-800 gap-4 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setAnalyticsSubTab('sovereign')}
+                  className={`pb-2 text-[10px] md:text-xs font-black uppercase tracking-wider transition-all border-b-2 cursor-pointer ${
+                    analyticsSubTab === 'sovereign'
+                      ? 'border-emerald-500 text-white'
+                      : 'border-transparent text-slate-500 hover:text-slate-300'
+                  }`}
+                >
+                  📈 Sovereign Insights (Recharts)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAnalyticsSubTab('core')}
+                  className={`pb-2 text-[10px] md:text-xs font-black uppercase tracking-wider transition-all border-b-2 cursor-pointer ${
+                    analyticsSubTab === 'core'
+                      ? 'border-emerald-500 text-white'
+                      : 'border-transparent text-slate-500 hover:text-slate-300'
+                  }`}
+                >
+                  📊 Core Ledger (SVG)
+                </button>
+              </div>
 
-                {/* Chart 2: Bookings by Nationality */}
-                <div className="bg-slate-800/30 border border-slate-800 p-5 rounded-2xl">
-                  <h4 className="text-xs font-bold uppercase text-slate-400 tracking-wider mb-4">Traveler Demographics (CRM Nationality)</h4>
-                  <div className="space-y-4">
-                    {countriesData.length === 0 ? (
-                      <p className="text-xs text-slate-500 italic">No nationality metrics logs generated.</p>
-                    ) : (
-                      countriesData.map((c: any, idx: number) => {
-                        const maxCount = Math.max(...countriesData.map((x: any) => x.count)) || 1;
-                        const percentage = (c.count / maxCount) * 100;
+              {analyticsSubTab === 'sovereign' ? (
+                <SovereignDashboardCharts
+                  lang={lang}
+                  bookingTrendsData={bookingTrendsData}
+                  destinationData={destinationData}
+                  revenueGrowthData={revenueGrowthData}
+                  formatLocalPrice={formatLocalPrice}
+                />
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-fade-in">
+                  
+                  {/* Chart 1: Revenue by Excursion */}
+                  <div className="bg-slate-800/30 border border-slate-800 p-5 rounded-2xl">
+                    <h4 className="text-xs font-bold uppercase text-slate-400 tracking-wider mb-4 text-left">Gross Revenue by Excursion (USD)</h4>
+                    <div className="space-y-4">
+                      {revenueByTour.map((t: any, idx: number) => {
+                        const maxRevenue = Math.max(...revenueByTour.map((x: any) => x.revenue)) || 1000;
+                        const percentage = (t.revenue / maxRevenue) * 100;
                         return (
-                          <div key={idx} className="space-y-1 text-xs">
+                          <div key={idx} className="space-y-1 text-xs text-left">
                             <div className="flex justify-between font-bold text-slate-300">
-                              <span>{c.country}</span>
-                              <span>{c.count} {lang === 'ar' ? 'حجوزات' : 'bookings'}</span>
+                              <span className="truncate max-w-[70%]">{t.name}</span>
+                              <span>{formatLocalPrice(t.revenue)}</span>
                             </div>
                             <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden relative">
                               <div 
-                                className="bg-amber-500 h-full rounded-full transition-all duration-1000"
+                                className="bg-emerald-500 h-full rounded-full transition-all duration-1000"
                                 style={{ width: `${percentage}%` }}
                               />
                             </div>
                           </div>
                         );
-                      })
-                    )}
+                      })}
+                    </div>
                   </div>
-                </div>
 
-              </div>
+                  {/* Chart 2: Bookings by Nationality */}
+                  <div className="bg-slate-800/30 border border-slate-800 p-5 rounded-2xl">
+                    <h4 className="text-xs font-bold uppercase text-slate-400 tracking-wider mb-4 text-left">Traveler Demographics (CRM Nationality)</h4>
+                    <div className="space-y-4">
+                      {countriesData.length === 0 ? (
+                        <p className="text-xs text-slate-500 italic">No nationality metrics logs generated.</p>
+                      ) : (
+                        countriesData.map((c: any, idx: number) => {
+                          const maxCount = Math.max(...countriesData.map((x: any) => x.count)) || 1;
+                          const percentage = (c.count / maxCount) * 100;
+                          return (
+                            <div key={idx} className="space-y-1 text-xs text-left">
+                              <div className="flex justify-between font-bold text-slate-300">
+                                <span>{c.country}</span>
+                                <span>{c.count} {lang === 'ar' ? 'حجوزات' : 'bookings'}</span>
+                              </div>
+                              <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden relative">
+                                <div 
+                                  className="bg-amber-500 h-full rounded-full transition-all duration-1000"
+                                  style={{ width: `${percentage}%` }}
+                                />
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+
+                </div>
+              )}
             </div>
           )}
 
           {/* 2. Operations Workflow tab */}
-          {activeTab === 'operations' && (
-            <div className="space-y-6 animate-fade-in">
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                <div>
-                  <h4 className="text-sm font-bold uppercase text-slate-400 tracking-wider">Live Excursion Ledger & Chauffeur Assignments</h4>
-                  <p className="text-[10px] text-slate-500 font-medium">Manage existing bookings, assign chauffeurs and guides, or create a direct manual entry below.</p>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={handleExportCSV}
-                    className="bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs py-2 px-4 rounded-xl flex items-center gap-1.5 transition-all shadow-md cursor-pointer"
-                  >
-                    <FileSpreadsheet className="w-4 h-4" />
-                    <span>Export Reports (CSV)</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setIsManualBookingOpen(!isManualBookingOpen)}
-                    className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-black text-xs py-2 px-4 rounded-xl flex items-center gap-1.5 transition-all shadow-md cursor-pointer"
-                  >
-                    <Plus className="w-4 h-4" />
-                    <span>{isManualBookingOpen ? 'Close Form' : 'Add Manual Booking'}</span>
-                  </button>
-                </div>
-              </div>
+          {activeTab === 'operations' && (() => {
+            const filteredOpsBookings = bookings.filter(b => {
+              const matchesSearch = 
+                (b.id || '').toLowerCase().includes(opsSearchQuery.toLowerCase()) ||
+                (b.customerName || '').toLowerCase().includes(opsSearchQuery.toLowerCase()) ||
+                (b.customerEmail || '').toLowerCase().includes(opsSearchQuery.toLowerCase()) ||
+                (b.customerPhone || '').toLowerCase().includes(opsSearchQuery.toLowerCase()) ||
+                ((b.tourTitle && b.tourTitle.en) || '').toLowerCase().includes(opsSearchQuery.toLowerCase()) ||
+                ((b.tourTitle && b.tourTitle.ar) || '').toLowerCase().includes(opsSearchQuery.toLowerCase()) ||
+                (b.driverName || '').toLowerCase().includes(opsSearchQuery.toLowerCase()) ||
+                (b.guideName || '').toLowerCase().includes(opsSearchQuery.toLowerCase());
+                
+              const matchesStatus = opsStatusFilter === 'all' || b.status === opsStatusFilter;
+              return matchesSearch && matchesStatus;
+            });
 
-              {isManualBookingOpen && (
-                <form onSubmit={handleCreateManualBooking} className="bg-slate-800/40 border border-slate-700/50 p-5 rounded-2xl space-y-4 animate-fade-in text-xs">
-                  <h5 className="text-amber-400 font-extrabold uppercase tracking-wider text-[10px]">Create Manual Sovereign Reservation</h5>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div>
-                      <label className="block text-slate-400 font-bold mb-1">Select Excursion</label>
-                      <select
-                        value={manualTourId}
-                        onChange={(e) => setManualTourId(e.target.value)}
-                        className="bg-slate-900 border border-slate-700 rounded-lg p-2 text-white w-full focus:outline-none cursor-pointer"
-                      >
-                        {tours.map(t => (
-                          <option key={t.id} value={t.id}>{lang === 'ar' ? t.title.ar : t.title.en} (${t.priceUSD}/guest)</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-slate-400 font-bold mb-1">Customer Full Name</label>
-                      <input
-                        required
-                        type="text"
-                        value={manualCustomerName}
-                        onChange={(e) => setManualCustomerName(e.target.value)}
-                        placeholder="e.g. Lord Charles Spencer"
-                        className="bg-slate-900 border border-slate-700 rounded-lg p-2 text-white w-full focus:outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-slate-400 font-bold mb-1">Customer Email</label>
-                      <input
-                        required
-                        type="email"
-                        value={manualCustomerEmail}
-                        onChange={(e) => setManualCustomerEmail(e.target.value)}
-                        placeholder="guest@domain.com"
-                        className="bg-slate-900 border border-slate-700 rounded-lg p-2 text-white w-full focus:outline-none"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <div>
-                      <label className="block text-slate-400 font-bold mb-1">Phone Number</label>
-                      <input
-                        type="text"
-                        value={manualCustomerPhone}
-                        onChange={(e) => setManualCustomerPhone(e.target.value)}
-                        placeholder="+20 12..."
-                        className="bg-slate-900 border border-slate-700 rounded-lg p-2 text-white w-full focus:outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-slate-400 font-bold mb-1">Nationality</label>
-                      <input
-                        type="text"
-                        value={manualCustomerNationality}
-                        onChange={(e) => setManualCustomerNationality(e.target.value)}
-                        placeholder="e.g. Germany"
-                        className="bg-slate-900 border border-slate-700 rounded-lg p-2 text-white w-full focus:outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-slate-400 font-bold mb-1">Expedition Date</label>
-                      <input
-                        type="date"
-                        value={manualDate}
-                        onChange={(e) => setManualDate(e.target.value)}
-                        className="bg-slate-900 border border-slate-700 rounded-lg p-2 text-white w-full focus:outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-slate-400 font-bold mb-1">Traveler Guest Count</label>
-                      <input
-                        type="number"
-                        min={1}
-                        value={manualTravelerCount}
-                        onChange={(e) => setManualTravelerCount(parseInt(e.target.value) || 1)}
-                        className="bg-slate-900 border border-slate-700 rounded-lg p-2 text-white w-full focus:outline-none"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div>
-                      <label className="block text-slate-400 font-bold mb-1">Pickup Hotel / Yacht Marina</label>
-                      <input
-                        type="text"
-                        value={manualPickupHotel}
-                        onChange={(e) => setManualPickupHotel(e.target.value)}
-                        placeholder="e.g. Marriott Mena House"
-                        className="bg-slate-900 border border-slate-700 rounded-lg p-2 text-white w-full focus:outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-slate-400 font-bold mb-1">Room / Yacht Suite Number</label>
-                      <input
-                        type="text"
-                        value={manualRoomNumber}
-                        onChange={(e) => setManualRoomNumber(e.target.value)}
-                        placeholder="e.g. Suite 404"
-                        className="bg-slate-900 border border-slate-700 rounded-lg p-2 text-white w-full focus:outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-slate-400 font-bold mb-1">Payment Settlement Method</label>
-                      <select
-                        value={manualPaymentMethod}
-                        onChange={(e) => setManualPaymentMethod(e.target.value)}
-                        className="bg-slate-900 border border-slate-700 rounded-lg p-2 text-white w-full focus:outline-none cursor-pointer"
-                      >
-                        <option value="Cash">Cash / Pay at Pickup</option>
-                        <option value="Credit Card">Credit Card (Stripe pre-paid)</option>
-                        <option value="Bank Transfer">VIP Wire Transfer</option>
-                      </select>
-                    </div>
-                  </div>
-
+            return (
+              <div className="space-y-6 animate-fade-in">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                   <div>
-                    <label className="block text-slate-400 font-bold mb-1">Special Concierge Requests</label>
-                    <textarea
-                      value={manualSpecialRequests}
-                      onChange={(e) => setManualSpecialRequests(e.target.value)}
-                      placeholder="e.g. Kosher champagne, strictly private Egyptologist, custom high tea..."
-                      rows={2}
-                      className="bg-slate-900 border border-slate-700 rounded-lg p-2 text-white w-full focus:outline-none"
+                    <h4 className="text-sm font-bold uppercase text-slate-400 tracking-wider">Live Excursion Ledger & Chauffeur Assignments</h4>
+                    <p className="text-[10px] text-slate-500 font-medium">Manage existing bookings, assign chauffeurs and guides, or create a direct manual entry below.</p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={handleExportCSV}
+                      className="bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs py-2 px-4 rounded-xl flex items-center gap-1.5 transition-all shadow-md cursor-pointer"
+                      title="Download Excel-compatible CSV list of all bookings"
+                    >
+                      <FileSpreadsheet className="w-4 h-4" />
+                      <span>Export Excel/CSV Ledger</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleExportJSON}
+                      className="bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-750 font-black text-xs py-2 px-4 rounded-xl flex items-center gap-1.5 transition-all shadow-md cursor-pointer"
+                      title="Download database JSON dump of all bookings"
+                    >
+                      <FileText className="w-4 h-4 text-emerald-400" />
+                      <span>Export JSON Ledger</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setIsManualBookingOpen(!isManualBookingOpen)}
+                      className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-black text-xs py-2 px-4 rounded-xl flex items-center gap-1.5 transition-all shadow-md cursor-pointer"
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span>{isManualBookingOpen ? 'Close Form' : 'Add Manual Booking'}</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Operations search & filter bar */}
+                <div className="bg-slate-900/40 p-4 rounded-2xl border border-slate-800 flex flex-col md:flex-row gap-4 items-center justify-between text-xs animate-fade-in">
+                  <div className="relative w-full md:w-96">
+                    <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-500">
+                      <Search className="w-4 h-4" />
+                    </span>
+                    <input
+                      type="text"
+                      placeholder="Search by reservation ID, guest, phone, guide, driver, excursion..."
+                      value={opsSearchQuery}
+                      onChange={(e) => setOpsSearchQuery(e.target.value)}
+                      className="bg-slate-950 border border-slate-850 rounded-xl pl-9 pr-3 py-2 text-white w-full focus:outline-none focus:border-emerald-500 placeholder-slate-500 text-xs"
                     />
                   </div>
+                  <div className="flex items-center gap-2.5 w-full md:w-auto justify-end">
+                    <span className="text-slate-400 font-bold whitespace-nowrap">Filter Status:</span>
+                    <select
+                      value={opsStatusFilter}
+                      onChange={(e) => setOpsStatusFilter(e.target.value)}
+                      className="bg-slate-950 border border-slate-850 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500 cursor-pointer text-xs font-semibold"
+                    >
+                      <option value="all">All Booking Statuses</option>
+                      <option value="pending">Pending</option>
+                      <option value="confirmed">Confirmed</option>
+                      <option value="completed">Completed</option>
+                      <option value="cancelled">Cancelled</option>
+                    </select>
+                    {filteredOpsBookings.length !== bookings.length && (
+                      <button
+                        onClick={() => {
+                          setOpsSearchQuery('');
+                          setOpsStatusFilter('all');
+                        }}
+                        className="text-amber-400 hover:text-amber-300 font-black uppercase text-[10px] tracking-wider pl-2"
+                      >
+                        Clear Filters
+                      </button>
+                    )}
+                  </div>
+                </div>
 
-                  <button
-                    type="submit"
-                    className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 px-6 rounded-xl transition-all cursor-pointer"
-                  >
-                    Insert Sovereign Booking Ledger
-                  </button>
-                </form>
-              )}
-              
-              <div className="bg-slate-800/20 border border-slate-800 rounded-2xl overflow-x-auto">
-                <table className="w-full text-left border-collapse text-xs md:text-sm min-w-[700px]">
-                  <thead>
-                    <tr className="bg-slate-800/50 border-b border-slate-700 text-slate-400 font-bold">
-                      <th className="p-3 text-[10px] uppercase">{lang === 'ar' ? 'الرمز' : 'RESERVATION'}</th>
-                      <th className="p-3 text-[10px] uppercase">{lang === 'ar' ? 'العميل' : 'CLIENT'}</th>
-                      <th className="p-3 text-[10px] uppercase">{lang === 'ar' ? 'الرحلة والوقت' : 'EXCURSION & DATE'}</th>
-                      <th className="p-3 text-[10px] uppercase">{lang === 'ar' ? 'تعيين طاقم الخدمة' : 'STAFF ASSIGNMENTS'}</th>
-                      <th className="p-3 text-[10px] uppercase text-center">{lang === 'ar' ? 'الإجراءات الإدارية' : 'ADMIN ACTIONS'}</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-800 font-medium">
-                    {bookings.map((b) => (
-                      <tr key={b.id} className="hover:bg-slate-800/25">
-                        <td className="p-3">
-                          <span className="font-mono text-emerald-400 font-bold block">{b.id}</span>
-                          <span className="text-[10px] text-slate-500">{b.paymentMethod}</span>
-                        </td>
-                        <td className="p-3">
-                          <div className="font-bold text-slate-200">{b.customerName}</div>
-                          <div className="text-[10px] text-slate-500">{b.customerEmail}</div>
-                          {b.metadata && (b.metadata.location || b.metadata.device || b.metadata.sessionMetrics) && (
-                            <div className="mt-1.5 bg-slate-900/60 p-2 rounded-lg border border-slate-800 space-y-1 max-w-[240px]">
-                              <div className="text-[8px] font-black text-amber-500 uppercase tracking-wider">🕵️ Silent Intelligence</div>
-                              {b.metadata.location && (b.metadata.location.country || b.metadata.location.city) && (
-                                <div className="text-[9px] text-slate-300 leading-normal">
-                                  📍 <b>Geo:</b> {b.metadata.location.city || 'Unknown'}, {b.metadata.location.country || 'Unknown'} {b.metadata.location.ip && `(${b.metadata.location.ip})`}
-                                </div>
-                              )}
-                              {b.metadata.device && b.metadata.device.screenResolution && (
-                                <div className="text-[9px] text-slate-400 leading-normal">
-                                  💻 <b>Specs:</b> {b.metadata.device.platform || 'Browser'}, {b.metadata.device.screenResolution}
-                                </div>
-                              )}
-                              {b.metadata.sessionMetrics && b.metadata.sessionMetrics.viewedDestinations && b.metadata.sessionMetrics.viewedDestinations.length > 0 && (
-                                <div className="text-[9px] text-emerald-400 leading-normal">
-                                  🧭 <b>Clicked:</b> {b.metadata.sessionMetrics.viewedDestinations.join(', ')}
-                                </div>
-                              )}
-                            </div>
-                          )}
-                        </td>
-                        <td className="p-3">
-                          <div className="text-slate-200 font-semibold truncate max-w-[150px]">{lang === 'ar' ? b.tourTitle.ar : b.tourTitle.en}</div>
-                          <div className="text-[10px] text-amber-400 font-bold flex items-center gap-1 mt-0.5">
-                            <Calendar className="w-3 h-3" />
-                            <span>{b.date}</span>
-                          </div>
-                        </td>
-                        <td className="p-3 space-y-2">
-                          {/* Driver assign */}
-                          <div>
-                            <div className="flex justify-between items-center mb-1">
-                              <label className="block text-[8px] uppercase text-slate-500 font-bold">{t.driver}</label>
-                              {b.driverName && (
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setSelectedStaffName(b.driverName || '');
-                                    setSelectedStaffRole('driver');
-                                    setIsProfileModalOpen(true);
-                                  }}
-                                  className="text-[8px] font-black uppercase text-emerald-400 hover:text-emerald-300 hover:underline cursor-pointer bg-transparent border-none p-0 inline-flex items-center"
-                                >
-                                  {lang === 'ar' ? 'عرض الملف' : 'View Profile'}
-                                </button>
-                              )}
-                            </div>
-                            <input
-                              type="text"
-                              value={b.driverName || ''}
-                              onChange={(e) => handleUpdateBooking(b.id, { driverName: e.target.value })}
-                              placeholder="e.g. Sherif El Masry"
-                              className="bg-slate-800 border border-slate-700 text-white text-xs rounded-md px-2 py-1 focus:outline-none w-full"
-                            />
-                          </div>
-                          {/* Guide assign */}
-                          <div>
-                            <div className="flex justify-between items-center mb-1">
-                              <label className="block text-[8px] uppercase text-slate-500 font-bold">{t.guide}</label>
-                              {b.guideName && (
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setSelectedStaffName(b.guideName || '');
-                                    setSelectedStaffRole('guide');
-                                    setIsProfileModalOpen(true);
-                                  }}
-                                  className="text-[8px] font-black uppercase text-amber-400 hover:text-amber-300 hover:underline cursor-pointer bg-transparent border-none p-0 inline-flex items-center"
-                                >
-                                  {lang === 'ar' ? 'عرض الملف' : 'View Profile'}
-                                </button>
-                              )}
-                            </div>
-                            <input
-                              type="text"
-                              value={b.guideName || ''}
-                              onChange={(e) => handleUpdateBooking(b.id, { guideName: e.target.value })}
-                              placeholder="e.g. Dr. Zahi"
-                              className="bg-slate-800 border border-slate-700 text-white text-xs rounded-md px-2 py-1 focus:outline-none w-full"
-                            />
-                          </div>
-                        </td>
-                        <td className="p-3 text-center space-y-2">
-                          <div className="flex gap-1 justify-center">
-                            <select
-                              value={b.status}
-                              onChange={(e) => handleUpdateBooking(b.id, { status: e.target.value as any })}
-                              className="bg-slate-800 border border-slate-700 text-white text-xs rounded-md px-2 py-1 focus:outline-none cursor-pointer"
-                            >
-                              <option value="pending">{t.pending}</option>
-                              <option value="confirmed">{t.confirmed}</option>
-                              <option value="completed">{t.completed}</option>
-                              <option value="cancelled">{t.cancelled}</option>
-                            </select>
-                          </div>
-                          {b.status !== 'cancelled' && b.paymentStatus === 'paid' && (
-                            <button
-                              onClick={() => handleTriggerRefund(b.id)}
-                              className="bg-rose-500/10 hover:bg-rose-600 border border-rose-500/20 text-rose-400 hover:text-white font-bold text-[9px] w-full py-1.5 rounded-md transition-colors uppercase tracking-wider block cursor-pointer"
-                            >
-                              {t.refundBtn}
-                            </button>
-                          )}
-                          <button
-                            onClick={() => handleDeleteBooking(b.id)}
-                            className="bg-rose-600/15 hover:bg-rose-600 border border-rose-500/25 text-rose-400 hover:text-white font-bold text-[9px] w-full py-1.5 rounded-md transition-colors uppercase tracking-wider block cursor-pointer mt-1"
-                          >
-                            ❌ Delete Booking
-                          </button>
-                        </td>
+                {isManualBookingOpen && (
+                  <form onSubmit={handleCreateManualBooking} className="bg-slate-800/40 border border-slate-700/50 p-5 rounded-2xl space-y-4 animate-fade-in text-xs">
+                    <h5 className="text-amber-400 font-extrabold uppercase tracking-wider text-[10px]">Create Manual Sovereign Reservation</h5>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div>
+                        <label className="block text-slate-400 font-bold mb-1">Select Excursion</label>
+                        <select
+                          value={manualTourId}
+                          onChange={(e) => setManualTourId(e.target.value)}
+                          className="bg-slate-900 border border-slate-700 rounded-lg p-2 text-white w-full focus:outline-none cursor-pointer"
+                        >
+                          {tours.map(t => (
+                            <option key={t.id} value={t.id}>{lang === 'ar' ? t.title.ar : t.title.en} (${t.priceUSD}/guest)</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-slate-400 font-bold mb-1">Customer Full Name</label>
+                        <input
+                          required
+                          type="text"
+                          value={manualCustomerName}
+                          onChange={(e) => setManualCustomerName(e.target.value)}
+                          placeholder="e.g. Lord Charles Spencer"
+                          className="bg-slate-900 border border-slate-700 rounded-lg p-2 text-white w-full focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-slate-400 font-bold mb-1">Customer Email</label>
+                        <input
+                          required
+                          type="email"
+                          value={manualCustomerEmail}
+                          onChange={(e) => setManualCustomerEmail(e.target.value)}
+                          placeholder="guest@domain.com"
+                          className="bg-slate-900 border border-slate-700 rounded-lg p-2 text-white w-full focus:outline-none"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                      <div>
+                        <label className="block text-slate-400 font-bold mb-1">Phone Number</label>
+                        <input
+                          type="text"
+                          value={manualCustomerPhone}
+                          onChange={(e) => setManualCustomerPhone(e.target.value)}
+                          placeholder="+20 12..."
+                          className="bg-slate-900 border border-slate-700 rounded-lg p-2 text-white w-full focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-slate-400 font-bold mb-1">Nationality</label>
+                        <input
+                          type="text"
+                          value={manualCustomerNationality}
+                          onChange={(e) => setManualCustomerNationality(e.target.value)}
+                          placeholder="e.g. Germany"
+                          className="bg-slate-900 border border-slate-700 rounded-lg p-2 text-white w-full focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-slate-400 font-bold mb-1">Expedition Date</label>
+                        <input
+                          type="date"
+                          value={manualDate}
+                          onChange={(e) => setManualDate(e.target.value)}
+                          className="bg-slate-900 border border-slate-700 rounded-lg p-2 text-white w-full focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-slate-400 font-bold mb-1">Traveler Guest Count</label>
+                        <input
+                          type="number"
+                          min={1}
+                          value={manualTravelerCount}
+                          onChange={(e) => setManualTravelerCount(parseInt(e.target.value) || 1)}
+                          className="bg-slate-900 border border-slate-700 rounded-lg p-2 text-white w-full focus:outline-none"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div>
+                        <label className="block text-slate-400 font-bold mb-1">Pickup Hotel / Yacht Marina</label>
+                        <input
+                          type="text"
+                          value={manualPickupHotel}
+                          onChange={(e) => setManualPickupHotel(e.target.value)}
+                          placeholder="e.g. Marriott Mena House"
+                          className="bg-slate-900 border border-slate-700 rounded-lg p-2 text-white w-full focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-slate-400 font-bold mb-1">Room / Yacht Suite Number</label>
+                        <input
+                          type="text"
+                          value={manualRoomNumber}
+                          onChange={(e) => setManualRoomNumber(e.target.value)}
+                          placeholder="e.g. Suite 404"
+                          className="bg-slate-900 border border-slate-700 rounded-lg p-2 text-white w-full focus:outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-slate-400 font-bold mb-1">Payment Settlement Method</label>
+                        <select
+                          value={manualPaymentMethod}
+                          onChange={(e) => setManualPaymentMethod(e.target.value)}
+                          className="bg-slate-900 border border-slate-700 rounded-lg p-2 text-white w-full focus:outline-none cursor-pointer"
+                        >
+                          <option value="Cash">Cash / Pay at Pickup</option>
+                          <option value="Credit Card">Credit Card (Stripe pre-paid)</option>
+                          <option value="Bank Transfer">VIP Wire Transfer</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-slate-400 font-bold mb-1">Special Concierge Requests</label>
+                      <textarea
+                        value={manualSpecialRequests}
+                        onChange={(e) => setManualSpecialRequests(e.target.value)}
+                        placeholder="e.g. Kosher champagne, strictly private Egyptologist, custom high tea..."
+                        rows={2}
+                        className="bg-slate-900 border border-slate-700 rounded-lg p-2 text-white w-full focus:outline-none"
+                      />
+                    </div>
+
+                    <button
+                      type="submit"
+                      className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 px-6 rounded-xl transition-all cursor-pointer"
+                    >
+                      Insert Sovereign Booking Ledger
+                    </button>
+                  </form>
+                )}
+                
+                <div className="bg-slate-800/20 border border-slate-800 rounded-2xl overflow-x-auto">
+                  <table className="w-full text-left border-collapse text-xs md:text-sm min-w-[700px]">
+                    <thead>
+                      <tr className="bg-slate-800/50 border-b border-slate-700 text-slate-400 font-bold">
+                        <th className="p-3 text-[10px] uppercase">{lang === 'ar' ? 'الرمز' : 'RESERVATION'}</th>
+                        <th className="p-3 text-[10px] uppercase">{lang === 'ar' ? 'العميل' : 'CLIENT'}</th>
+                        <th className="p-3 text-[10px] uppercase">{lang === 'ar' ? 'الرحلة والوقت' : 'EXCURSION & DATE'}</th>
+                        <th className="p-3 text-[10px] uppercase">{lang === 'ar' ? 'تعيين طاقم الخدمة' : 'STAFF ASSIGNMENTS'}</th>
+                        <th className="p-3 text-[10px] uppercase text-center">{lang === 'ar' ? 'الإجراءات الإدارية' : 'ADMIN ACTIONS'}</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800 font-medium">
+                      {filteredOpsBookings.length === 0 ? (
+                        <tr>
+                          <td colSpan={5} className="p-8 text-center text-slate-500 italic">
+                            No reservations found matching the current filters.
+                          </td>
+                        </tr>
+                      ) : (
+                        filteredOpsBookings.map((b) => (
+                          <tr key={b.id} className="hover:bg-slate-800/25">
+                            <td className="p-3">
+                              <span className="font-mono text-emerald-400 font-bold block">{b.id}</span>
+                              <span className="text-[10px] text-slate-500">{b.paymentMethod}</span>
+                            </td>
+                            <td className="p-3">
+                              <div className="font-bold text-slate-200">{b.customerName}</div>
+                              <div className="text-[10px] text-slate-500">{b.customerEmail}</div>
+                              {b.metadata && (b.metadata.location || b.metadata.device || b.metadata.sessionMetrics) && (
+                                <div className="mt-1.5 bg-slate-900/60 p-2 rounded-lg border border-slate-800 space-y-1 max-w-[240px]">
+                                  <div className="text-[8px] font-black text-amber-500 uppercase tracking-wider">🕵️ Silent Intelligence</div>
+                                  {b.metadata.location && (b.metadata.location.country || b.metadata.location.city) && (
+                                    <div className="text-[9px] text-slate-300 leading-normal">
+                                      📍 <b>Geo:</b> {b.metadata.location.city || 'Unknown'}, {b.metadata.location.country || 'Unknown'} {b.metadata.location.ip && `(${b.metadata.location.ip})`}
+                                    </div>
+                                  )}
+                                  {b.metadata.device && b.metadata.device.screenResolution && (
+                                    <div className="text-[9px] text-slate-400 leading-normal">
+                                      💻 <b>Specs:</b> {b.metadata.device.platform || 'Browser'}, {b.metadata.device.screenResolution}
+                                    </div>
+                                  )}
+                                  {b.metadata.sessionMetrics && b.metadata.sessionMetrics.viewedDestinations && b.metadata.sessionMetrics.viewedDestinations.length > 0 && (
+                                    <div className="text-[9px] text-emerald-400 leading-normal">
+                                      🧭 <b>Clicked:</b> {b.metadata.sessionMetrics.viewedDestinations.join(', ')}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </td>
+                            <td className="p-3">
+                              <div className="text-slate-200 font-semibold truncate max-w-[150px]">{lang === 'ar' ? b.tourTitle.ar : b.tourTitle.en}</div>
+                              <div className="text-[10px] text-amber-400 font-bold flex items-center gap-1 mt-0.5">
+                                <Calendar className="w-3 h-3" />
+                                <span>{b.date}</span>
+                              </div>
+                            </td>
+                            <td className="p-3 space-y-2">
+                              {/* Driver assign */}
+                              <div>
+                                <div className="flex justify-between items-center mb-1">
+                                  <div className="flex items-center gap-1.5">
+                                    <label className="block text-[8px] uppercase text-slate-500 font-bold">{t.driver}</label>
+                                    {savingStatus[`${b.id}-driverName`] === 'saving' && (
+                                      <span className="text-[8px] text-emerald-400 font-bold animate-pulse">{lang === 'ar' ? 'جاري الحفظ...' : 'Saving...'}</span>
+                                    )}
+                                    {savingStatus[`${b.id}-driverName`] === 'saved' && (
+                                      <span className="text-[8px] text-emerald-500 font-bold">{lang === 'ar' ? 'تم الحفظ' : 'Saved'}</span>
+                                    )}
+                                    {savingStatus[`${b.id}-driverName`] === 'error' && (
+                                      <span className="text-[8px] text-rose-500 font-bold">{lang === 'ar' ? 'خطأ' : 'Error'}</span>
+                                    )}
+                                  </div>
+                                  {b.driverName && (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setSelectedStaffName(b.driverName || '');
+                                        setSelectedStaffRole('driver');
+                                        setIsProfileModalOpen(true);
+                                      }}
+                                      className="text-[8px] font-black uppercase text-emerald-400 hover:text-emerald-300 hover:underline cursor-pointer bg-transparent border-none p-0 inline-flex items-center"
+                                    >
+                                      {lang === 'ar' ? 'عرض الملف' : 'View Profile'}
+                                    </button>
+                                  )}
+                                </div>
+                                <SpreadsheetInput
+                                  value={b.driverName || ''}
+                                  placeholder="e.g. Sherif El Masry"
+                                  onSave={(val) => handleAutoSaveBooking(b.id, { driverName: val })}
+                                  status={savingStatus[`${b.id}-driverName`] || 'idle'}
+                                  className="bg-slate-800 border border-slate-700 text-white text-xs rounded-md px-2 py-1 focus:outline-none w-full"
+                                />
+                              </div>
+                              {/* Guide assign */}
+                              <div>
+                                <div className="flex justify-between items-center mb-1">
+                                  <div className="flex items-center gap-1.5">
+                                    <label className="block text-[8px] uppercase text-slate-500 font-bold">{t.guide}</label>
+                                    {savingStatus[`${b.id}-guideName`] === 'saving' && (
+                                      <span className="text-[8px] text-emerald-400 font-bold animate-pulse">{lang === 'ar' ? 'جاري الحفظ...' : 'Saving...'}</span>
+                                    )}
+                                    {savingStatus[`${b.id}-guideName`] === 'saved' && (
+                                      <span className="text-[8px] text-emerald-500 font-bold">{lang === 'ar' ? 'تم الحفظ' : 'Saved'}</span>
+                                    )}
+                                    {savingStatus[`${b.id}-guideName`] === 'error' && (
+                                      <span className="text-[8px] text-rose-500 font-bold">{lang === 'ar' ? 'خطأ' : 'Error'}</span>
+                                    )}
+                                  </div>
+                                  {b.guideName && (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setSelectedStaffName(b.guideName || '');
+                                        setSelectedStaffRole('guide');
+                                        setIsProfileModalOpen(true);
+                                      }}
+                                      className="text-[8px] font-black uppercase text-amber-400 hover:text-amber-300 hover:underline cursor-pointer bg-transparent border-none p-0 inline-flex items-center"
+                                    >
+                                      {lang === 'ar' ? 'عرض الملف' : 'View Profile'}
+                                    </button>
+                                  )}
+                                </div>
+                                <SpreadsheetInput
+                                  value={b.guideName || ''}
+                                  placeholder="e.g. Dr. Zahi"
+                                  onSave={(val) => handleAutoSaveBooking(b.id, { guideName: val })}
+                                  status={savingStatus[`${b.id}-guideName`] || 'idle'}
+                                  className="bg-slate-800 border border-slate-700 text-white text-xs rounded-md px-2 py-1 focus:outline-none w-full"
+                                />
+                              </div>
+                            </td>
+                            <td className="p-3 text-center space-y-2">
+                              <div className="flex flex-col gap-1 items-center justify-center">
+                                <SpreadsheetSelect
+                                  value={b.status}
+                                  options={[
+                                    { value: 'pending', label: t.pending },
+                                    { value: 'confirmed', label: t.confirmed },
+                                    { value: 'completed', label: t.completed },
+                                    { value: 'cancelled', label: t.cancelled }
+                                  ]}
+                                  onSave={(val) => handleAutoSaveBooking(b.id, { status: val as any })}
+                                  status={savingStatus[`${b.id}-status`] || 'idle'}
+                                  className="bg-slate-800 border border-slate-700 text-white text-xs rounded-md px-2 py-1 focus:outline-none cursor-pointer w-full text-center"
+                                />
+                                {savingStatus[`${b.id}-status`] === 'saving' && (
+                                  <span className="text-[8px] text-emerald-400 font-bold animate-pulse block">{lang === 'ar' ? 'جاري الحفظ...' : 'Saving...'}</span>
+                                )}
+                                {savingStatus[`${b.id}-status`] === 'saved' && (
+                                  <span className="text-[8px] text-emerald-500 font-bold block">{lang === 'ar' ? 'تم الحفظ' : 'Saved'}</span>
+                                )}
+                                {savingStatus[`${b.id}-status`] === 'error' && (
+                                  <span className="text-[8px] text-rose-500 font-bold block">{lang === 'ar' ? 'خطأ' : 'Error'}</span>
+                                )}
+                              </div>
+                              {b.status !== 'cancelled' && b.paymentStatus === 'paid' && (
+                                <button
+                                  onClick={() => handleTriggerRefund(b.id)}
+                                  className="bg-rose-500/10 hover:bg-rose-600 border border-rose-500/20 text-rose-400 hover:text-white font-bold text-[9px] w-full py-1.5 rounded-md transition-colors uppercase tracking-wider block cursor-pointer"
+                                >
+                                  {t.refundBtn}
+                                </button>
+                              )}
+                              {b.status !== 'cancelled' && !b.specialRequests?.includes('Sovereign Elite Package') && (
+                                <button
+                                  onClick={() => handleUpgradeBookingVIP(b.id)}
+                                  className="bg-amber-500/10 hover:bg-amber-500 border border-amber-500/25 text-amber-400 hover:text-slate-950 font-black text-[9px] w-full py-1.5 rounded-md transition-colors uppercase tracking-wider block cursor-pointer"
+                                >
+                                  👑 VIP Upgrade (+$250)
+                                </button>
+                              )}
+                              <button
+                                onClick={() => handleDeleteBooking(b.id)}
+                                className="bg-rose-600/15 hover:bg-rose-600 border border-rose-500/25 text-rose-400 hover:text-white font-bold text-[9px] w-full py-1.5 rounded-md transition-colors uppercase tracking-wider block cursor-pointer"
+                              >
+                                ❌ Delete Booking
+                              </button>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* 3. CRM System tab */}
           {activeTab === 'crm' && (() => {
@@ -2891,7 +3528,131 @@ export default function AdminDashboard({
                 )}
               </div>
 
-              {/* 3. Live Synchronicity Settings */}
+              {/* 3. Sovereign Import Actions Panel */}
+              <div className="bg-slate-800/40 p-6 rounded-2xl border border-slate-800 space-y-4">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs uppercase font-black tracking-widest text-amber-400">
+                    {lang === 'ar' ? 'استيراد البيانات السيادية' : 'Sovereign Ledger Data Importer'}
+                  </h4>
+                  <span className="bg-amber-500/10 border border-amber-500/25 text-amber-400 text-[8px] font-black px-2 py-0.5 rounded-full uppercase">
+                    CSV / JSON READY
+                  </span>
+                </div>
+                
+                <p className="text-slate-300 text-xs leading-relaxed">
+                  {lang === 'ar'
+                    ? 'قم باستيراد سجلات الحجوزات والـ CRM مباشرة عن طريق تحميل ملفات CSV/JSON أو لصق النص البرمجي المهيكل لتحديث النظام السيادي.'
+                    : 'Import historic booking journals or guest registers into the sovereign central deck. Upload a raw CSV/JSON ledger file, or paste formatted tables directly.'}
+                </p>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
+                  {/* Left Column: Drag & Drop File Upload */}
+                  <div className="space-y-2">
+                    <label className="block text-[10px] text-slate-400 uppercase font-black tracking-wider">
+                      {lang === 'ar' ? 'تحميل ملف الجدول' : 'Method A: Drag & Drop Ledger File'}
+                    </label>
+                    <div 
+                      onDragEnter={handleDrag}
+                      onDragOver={handleDrag}
+                      onDragLeave={handleDrag}
+                      onDrop={handleDrop}
+                      className={`h-40 rounded-2xl border-2 border-dashed flex flex-col items-center justify-center p-4 transition-all duration-300 relative ${
+                        dragActive 
+                          ? 'border-amber-500 bg-amber-500/5 shadow-[0_0_20px_rgba(245,158,11,0.05)]' 
+                          : 'border-slate-700 bg-slate-900/50 hover:border-slate-600 hover:bg-slate-900/80'
+                      }`}
+                    >
+                      <input 
+                        type="file" 
+                        accept=".csv,.json"
+                        onChange={(e) => {
+                          if (e.target.files && e.target.files[0]) {
+                            handleFileImport(e.target.files[0]);
+                          }
+                        }}
+                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" 
+                      />
+                      <div className="text-center space-y-2 flex flex-col items-center pointer-events-none">
+                        <div className={`p-2.5 rounded-xl border transition-colors ${
+                          dragActive ? 'bg-amber-500/20 border-amber-500/40 text-amber-400' : 'bg-slate-850 border-slate-750 text-slate-400'
+                        }`}>
+                          <FileSpreadsheet className="w-5 h-5 animate-pulse" />
+                        </div>
+                        <div className="space-y-0.5">
+                          <p className="text-xs font-bold text-slate-200">
+                            {lang === 'ar' ? 'اسحب وأسقط الملف هنا' : 'Drop ledger file here, or browse'}
+                          </p>
+                          <p className="text-[10px] text-slate-500 font-bold">
+                            Supports .CSV and .JSON formats
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Right Column: Paste Raw Text Area */}
+                  <form onSubmit={handleTextImportSubmit} className="space-y-2 flex flex-col justify-between">
+                    <div className="space-y-2">
+                      <label className="block text-[10px] text-slate-400 uppercase font-black tracking-wider">
+                        {lang === 'ar' ? 'لصق النص المهيكل' : 'Method B: Paste Raw Ledger Text'}
+                      </label>
+                      <textarea
+                        value={rawImportText}
+                        onChange={(e) => setRawImportText(e.target.value)}
+                        placeholder={
+                          lang === 'ar'
+                            ? 'الصق جدول البيانات أو مصفوفة JSON هنا...'
+                            : 'Paste CSV rows (with headers) or a JSON array of bookings here...'
+                        }
+                        rows={5}
+                        className="bg-slate-900 border border-slate-700 rounded-xl p-3 text-white text-xs w-full focus:outline-none focus:border-amber-500 font-mono leading-relaxed"
+                      />
+                    </div>
+                    <button
+                      type="submit"
+                      disabled={!rawImportText.trim() || importStatus === 'importing'}
+                      className="bg-slate-800 hover:bg-slate-750 border border-slate-700 text-white font-bold text-xs py-2.5 px-6 rounded-xl transition-all cursor-pointer disabled:opacity-40 w-full flex items-center justify-center gap-2"
+                    >
+                      <Plus className="w-4 h-4 text-amber-400" />
+                      <span>{lang === 'ar' ? 'معالجة النص المنسق' : 'Parse and Load Pasted Text'}</span>
+                    </button>
+                  </form>
+                </div>
+
+                {/* Import Status Messages */}
+                {importStatus === 'importing' && (
+                  <div className="p-4 bg-slate-950/60 border border-slate-800 rounded-xl flex items-center gap-3 text-xs animate-fade-in text-slate-300">
+                    <RefreshCw className="w-4 h-4 text-amber-500 animate-spin" />
+                    <span className="font-bold uppercase tracking-wider">{lang === 'ar' ? 'جاري الاستيراد والتنقية...' : 'Streaming and refining ledger data...'}</span>
+                  </div>
+                )}
+
+                {importStatus === 'success' && (
+                  <div className="p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-xs space-y-1 text-emerald-400 animate-fade-in">
+                    <div className="flex items-center gap-2 font-bold">
+                      <CheckCircle2 className="w-4 h-4" />
+                      <span>{lang === 'ar' ? 'نجح الاستيراد!' : 'Sovereign Import Completed successfully!'}</span>
+                    </div>
+                    <p className="text-slate-300">
+                      {lang === 'ar'
+                        ? `تم استيراد ${importSuccessCount} سجل حجز بنجاح ومزامنته مع نظام الـ CRM الحصري.`
+                        : `Successfully loaded ${importSuccessCount} VIP bookings. Central database synchronized, CRM registers upserted.`}
+                    </p>
+                  </div>
+                )}
+
+                {importStatus === 'failed' && importError && (
+                  <div className="p-4 bg-rose-500/15 border border-rose-500/20 rounded-xl text-xs space-y-1 text-rose-400 animate-fade-in">
+                    <div className="flex items-center gap-2 font-bold">
+                      <AlertTriangle className="w-4 h-4" />
+                      <span>{lang === 'ar' ? 'فشل الاستيراد' : 'Import Failed'}</span>
+                    </div>
+                    <p className="opacity-90">{importError}</p>
+                  </div>
+                )}
+              </div>
+
+              {/* 4. Live Synchronicity Settings */}
               <div className="bg-slate-800/40 p-6 rounded-2xl border border-slate-800 space-y-4">
                 <h4 className="text-xs uppercase font-black tracking-widest text-emerald-400">{lang === 'ar' ? 'إعدادات المزامنة الفورية' : 'Live Synchronization Settings'}</h4>
                 <div className="flex items-center justify-between p-4 bg-slate-950/60 rounded-xl border border-slate-800 gap-4">

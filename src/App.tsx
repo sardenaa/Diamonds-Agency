@@ -5,23 +5,42 @@ import Hero from './components/Hero.js';
 import Tours from './components/Tours.js';
 import BookingModal from './components/BookingModal.js';
 import Dashboard from './components/Dashboard.js';
-import AdminDashboard from './components/AdminDashboard.js';
 import AdminSecurityGate from './components/AdminSecurityGate.js';
 import Chatbot from './components/Chatbot.js';
 import WhatsAppFloatingButton from './components/WhatsAppFloatingButton.js';
-import EgyptMap from './components/EgyptMap.js';
 import PriceConverter from './components/PriceConverter.js';
 import VerifiedReviews from './components/VerifiedReviews.js';
 import PackingAssistantModal from './components/PackingAssistantModal.js';
 import { Tour, CurrencyConfig, AppLanguage } from './types.js';
 import { translations } from './translations.js';
 import { tokens } from './theme/tokens.js';
+import LazyImage from './components/LazyImage.js';
+import WebVitalsLogger from './components/WebVitalsLogger.js';
+import SEOHelper from './components/SEOHelper.js';
+
+// Code splitting optimization for production performance
+const AdminDashboard = React.lazy(() => import('./components/AdminDashboard.js'));
+const EgyptMap = React.lazy(() => import('./components/EgyptMap.js'));
+
+// Custom Suspense Spinner fallback for premium experience
+const SuspenseFallback = ({ message }: { message: string }) => (
+  <div className="w-full py-16 flex flex-col items-center justify-center space-y-4">
+    <Loader2 className="w-8 h-8 text-amber-500 animate-spin" />
+    <span className="text-xs font-bold text-slate-400 uppercase tracking-widest animate-pulse font-mono">
+      {message}
+    </span>
+  </div>
+);
+
 
 export default function App() {
   const [lang, setLang] = useState<AppLanguage>('en');
   const [currency, setCurrency] = useState('USD');
   const [role, setRole] = useState<'guest' | 'customer' | 'admin'>('guest');
   const [searchFilters, setSearchFilters] = useState({ query: '', destination: '', date: '' });
+
+  const [activeTourCategory, setActiveTourCategory] = useState<string>('All');
+  const [activeTour, setActiveTour] = useState<Tour | null>(null);
 
   // Admin Security States
   const [isAdminVerified, setIsAdminVerified] = useState<boolean>(() => {
@@ -202,6 +221,7 @@ export default function App() {
   const [reviewPhoto, setReviewPhoto] = useState<string | null>(null);
   const [cameraActive, setCameraActive] = useState<boolean>(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
+  const [dragActive, setDragActive] = useState<boolean>(false);
   const videoRef = React.useRef<HTMLVideoElement | null>(null);
 
   const startCamera = async () => {
@@ -250,6 +270,35 @@ export default function App() {
         setReviewPhoto(reader.result as string);
       };
       reader.readAsDataURL(file);
+    }
+  };
+
+  const handleDrag = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.type === "dragenter" || e.type === "dragover") {
+      setDragActive(true);
+    } else if (e.type === "dragleave") {
+      setDragActive(false);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      const file = e.dataTransfer.files[0];
+      if (file.type.startsWith("image/")) {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          setReviewPhoto(reader.result as string);
+        };
+        reader.readAsDataURL(file);
+      } else {
+        alert(lang === 'ar' ? 'الرجاء إرفاق ملف صورة صالح فقط.' : 'Please upload a valid image file only.');
+      }
     }
   };
 
@@ -703,6 +752,7 @@ export default function App() {
 
     return (
       <>
+        <WebVitalsLogger />
         <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between overflow-x-hidden font-sans print:hidden" dir={isAr ? 'rtl' : 'ltr'}>
         {/* Public Header */}
         <header className="border-b border-slate-900 bg-slate-950/80 backdrop-blur-xl px-4 md:px-8 py-4 sticky top-0 z-40">
@@ -1064,7 +1114,7 @@ export default function App() {
                   key={idx} 
                   className="break-inside-avoid mb-4 overflow-hidden rounded-3xl border border-slate-800 bg-slate-900/60 group relative cursor-pointer"
                 >
-                  <img
+                  <LazyImage
                     src={img.url}
                     alt={img.title}
                     referrerPolicy="no-referrer"
@@ -1395,84 +1445,116 @@ export default function App() {
                     <span>{isAr ? 'التقاط وإرفاق صورة للرحلة الاستكشافية' : 'Capture & Attach Experience Photo (Optional)'}</span>
                   </label>
 
-                  <div className="bg-slate-900 rounded-xl p-4 border border-dashed border-slate-800 space-y-3">
-                    {!reviewPhoto && !cameraActive && (
-                      <div className="flex flex-col sm:flex-row gap-2 justify-center items-center">
-                        <button
-                          type="button"
-                          onClick={startCamera}
-                          className="w-full sm:w-auto bg-amber-500 hover:bg-amber-600 text-slate-950 font-black text-xs py-2 px-4 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5"
-                        >
-                          <Camera className="w-3.5 h-3.5" />
-                          <span>{isAr ? 'تشغيل الكاميرا والتقاط صورة' : 'Capture Live Photo'}</span>
-                        </button>
-
-                        <label className="w-full sm:w-auto bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs py-2 px-4 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 text-center border border-slate-700">
-                          <Plus className="w-3.5 h-3.5 text-amber-500" />
-                          <span>{isAr ? 'اختيار ملف صورة' : 'Upload Image'}</span>
-                          <input
-                            type="file"
-                            accept="image/*"
-                            onChange={handleFileChange}
-                            className="hidden"
-                          />
-                        </label>
-                      </div>
-                    )}
-
-                    {cameraActive && (
-                      <div className="space-y-2">
-                        <div className="relative aspect-video max-w-sm mx-auto bg-black rounded-lg overflow-hidden border border-slate-800">
-                          <video
-                            ref={videoRef}
-                            autoPlay
-                            playsInline
-                            className="w-full h-full object-cover"
-                          />
-                        </div>
-                        {cameraError && (
-                          <p className="text-[10px] text-red-500 font-bold text-center">{cameraError}</p>
-                        )}
-                        <div className="flex justify-center gap-2">
-                          <button
-                            type="button"
-                            onClick={capturePhoto}
-                            className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs py-1.5 px-3 rounded-lg transition-colors cursor-pointer"
-                          >
-                            {isAr ? '📸 التقاط الصورة الآن' : '📸 Take Photo'}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={stopCamera}
-                            className="bg-slate-500 hover:bg-slate-600 text-white font-bold text-xs py-1.5 px-3 rounded-lg transition-colors cursor-pointer"
-                          >
-                            {isAr ? 'إلغاء' : 'Cancel'}
-                          </button>
-                        </div>
-                      </div>
-                    )}
-
-                    {reviewPhoto && (
-                      <div className="space-y-2 flex flex-col items-center animate-fade-in">
-                        <div className="relative w-36 h-28 bg-slate-950 rounded-xl overflow-hidden border-2 border-amber-500 shadow-md">
-                          <img
-                            src={reviewPhoto}
-                            alt="Captured Experience"
-                            className="w-full h-full object-cover"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => setReviewPhoto(null)}
-                            className="absolute top-1 right-1 bg-rose-600 hover:bg-rose-700 text-white p-1 rounded-full cursor-pointer transition-colors"
-                            title="Remove Photo"
-                          >
-                            <X className="w-3 h-3" />
-                          </button>
-                        </div>
-                        <p className="text-[9px] text-amber-400 font-black uppercase tracking-wider text-center">
-                          {isAr ? 'تم إرفاق الصورة وتجهيزها للتقييم الملكي' : 'Experience photo attached successfully'}
+                  <div
+                    onDragEnter={handleDrag}
+                    onDragOver={handleDrag}
+                    onDragLeave={handleDrag}
+                    onDrop={handleDrop}
+                    className={`bg-slate-900 rounded-xl p-5 border-2 border-dashed transition-all space-y-3 text-center relative overflow-hidden ${
+                      dragActive
+                        ? 'border-amber-400 bg-amber-500/10 shadow-[0_0_15px_rgba(245,158,11,0.2)] scale-[1.01]'
+                        : 'border-slate-800 hover:border-slate-700'
+                    }`}
+                  >
+                    {dragActive ? (
+                      <div className="py-6 space-y-2 animate-pulse">
+                        <Plus className="w-8 h-8 text-amber-400 mx-auto" />
+                        <p className="text-xs font-black text-amber-400 uppercase tracking-widest">
+                          {isAr ? 'أفلت الصورة الملكية هنا الآن!' : 'DROP YOUR PHOTO HERE!'}
                         </p>
                       </div>
+                    ) : (
+                      <>
+                        {!reviewPhoto && !cameraActive && (
+                          <div className="space-y-4">
+                            <div className="space-y-1">
+                              <p className="text-[11px] font-bold text-slate-300">
+                                {isAr ? 'اسحب وأفلت صورتك هنا لرفعها مباشرة' : 'Drag & drop your experience photo here'}
+                              </p>
+                              <p className="text-[9px] text-slate-500 font-medium">
+                                {isAr ? 'يدعم الملفات بتنسيق PNG، JPG، أو JPEG' : 'Supports PNG, JPG, or JPEG formats'}
+                              </p>
+                            </div>
+
+                            <div className="flex flex-col sm:flex-row gap-2 justify-center items-center">
+                              <button
+                                type="button"
+                                onClick={startCamera}
+                                className="w-full sm:w-auto bg-amber-500 hover:bg-amber-600 text-slate-950 font-black text-xs py-2 px-4 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                              >
+                                <Camera className="w-3.5 h-3.5" />
+                                <span>{isAr ? 'تشغيل الكاميرا والتقاط صورة' : 'Capture Live Photo'}</span>
+                              </button>
+
+                              <label className="w-full sm:w-auto bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs py-2 px-4 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 text-center border border-slate-700">
+                                <Plus className="w-3.5 h-3.5 text-amber-500" />
+                                <span>{isAr ? 'اختيار ملف صورة' : 'Upload Image'}</span>
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  onChange={handleFileChange}
+                                  className="hidden"
+                                />
+                              </label>
+                            </div>
+                          </div>
+                        )}
+
+                        {cameraActive && (
+                          <div className="space-y-2">
+                            <div className="relative aspect-video max-w-sm mx-auto bg-black rounded-lg overflow-hidden border border-slate-800">
+                              <video
+                                ref={videoRef}
+                                autoPlay
+                                playsInline
+                                className="w-full h-full object-cover"
+                              />
+                            </div>
+                            {cameraError && (
+                              <p className="text-[10px] text-red-500 font-bold text-center">{cameraError}</p>
+                            )}
+                            <div className="flex justify-center gap-2">
+                              <button
+                                type="button"
+                                onClick={capturePhoto}
+                                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs py-1.5 px-3 rounded-lg transition-colors cursor-pointer"
+                              >
+                                {isAr ? '📸 التقاط الصورة الآن' : '📸 Take Photo'}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={stopCamera}
+                                className="bg-slate-500 hover:bg-slate-600 text-white font-bold text-xs py-1.5 px-3 rounded-lg transition-colors cursor-pointer"
+                              >
+                                {isAr ? 'إلغاء' : 'Cancel'}
+                              </button>
+                            </div>
+                          </div>
+                        )}
+
+                        {reviewPhoto && (
+                          <div className="space-y-2 flex flex-col items-center animate-fade-in">
+                            <div className="relative w-36 h-28 bg-slate-950 rounded-xl overflow-hidden border-2 border-amber-500 shadow-md">
+                              <img
+                                src={reviewPhoto}
+                                alt="Captured Experience"
+                                className="w-full h-full object-cover"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => setReviewPhoto(null)}
+                                className="absolute top-1 right-1 bg-rose-600 hover:bg-rose-700 text-white p-1 rounded-full cursor-pointer transition-colors flex items-center justify-center w-5 h-5"
+                                title="Remove Photo"
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                            </div>
+                            <p className="text-[9px] text-amber-400 font-black uppercase tracking-wider text-center">
+                              {isAr ? 'تم إرفاق الصورة وتجهيزها للتقييم الملكي' : 'Experience photo attached successfully'}
+                            </p>
+                          </div>
+                        )}
+                      </>
                     )}
                   </div>
                 </div>
@@ -1637,6 +1719,15 @@ export default function App() {
 
   return (
     <div className={`min-h-screen ${tokens.colors.background} ${tokens.colors.textMain} selection:bg-emerald-500 selection:text-white flex flex-col justify-between overflow-x-hidden ${tokens.typography.familySans}`}>
+      <WebVitalsLogger />
+      <SEOHelper
+        lang={lang}
+        role={role}
+        selectedCategory={activeTourCategory}
+        selectedTour={activeTour}
+        searchDestination={searchFilters.destination}
+        sharedBooking={sharedBooking}
+      />
       
       {/* 1. Global Premium Top Bar Navigation Header */}
       <header className={`sticky top-0 z-40 bg-white/85 backdrop-blur-xl border-b border-slate-100 ${tokens.shadows.sm} px-4 md:px-8 py-3.5 flex items-center justify-between`}>
@@ -1765,12 +1856,16 @@ export default function App() {
                 currencies={currencies}
                 searchFilters={searchFilters}
                 onSelectBookTour={setSelectedBookTour}
+                onCategoryChange={setActiveTourCategory}
+                onSelectedTourChange={setActiveTour}
               />
             </div>
 
             {/* Interactive Egypt Map Navigator */}
             <div className={tokens.spacing.container}>
-              <EgyptMap lang={lang} onSelectBookTour={setSelectedBookTour} />
+              <React.Suspense fallback={<SuspenseFallback message={lang === 'ar' ? 'جاري رسم الخرائط الملكية لمصر الفاخرة...' : 'Laying out Sovereign Cartography Deck...'} />}>
+                <EgyptMap lang={lang} onSelectBookTour={setSelectedBookTour} />
+              </React.Suspense>
             </div>
 
             {/* Verified Sovereign Reviews Carousel */}
@@ -1805,20 +1900,22 @@ export default function App() {
                 }}
               />
             ) : (
-              <AdminDashboard
-                lang={lang}
-                currency={currency}
-                currencies={currencies}
-                onRefreshAll={() => {}}
-                adminPermissionTier={adminPermissionTier}
-                onLogoutAdmin={() => {
-                  setIsAdminVerified(false);
-                  setRole('guest');
-                  setAdminPermissionTier('Sovereign Admin');
-                  localStorage.removeItem('mas_admin_verified');
-                  localStorage.removeItem('mas_admin_tier');
-                }}
-              />
+              <React.Suspense fallback={<SuspenseFallback message={lang === 'ar' ? 'جاري فتح لوحة التحكم السيادية...' : 'Unlocking Sovereign Control Panel...'} />}>
+                <AdminDashboard
+                  lang={lang}
+                  currency={currency}
+                  currencies={currencies}
+                  onRefreshAll={() => {}}
+                  adminPermissionTier={adminPermissionTier}
+                  onLogoutAdmin={() => {
+                    setIsAdminVerified(false);
+                    setRole('guest');
+                    setAdminPermissionTier('Sovereign Admin');
+                    localStorage.removeItem('mas_admin_verified');
+                    localStorage.removeItem('mas_admin_tier');
+                  }}
+                />
+              </React.Suspense>
             )}
           </div>
         )}

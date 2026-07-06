@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Star, ChevronLeft, ChevronRight, CheckCircle2, Quote, Award, Sparkles, ShieldCheck, Play, Pause } from 'lucide-react';
 import { tokens } from '../theme/tokens.js';
 import { AppLanguage } from '../types.js';
+import LazyImage from './LazyImage.js';
 
 interface Testimonial {
   id: number;
@@ -254,12 +255,14 @@ export default function VerifiedReviews({ lang }: { lang: AppLanguage }) {
           <div className="lg:col-span-4 flex flex-col items-center lg:items-start text-center lg:text-left space-y-4">
             <div className="relative">
               <div className="absolute -inset-1.5 bg-gradient-to-tr from-amber-400 via-emerald-600 to-amber-300 rounded-3xl blur opacity-30 group-hover:opacity-65 transition duration-1000 group-hover:duration-200" />
-              <img 
-                src={activeTestimonial.avatar} 
-                alt={activeTestimonial.nameEn}
-                referrerPolicy="no-referrer"
-                className="w-28 h-28 md:w-36 md:h-36 object-cover rounded-3xl border-2 border-slate-800 shadow-2xl relative z-10"
-              />
+              <div className="w-28 h-28 md:w-36 md:h-36 rounded-3xl overflow-hidden border-2 border-slate-800 shadow-2xl relative z-10">
+                <LazyImage 
+                  src={activeTestimonial.avatar} 
+                  alt={activeTestimonial.nameEn}
+                  referrerPolicy="no-referrer"
+                  className="w-full h-full object-cover"
+                />
+              </div>
               <span className="absolute bottom-2 right-2 bg-emerald-500 text-white p-1 rounded-lg text-xs font-bold border-2 border-slate-900 z-20 shadow-md" title="Verified Sovereign Guest">
                 {activeTestimonial.flag}
               </span>

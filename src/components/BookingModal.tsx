@@ -47,6 +47,44 @@ export default function BookingModal({
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
 
+  // Calendar translation configurations
+  const MONTH_NAMES: Record<string, string[]> = {
+    en: [
+      'January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December'
+    ],
+    ar: [
+      'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو',
+      'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'
+    ],
+    pl: [
+      'Styczeń', 'Luty', 'Marzec', 'Kwiecień', 'Maj', 'Czerwiec',
+      'Lipiec', 'Sierpień', 'Wrzesień', 'Październik', 'Listopad', 'Grudzień'
+    ],
+    cs: [
+      'Leden', 'Únor', 'Březen', 'Duben', 'Květen', 'Červen',
+      'Červenec', 'Srpen', 'Září', 'Říjen', 'Listopad', 'Prosinec'
+    ],
+    de: [
+      'Januar', 'Februar', 'März', 'April', 'Mai', 'Juni',
+      'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'
+    ]
+  };
+
+  const WEEKDAYS: Record<string, string[]> = {
+    en: ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'],
+    ar: ['أح', 'اث', 'ثل', 'أر', 'خم', 'جم', 'سب'],
+    pl: ['Nie', 'Pon', 'Wt', 'Śr', 'Czw', 'Pią', 'Sob'],
+    cs: ['Ne', 'Po', 'Út', 'St', 'Čt', 'Pá', 'So'],
+    de: ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa']
+  };
+
+  const formatDateString = (year: number, month: number, d: number) => {
+    const mm = String(month + 1).padStart(2, '0');
+    const dd = String(d).padStart(2, '0');
+    return `${year}-${mm}-${dd}`;
+  };
+
   // Form states
   const [customerName, setCustomerName] = useState('');
   const [customerEmail, setCustomerEmail] = useState('');
@@ -67,6 +105,41 @@ export default function BookingModal({
   const [couponDiscount, setCouponDiscount] = useState(0); // percentage
   const [couponMessage, setCouponMessage] = useState('');
   const [couponValid, setCouponValid] = useState<boolean | null>(null);
+
+  // Date picker states
+  const firstAvailableDate = tour.availableDates[0];
+  const initialDateObj = firstAvailableDate ? new Date(firstAvailableDate) : new Date();
+  const [currentMonth, setCurrentMonth] = useState(initialDateObj.getMonth());
+  const [currentYear, setCurrentYear] = useState(initialDateObj.getFullYear());
+
+  // Sync date selection on tour change
+  useEffect(() => {
+    if (tour.availableDates && tour.availableDates.length > 0) {
+      const initialDate = tour.availableDates[0];
+      const initialDateObj = new Date(initialDate);
+      setCurrentMonth(initialDateObj.getMonth());
+      setCurrentYear(initialDateObj.getFullYear());
+      setDate(initialDate);
+    }
+  }, [tour]);
+
+  const handlePrevMonth = () => {
+    if (currentMonth === 0) {
+      setCurrentMonth(11);
+      setCurrentYear(prev => prev - 1);
+    } else {
+      setCurrentMonth(prev => prev - 1);
+    }
+  };
+
+  const handleNextMonth = () => {
+    if (currentMonth === 11) {
+      setCurrentMonth(0);
+      setCurrentYear(prev => prev + 1);
+    } else {
+      setCurrentMonth(prev => prev + 1);
+    }
+  };
 
   // Sync travelers list when count changes
   useEffect(() => {
@@ -144,6 +217,107 @@ export default function BookingModal({
       next[index] = { ...next[index], [field]: value };
       return next;
     });
+  };
+
+  const renderCalendar = () => {
+    const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+    const firstDayIndex = new Date(currentYear, currentMonth, 1).getDay();
+
+    const cells: (number | null)[] = [];
+    for (let i = 0; i < firstDayIndex; i++) {
+      cells.push(null);
+    }
+    for (let d = 1; d <= daysInMonth; d++) {
+      cells.push(d);
+    }
+
+    const monthName = MONTH_NAMES[lang]?.[currentMonth] || MONTH_NAMES['en'][currentMonth];
+    const weekdaysList = WEEKDAYS[lang] || WEEKDAYS['en'];
+
+    return (
+      <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3 shadow-xs">
+        {/* Calendar Header */}
+        <div className="flex items-center justify-between">
+          <button
+            type="button"
+            onClick={handlePrevMonth}
+            className="p-1.5 rounded-lg hover:bg-slate-200 text-slate-600 transition-colors cursor-pointer"
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+          <span className="text-sm font-extrabold text-slate-800 tracking-tight">
+            {monthName} {currentYear}
+          </span>
+          <button
+            type="button"
+            onClick={handleNextMonth}
+            className="p-1.5 rounded-lg hover:bg-slate-200 text-slate-600 transition-colors cursor-pointer"
+          >
+            <ChevronRight className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Weekdays Grid */}
+        <div className="grid grid-cols-7 gap-1 text-center border-b border-slate-200/60 pb-1">
+          {weekdaysList.map((day, idx) => (
+            <span key={idx} className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider py-1">
+              {day}
+            </span>
+          ))}
+        </div>
+
+        {/* Days Grid */}
+        <div className="grid grid-cols-7 gap-1 text-center">
+          {cells.map((day, idx) => {
+            if (day === null) {
+              return <div key={`empty-${idx}`} />;
+            }
+
+            const formattedDate = formatDateString(currentYear, currentMonth, day);
+            const isAvailable = tour.availableDates.includes(formattedDate);
+            const isSelected = date === formattedDate;
+
+            return (
+              <button
+                type="button"
+                key={`day-${day}`}
+                disabled={!isAvailable}
+                onClick={() => setDate(formattedDate)}
+                className={`text-xs font-bold py-2 rounded-lg transition-all relative ${
+                  isSelected
+                    ? 'bg-emerald-600 text-white shadow-md scale-105 z-10'
+                    : isAvailable
+                    ? 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-200/50 cursor-pointer'
+                    : 'text-slate-300 cursor-not-allowed line-through hover:bg-transparent opacity-40'
+                }`}
+                title={isAvailable ? (lang === 'ar' ? 'متاح للحجز' : 'Available for Booking') : (lang === 'ar' ? 'غير متاح' : 'Unavailable')}
+              >
+                <span>{day}</span>
+                {isAvailable && !isSelected && (
+                  <span className="absolute bottom-1 left-1/2 -translate-x-1/2 w-1.5 h-1.5 bg-emerald-500 rounded-full" />
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Legend */}
+        <div className="flex items-center gap-4 text-[10px] font-bold text-slate-500 border-t border-slate-200 pt-2 justify-center">
+          <div className="flex items-center gap-1">
+            <span className="w-2 h-2 rounded bg-emerald-600" />
+            <span>{lang === 'ar' ? 'المحدد' : 'Selected'}</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <span className="w-2 h-2 rounded bg-emerald-50 border border-emerald-200" />
+            <span>{lang === 'ar' ? 'متاح' : 'Available'}</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <span className="w-2 h-2 rounded bg-transparent border border-transparent text-slate-300 line-through text-[8px] flex items-center justify-center font-bold">15</span>
+            <span>{lang === 'ar' ? 'غير متاح' : 'Unavailable'}</span>
+          </div>
+        </div>
+      </div>
+    );
   };
 
   // Submit Booking Checkout
@@ -326,124 +500,129 @@ export default function BookingModal({
                 <span>{lang === 'ar' ? 'خيارات الجدولة والمرافقين' : 'Select Date & Travelers'}</span>
               </h4>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">{lang === 'ar' ? 'تاريخ المغادرة' : 'Departure Date'}</label>
-                  <select
-                    value={date}
-                    onChange={(e) => setDate(e.target.value)}
-                    className="w-full text-slate-900 text-sm border border-slate-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                  >
-                    {tour.availableDates.map(d => (
-                      <option key={d} value={d}>{d}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">{lang === 'ar' ? 'فندق الاصطحاب' : 'Pickup Hotel Venue'}</label>
-                  <select
-                    value={isCustomHotel ? '__custom__' : pickupHotel}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      if (val === '__custom__') {
-                        setIsCustomHotel(true);
-                        setPickupHotel(customHotelName);
-                      } else {
-                        setIsCustomHotel(false);
-                        setPickupHotel(val);
-                      }
-                    }}
-                    className="w-full text-slate-900 text-sm border border-slate-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:outline-none mb-2"
-                  >
-                    {tour.hotels.map(h => (
-                      <option key={h} value={h}>{h}</option>
-                    ))}
-                    <option value="__custom__">{getOtherHotelLabel(lang)}</option>
-                  </select>
-                  {isCustomHotel && (
-                    <input
-                      type="text"
-                      value={customHotelName}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        setCustomHotelName(val);
-                        setPickupHotel(val);
-                      }}
-                      placeholder={getCustomHotelPlaceholder(lang)}
-                      className="w-full text-slate-900 text-sm border border-slate-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                      required
-                    />
-                  )}
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">{t.roomNo}</label>
-                  <input
-                    type="text"
-                    value={roomNumber}
-                    onChange={(e) => setRoomNumber(e.target.value)}
-                    placeholder="e.g. Suite 408"
-                    className="w-full text-slate-900 text-sm border border-slate-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <label className="text-xs font-bold text-slate-700">{lang === 'ar' ? 'عدد المسافرين' : 'Number of Travelers'}</label>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      disabled={travelerCount <= 1}
-                      onClick={() => setTravelerCount(prev => Math.max(1, prev - 1))}
-                      className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold px-2.5 py-1 rounded-lg text-sm"
-                    >
-                      -
-                    </button>
-                    <span className="text-sm font-bold px-2">{travelerCount}</span>
-                    <button
-                      type="button"
-                      disabled={travelerCount >= tour.capacity}
-                      onClick={() => setTravelerCount(prev => Math.min(tour.capacity, prev + 1))}
-                      className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold px-2.5 py-1 rounded-lg text-sm"
-                    >
-                      +
-                    </button>
-                  </div>
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                {/* Visual Calendar Column */}
+                <div className="lg:col-span-5 space-y-2">
+                  <label className="block text-xs font-extrabold text-slate-700 tracking-wider uppercase">
+                    {lang === 'ar' ? 'تحديد تاريخ الرحلة' : 'Select Departure Date'}
+                  </label>
+                  {renderCalendar()}
                 </div>
 
-                {/* Travelers Info List */}
-                <div className="space-y-3 bg-slate-50 p-4 rounded-xl max-h-40 overflow-y-auto border border-slate-100">
-                  {travelers.map((tr, idx) => (
-                    <div key={idx} className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-center">
-                      <span className="text-xs font-bold text-slate-500">{lang === 'ar' ? `المسافر ${idx + 1}` : `Traveler ${idx + 1}`}</span>
-                      <input
-                        required
-                        type="text"
-                        placeholder={idx === 0 ? customerName || 'Lead Name' : `Name`}
-                        value={tr.name}
-                        onChange={(e) => updateTraveler(idx, 'name', e.target.value)}
-                        className="text-slate-900 text-xs border border-slate-200 bg-white rounded-lg px-2 py-1.5 focus:outline-none"
-                      />
-                      <div className="flex gap-2">
-                        <select
-                          value={tr.ageGroup}
-                          onChange={(e) => updateTraveler(idx, 'ageGroup', e.target.value as any)}
-                          className="text-slate-900 text-xs border border-slate-200 bg-white rounded-lg px-2 py-1.5 focus:outline-none flex-1"
-                        >
-                          <option value="adult">{lang === 'ar' ? 'بالغ (12+)' : 'Adult (12+)'}</option>
-                          <option value="child">{lang === 'ar' ? 'طفل (2-11)' : 'Child (2-11)'}</option>
-                          <option value="infant">{lang === 'ar' ? 'رضيع (0-2)' : 'Infant (0-2)'}</option>
-                        </select>
+                {/* Pickup & Travelers Column */}
+                <div className="lg:col-span-7 space-y-4 flex flex-col justify-between">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">{lang === 'ar' ? 'فندق الاصطحاب' : 'Pickup Hotel Venue'}</label>
+                      <select
+                        value={isCustomHotel ? '__custom__' : pickupHotel}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (val === '__custom__') {
+                            setIsCustomHotel(true);
+                            setPickupHotel(customHotelName);
+                          } else {
+                            setIsCustomHotel(false);
+                            setPickupHotel(val);
+                          }
+                        }}
+                        className="w-full text-slate-900 text-sm border border-slate-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:outline-none mb-2"
+                      >
+                        {tour.hotels.map(h => (
+                          <option key={h} value={h}>{h}</option>
+                        ))}
+                        <option value="__custom__">{getOtherHotelLabel(lang)}</option>
+                      </select>
+                      {isCustomHotel && (
                         <input
                           type="text"
-                          placeholder={t.passportOptional}
-                          value={tr.passportNumber || ''}
-                          onChange={(e) => updateTraveler(idx, 'passportNumber', e.target.value)}
-                          className="text-slate-900 text-xs border border-slate-200 bg-white rounded-lg px-2 py-1.5 focus:outline-none flex-1 max-w-[100px]"
+                          value={customHotelName}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setCustomHotelName(val);
+                            setPickupHotel(val);
+                          }}
+                          placeholder={getCustomHotelPlaceholder(lang)}
+                          className="w-full text-slate-900 text-sm border border-slate-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                          required
                         />
+                      )}
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">{t.roomNo}</label>
+                      <input
+                        type="text"
+                        value={roomNumber}
+                        onChange={(e) => setRoomNumber(e.target.value)}
+                        placeholder="e.g. Suite 408"
+                        className="w-full text-slate-900 text-sm border border-slate-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="text-xs font-bold text-slate-700">{lang === 'ar' ? 'عدد المسافرين' : 'Number of Travelers'}</label>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          disabled={travelerCount <= 1}
+                          onClick={() => setTravelerCount(prev => Math.max(1, prev - 1))}
+                          className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold px-2.5 py-1 rounded-lg text-sm transition-all active:scale-95 cursor-pointer"
+                        >
+                          -
+                        </button>
+                        <span className="text-sm font-bold px-2 text-slate-800">{travelerCount}</span>
+                        <button
+                          type="button"
+                          disabled={travelerCount >= tour.capacity}
+                          onClick={() => setTravelerCount(prev => Math.min(tour.capacity, prev + 1))}
+                          className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold px-2.5 py-1 rounded-lg text-sm transition-all active:scale-95 cursor-pointer"
+                        >
+                          +
+                        </button>
                       </div>
                     </div>
-                  ))}
+
+                    {/* Travelers Info List */}
+                    <div className="space-y-3 bg-slate-50 p-4 rounded-xl max-h-[170px] overflow-y-auto border border-slate-200/60">
+                      {travelers.map((tr, idx) => (
+                        <div key={idx} className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-center border-b border-slate-200/30 pb-2 last:border-b-0 last:pb-0">
+                          <span className="sm:col-span-2 text-xs font-bold text-slate-500">{lang === 'ar' ? `المسافر ${idx + 1}` : `Traveler ${idx + 1}`}</span>
+                          <div className="sm:col-span-4">
+                            <input
+                              required
+                              type="text"
+                              placeholder={idx === 0 ? customerName || 'Lead Name' : `Name`}
+                              value={tr.name}
+                              onChange={(e) => updateTraveler(idx, 'name', e.target.value)}
+                              className="w-full text-slate-900 text-xs border border-slate-200 bg-white rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                            />
+                          </div>
+                          <div className="sm:col-span-3">
+                            <select
+                              value={tr.ageGroup}
+                              onChange={(e) => updateTraveler(idx, 'ageGroup', e.target.value as any)}
+                              className="w-full text-slate-900 text-xs border border-slate-200 bg-white rounded-lg px-2 py-1.5 focus:outline-none"
+                            >
+                              <option value="adult">{lang === 'ar' ? 'بالغ (12+)' : 'Adult (12+)'}</option>
+                              <option value="child">{lang === 'ar' ? 'طفل (2-11)' : 'Child (2-11)'}</option>
+                              <option value="infant">{lang === 'ar' ? 'رضيع (0-2)' : 'Infant (0-2)'}</option>
+                            </select>
+                          </div>
+                          <div className="sm:col-span-3">
+                            <input
+                              type="text"
+                              placeholder={t.passportOptional}
+                              value={tr.passportNumber || ''}
+                              onChange={(e) => updateTraveler(idx, 'passportNumber', e.target.value)}
+                              className="w-full text-slate-900 text-xs border border-slate-200 bg-white rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>

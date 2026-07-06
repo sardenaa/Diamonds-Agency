@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Html5Qrcode } from 'html5-qrcode';
 import { Ticket, Calendar, ShieldAlert, Award, MessageSquare, Bell, CreditCard, Send, Plus, Sparkles, User, RefreshCw, Smartphone, ShieldCheck, Fingerprint, Lock, Unlock, Activity, CheckCircle2, UserPlus, Gift, Copy, Mail, ExternalLink, Share2, Compass, Trophy, Gem, X, Star, Camera } from 'lucide-react';
 import { Booking, CurrencyConfig, CustomerCRM, SupportMessage, WhatsAppMessage, SupportTicket, AppLanguage } from '../types.js';
 import { translations } from '../translations.js';
@@ -46,6 +47,15 @@ export default function Dashboard({
   const [selectedStaffName, setSelectedStaffName] = useState('');
   const [selectedStaffRole, setSelectedStaffRole] = useState<'guide' | 'driver'>('guide');
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+
+  // QR Code Scanner States
+  const [isScannerOpen, setIsScannerOpen] = useState(false);
+  const [selectedBookingForScan, setSelectedBookingForScan] = useState<Booking | null>(null);
+  const [scannerLoading, setScannerLoading] = useState(false);
+  const [scannedBooking, setScannedBooking] = useState<Booking | null>(null);
+  const [scanError, setScanError] = useState<string | null>(null);
+  const [manualCode, setManualCode] = useState('');
+  const [isCheckInSubmitting, setIsCheckInSubmitting] = useState(false);
 
   const getShareHighlightsText = (b: Booking) => {
     const tourTitleText = lang === 'ar' ? b.tourTitle.ar : b.tourTitle.en;
@@ -323,6 +333,160 @@ ${shareUrl}`;
   useEffect(() => {
     fetchData();
   }, [userEmail]);
+
+  const processCheckIn = async (booking: Booking) => {
+    setIsCheckInSubmitting(true);
+    setScanError(null);
+    try {
+      if (booking.status === 'cancelled') {
+        setScanError(
+          lang === 'ar'
+            ? "عذراً، هذا الحجز ملغى ولا يمكن تسجيل حضوره."
+            : "This reservation is cancelled and cannot be checked-in."
+        );
+        setIsCheckInSubmitting(false);
+        return;
+      }
+      
+      const res = await fetch(`/api/bookings/${booking.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          checkedIn: true,
+          checkedInAt: new Date().toISOString(),
+          status: 'confirmed'
+        })
+      });
+      
+      if (res.ok) {
+        const updatedBooking = await res.json();
+        
+        await fetch('/api/audit-logs', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'BOOKING_CHECKED_IN',
+            user: booking.customerEmail,
+            details: `Guest ${booking.customerName} checked-in via QR Scanner for tour "${booking.tourTitle.en}" (ID: ${booking.id}).`
+          })
+        });
+        
+        const logMsgEn = `Successful Check-In for Tour ${booking.tourTitle.en} via Security QR Scanner`;
+        const logMsgAr = `تم تسجيل حضور الرحلة ${booking.tourTitle.ar} بنجاح عبر ماسح الـ QR الأمني`;
+        const newLog = {
+          id: `log-${Date.now()}`,
+          eventEn: logMsgEn,
+          eventAr: logMsgAr,
+          time: new Date().toLocaleTimeString(),
+          ip: '192.168.1.1'
+        };
+        setSecurityLogs(prev => [newLog, ...prev]);
+        
+        setScannedBooking(updatedBooking);
+        await fetchData();
+        if (onRefreshAll) onRefreshAll();
+      } else {
+        setScanError(
+          lang === 'ar'
+            ? "فشل في تسجيل حضور الحجز على الخادم."
+            : "Server failed to record check-in."
+        );
+      }
+    } catch (err) {
+      console.error("Check-in request error:", err);
+      setScanError(
+        lang === 'ar'
+          ? "خطأ في الشبكة أثناء تسجيل الحضور."
+          : "Network error during check-in process."
+      );
+    } finally {
+      setIsCheckInSubmitting(false);
+      setScannerLoading(false);
+    }
+  };
+
+  const handleQrCodeDecoded = async (text: string) => {
+    if (isCheckInSubmitting) return;
+    setScannerLoading(true);
+    const cleanText = text.trim();
+    const matched = bookings.find(b => b.id === cleanText || b.qrCode === cleanText);
+    
+    if (!matched) {
+      setScanError(
+        lang === 'ar'
+          ? `رمز QR غير صالح [${cleanText}]. يرجى مسح رمز حجز MAS صالحة.`
+          : `Invalid QR Code [${cleanText}]. No matching reservation found.`
+      );
+      setScannerLoading(false);
+      return;
+    }
+    
+    await processCheckIn(matched);
+  };
+
+  useEffect(() => {
+    let html5QrCode: Html5Qrcode | null = null;
+    
+    if (isScannerOpen && !scannedBooking) {
+      setScannerLoading(true);
+      setScanError(null);
+      
+      const startScanner = async () => {
+        try {
+          await new Promise(resolve => setTimeout(resolve, 350));
+          
+          const element = document.getElementById("reader");
+          if (!element) {
+            console.error("Reader element not found");
+            return;
+          }
+          
+          html5QrCode = new Html5Qrcode("reader");
+          const config = { 
+            fps: 10, 
+            qrbox: (width: number, height: number) => {
+              const size = Math.min(width, height) * 0.7;
+              return { width: size, height: size };
+            }
+          };
+          
+          await html5QrCode.start(
+            { facingMode: "environment" }, 
+            config, 
+            (decodedText) => {
+              handleQrCodeDecoded(decodedText);
+            },
+            () => {
+              // Ignore silent scan frames
+            }
+          );
+          setScannerLoading(false);
+        } catch (err: any) {
+          console.error("Scanner start error:", err);
+          setScanError(
+            lang === 'ar' 
+              ? "تعذر بدء الكاميرا. يرجى التحقق من أذونات الكاميرا أو استخدام التصفح الآمن، أو استخدم المحاكي السريع أدناه."
+              : "Unable to start camera. Please verify camera permissions or use the quick simulation tools below."
+          );
+          setScannerLoading(false);
+        }
+      };
+      
+      startScanner();
+    }
+    
+    return () => {
+      if (html5QrCode) {
+        if (html5QrCode.isScanning) {
+          html5QrCode.stop().then(() => {
+            html5QrCode?.clear();
+          }).catch(err => {
+            console.error("Error stopping scanner on unmount:", err);
+          });
+        }
+      }
+    };
+  }, [isScannerOpen, scannedBooking]);
 
   // Auto-detect and populate first booking within 48 hours requiring confirmation
   useEffect(() => {
@@ -731,6 +895,38 @@ ${shareUrl}`;
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-fade-in text-slate-800">
               {/* Left/Main Column: Upcoming Trips */}
               <div className="lg:col-span-2 space-y-6">
+                {/* Sovereign VIP QR Access Gate Check-In Launcher Card */}
+                <div className="bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 border border-slate-800 rounded-2xl p-6 text-white shadow-xl flex flex-col md:flex-row items-center justify-between gap-6 relative overflow-hidden">
+                  <div className="absolute top-0 right-0 w-48 h-48 bg-emerald-500/5 rounded-full blur-3xl pointer-events-none" />
+                  <div className="absolute bottom-0 left-0 w-32 h-32 bg-amber-500/5 rounded-full blur-2xl pointer-events-none" />
+                  <div className="space-y-2 max-w-xl text-left">
+                    <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-500/10 text-amber-400 text-[10px] font-black rounded-full uppercase tracking-widest border border-amber-500/20">
+                      <Sparkles className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
+                      <span>{lang === 'ar' ? 'بوابة التحقق الفاخرة للـ QR' : 'Sovereign VIP Access Gate'}</span>
+                    </div>
+                    <h3 className="text-lg font-black tracking-tight font-serif text-slate-100">
+                      {lang === 'ar' ? 'ماسح كبار الشخصيات السريع لـ QR' : 'Sovereign VIP QR Access Terminal'}
+                    </h3>
+                    <p className="text-xs text-slate-400 leading-relaxed font-semibold">
+                      {lang === 'ar' 
+                        ? 'هل وصلت إلى رحلتك أو نقطة انطلاق مرسيدس؟ استخدم كاميرا جهازك لمسح رمز الـ QR الخاص بك لتأكيد حضورك والتحقق من التخليص الأمني وتنسيق سائقك الشخصي والمرشد فوراً.'
+                        : 'Arrived at your custom expedition point or Mercedes-Benz pickup hotel? Activate your device camera to securely scan your digital boarding pass, instantly registering your attendance with military-grade traceability logs.'}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setScannedBooking(null);
+                      setScanError(null);
+                      setIsScannerOpen(true);
+                    }}
+                    className="bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-500 hover:to-amber-600 text-slate-950 font-black text-xs px-6 py-3.5 rounded-xl transition-all cursor-pointer shadow-md shadow-amber-500/15 flex items-center gap-2 whitespace-nowrap uppercase tracking-wider shrink-0"
+                  >
+                    <Camera className="w-4 h-4 text-slate-950" />
+                    <span>{lang === 'ar' ? 'تشغيل الكاميرا والمسح' : 'Launch VIP Scanner'}</span>
+                  </button>
+                </div>
+
               {upcomingBookings.length === 0 ? (
                 <div className="bg-white p-12 rounded-2xl text-center border border-slate-200/60 max-w-md mx-auto">
                   <Ticket className="w-12 h-12 text-slate-300 mx-auto mb-3" />
@@ -781,6 +977,17 @@ ${shareUrl}`;
                           }`}>
                             {b.paymentStatus === 'paid' ? t.paid : t.unpaid}
                           </span>
+                          {b.checkedIn ? (
+                            <span className="text-[10px] bg-emerald-500 text-white px-3 py-1 rounded-full font-extrabold uppercase tracking-wider flex items-center gap-1 shrink-0 shadow-sm shadow-emerald-500/10">
+                              <ShieldCheck className="w-3 h-3 text-white" />
+                              <span>{lang === 'ar' ? 'تم تسجيل الحضور' : 'Checked In'}</span>
+                            </span>
+                          ) : (
+                            <span className="text-[10px] bg-slate-100 text-slate-500 px-3 py-1 rounded-full font-bold uppercase tracking-wider flex items-center gap-1 shrink-0 border border-slate-200">
+                              <Camera className="w-3 h-3 text-slate-400" />
+                              <span>{lang === 'ar' ? 'انتظار الحضور' : 'Check-In Pending'}</span>
+                            </span>
+                          )}
                         </div>
                       </div>
 
@@ -849,12 +1056,30 @@ ${shareUrl}`;
                         <span className="text-base font-black text-slate-800 font-sans">{formatLocalPrice(b.totalAmountUSD)}</span>
                       </div>
 
-                      <div className="pt-2">
+                      <div className="pt-2 space-y-2">
+                        {!b.checkedIn ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedBookingForScan(b);
+                              setIsScannerOpen(true);
+                            }}
+                            className="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs py-3 rounded-xl transition-all cursor-pointer text-center uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-amber-500/15"
+                          >
+                            <Camera className="w-4 h-4 text-slate-950" />
+                            <span>{lang === 'ar' ? 'تسجيل الحضور بالـ QR' : 'Scan to Check-In'}</span>
+                          </button>
+                        ) : (
+                          <div className="w-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 font-extrabold text-xs py-3 rounded-xl text-center uppercase tracking-wider flex items-center justify-center gap-2">
+                            <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                            <span>{lang === 'ar' ? 'تم تسجيل حضورك بنجاح' : 'Check-In Complete'}</span>
+                          </div>
+                        )}
                         <a 
                           href={`/?share-itinerary=${b.id}&print=true`}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="w-full bg-slate-900 hover:bg-slate-850 text-amber-400 font-extrabold text-xs py-3 rounded-xl transition-all cursor-pointer text-center uppercase tracking-wider flex items-center justify-center gap-2 border border-slate-800 hover:border-amber-500/30 group"
+                          className="w-full bg-slate-900 hover:bg-slate-850 text-amber-400 font-extrabold text-xs py-3 rounded-xl transition-all cursor-pointer text-center uppercase tracking-wider flex items-center justify-center gap-2 border border-slate-800 hover:border-amber-500/30 group block"
                         >
                           <Compass className="w-4 h-4 text-amber-500 group-hover:rotate-45 transition-transform" />
                           <span>{lang === 'ar' ? 'الاستعداد للمغادرة (المسار المطبوع)' : 'Prepare for Departure'}</span>
@@ -2788,6 +3013,252 @@ ${shareUrl}`;
         role={selectedStaffRole}
         lang={lang}
       />
+
+      {/* Sovereign VIP QR Check-In Scanner Overlay Modal */}
+      {isScannerOpen && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-950/95 backdrop-blur-xl px-4 py-6 overflow-y-auto">
+          <style>{`
+            @keyframes scanLineAnim {
+              0% { top: 0%; opacity: 0.1; }
+              10% { opacity: 1; }
+              90% { opacity: 1; }
+              100% { top: 100%; opacity: 0.1; }
+            }
+          `}</style>
+          
+          <div className="relative max-w-lg w-full bg-slate-900 border border-slate-800 rounded-[2.5rem] p-6 md:p-8 text-white shadow-2xl overflow-hidden my-auto">
+            {/* Ambient Background Glows */}
+            <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/5 rounded-full blur-3xl pointer-events-none" />
+            <div className="absolute bottom-0 left-0 w-48 h-48 bg-amber-500/5 rounded-full blur-2xl pointer-events-none" />
+
+            {/* Header */}
+            <div className="flex justify-between items-start pb-4 border-b border-slate-800 relative z-10">
+              <div className="space-y-1">
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 bg-emerald-500/10 text-emerald-400 text-[9px] font-black rounded-full uppercase tracking-widest border border-emerald-500/20">
+                  <Fingerprint className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>{lang === 'ar' ? 'نظام التحقق المعتمد' : 'Sovereign Clearance Node'}</span>
+                </div>
+                <h3 className="text-xl font-black font-serif text-slate-100 flex items-center gap-2">
+                  <span>{lang === 'ar' ? 'بوابة تسجيل الحضور الفوري' : 'VIP Check-In Terminal'}</span>
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsScannerOpen(false);
+                  setScannedBooking(null);
+                  setScanError(null);
+                  setManualCode('');
+                }}
+                className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-full transition-colors cursor-pointer animate-fade-in"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Main Content Area */}
+            <div className="mt-6 space-y-6 relative z-10">
+              {scannedBooking ? (
+                /* Success Screen */
+                <div className="text-center py-6 space-y-6 animate-fade-in">
+                  <div className="w-20 h-20 bg-emerald-500/10 border border-emerald-500/30 rounded-full flex items-center justify-center mx-auto shadow-lg shadow-emerald-500/10 relative">
+                    <ShieldCheck className="w-10 h-10 text-emerald-400" />
+                    <span className="absolute inset-0 rounded-full border border-emerald-400 animate-ping opacity-25"></span>
+                  </div>
+
+                  <div className="space-y-2">
+                    <h4 className="text-lg font-black text-emerald-400 font-serif">
+                      {lang === 'ar' ? 'تم منح التفويض الأمني الملكي!' : 'VIP Attendance Cleared!'}
+                    </h4>
+                    <p className="text-xs text-slate-400 max-w-sm mx-auto leading-relaxed">
+                      {lang === 'ar'
+                        ? `مرحباً بك يا ${scannedBooking.customerName}. تم تسجيل حضورك بنجاح لرحلتك الاستكشافية.`
+                        : `Welcome aboard, ${scannedBooking.customerName}. Your luxury attendance has been verified & logged under secure compliance protocol.`}
+                    </p>
+                  </div>
+
+                  {/* Booking Cleared Passport Panel */}
+                  <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-5 text-left space-y-3 font-sans">
+                    <div className="flex justify-between items-center pb-2 border-b border-slate-800/60 text-[10px] text-slate-500 font-bold uppercase tracking-wider">
+                      <span>{lang === 'ar' ? 'تفاصيل تصريح المرور الفاخر' : 'Luxury Gate Clearance Pass'}</span>
+                      <span className="text-emerald-400">ID: {scannedBooking.id}</span>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <span className="block text-[9px] text-slate-500 uppercase font-black tracking-wider">{lang === 'ar' ? 'الرحلة الاستكشافية' : 'VIP Expedition'}</span>
+                      <p className="text-slate-200 font-bold text-xs">{lang === 'ar' ? scannedBooking.tourTitle.ar : scannedBooking.tourTitle.en}</p>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4 pt-1">
+                      <div>
+                        <span className="block text-[9px] text-slate-500 uppercase font-black tracking-wider">{lang === 'ar' ? 'سائق المرسيدس' : 'Mercedes Chauffeur'}</span>
+                        <p className="text-amber-400 font-bold text-xs">{scannedBooking.driverName || (lang === 'ar' ? 'جاري الاستدعاء...' : 'Dispatching Sovereign Driver...')}</p>
+                      </div>
+                      <div>
+                        <span className="block text-[9px] text-slate-500 uppercase font-black tracking-wider">{lang === 'ar' ? 'المرشد الأثري' : 'Egyptologist Scholar'}</span>
+                        <p className="text-slate-200 font-bold text-xs">{scannedBooking.guideName || (lang === 'ar' ? 'جاري الاستدعاء...' : 'On-Site Archaeologist...')}</p>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4 pt-1">
+                      <div>
+                        <span className="block text-[9px] text-slate-500 uppercase font-black tracking-wider">{lang === 'ar' ? 'نقطة الانطلاق' : 'Coordinates'}</span>
+                        <p className="text-slate-200 font-medium text-xs leading-tight">{scannedBooking.pickupHotel}</p>
+                      </div>
+                      <div>
+                        <span className="block text-[9px] text-slate-500 uppercase font-black tracking-wider">{lang === 'ar' ? 'تاريخ المغادرة' : 'Departure Date'}</span>
+                        <p className="text-slate-200 font-bold text-xs">{scannedBooking.date}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsScannerOpen(false);
+                      setScannedBooking(null);
+                    }}
+                    className="w-full bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-slate-950 font-black text-xs py-3.5 rounded-xl transition-all cursor-pointer shadow-md uppercase tracking-wider"
+                  >
+                    {lang === 'ar' ? 'إغلاق البوابة والمتابعة' : 'Complete VIP Clearance'}
+                  </button>
+                </div>
+              ) : (
+                /* Scanner Panel */
+                <div className="space-y-6">
+                  {/* Real-time Camera Viewframe with Neon Grid Corner Marks */}
+                  <div className="relative w-full aspect-square bg-slate-950 rounded-2xl overflow-hidden border border-slate-800/80 shadow-inner flex flex-col items-center justify-center">
+                    
+                    {/* Live Reader Div for html5-qrcode */}
+                    <div id="reader" className="absolute inset-0 w-full h-full object-cover"></div>
+
+                    {/* Camera Overlay Elements (drawn over camera) */}
+                    <div className="absolute inset-0 border-[24px] border-slate-950/40 pointer-events-none flex items-center justify-center">
+                      <div className="w-full h-full border border-slate-700/50 rounded-lg relative">
+                        {/* Glowing Green Scanning Laser Line */}
+                        <div className="absolute left-0 w-full h-[2px] bg-emerald-500 shadow-[0_0_8px_#10b981] pointer-events-none" style={{
+                          animation: 'scanLineAnim 2.5s ease-in-out infinite'
+                        }} />
+
+                        {/* Top-Left Corner Bracket */}
+                        <div className="absolute top-0 left-0 w-5 h-5 border-t-[3px] border-l-[3px] border-amber-400 rounded-tl-sm" />
+                        {/* Top-Right Corner Bracket */}
+                        <div className="absolute top-0 right-0 w-5 h-5 border-t-[3px] border-r-[3px] border-amber-400 rounded-tr-sm" />
+                        {/* Bottom-Left Corner Bracket */}
+                        <div className="absolute bottom-0 left-0 w-5 h-5 border-b-[3px] border-l-[3px] border-amber-400 rounded-bl-sm" />
+                        {/* Bottom-Right Corner Bracket */}
+                        <div className="absolute bottom-0 right-0 w-5 h-5 border-b-[3px] border-r-[3px] border-amber-400 rounded-br-sm" />
+                      </div>
+                    </div>
+
+                    {/* Camera Status Overlay (when camera starts or fails) */}
+                    {scannerLoading && (
+                      <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm flex flex-col items-center justify-center gap-3 p-4 text-center z-20">
+                        <RefreshCw className="w-8 h-8 text-amber-400 animate-spin" />
+                        <p className="text-xs text-amber-100 font-bold uppercase tracking-wider animate-pulse">
+                          {lang === 'ar' ? 'جاري تنشيط الكاميرا الملكية...' : 'INITIATING OPTICAL CALIBRATION...'}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Status Indicator */}
+                  <div className="flex items-center justify-center gap-2 text-[10px] font-bold tracking-widest text-slate-400 uppercase">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
+                    <span>{lang === 'ar' ? 'كاميرا كشف الـ QR نشطة' : 'ACTIVE QR SCANNER NODE'}</span>
+                  </div>
+
+                  {/* Scanning instructions/status or error message */}
+                  {scanError && (
+                    <div className="bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs p-4 rounded-xl space-y-1 text-left">
+                      <div className="flex items-center gap-2 font-bold text-rose-400">
+                        <Lock className="w-3.5 h-3.5" />
+                        <span>{lang === 'ar' ? 'فشل التحقق الأمني' : 'Security Warning'}</span>
+                      </div>
+                      <p className="text-[11px] text-slate-300 leading-relaxed font-medium">
+                        {scanError}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* QR Simulation Section (Crucial fallback for AIS environments / convenience) */}
+                  <div className="bg-slate-950/60 border border-slate-800 rounded-2xl p-4 md:p-5 space-y-4 text-left">
+                    <div className="space-y-1">
+                      <h4 className="text-[10px] font-black text-amber-400 uppercase tracking-widest">
+                        {lang === 'ar' ? 'محاكي كبار الشخصيات السريع لـ QR (بدون كاميرا)' : 'Sovereign QR Simulation Engine'}
+                      </h4>
+                      <p className="text-[10px] text-slate-500 font-medium">
+                        {lang === 'ar'
+                          ? 'استخدم هذا المحاكي السريع لاختبار تسجيل الحضور بدون كاميرا حقيقية. اختر أحد حجوزاتك النشطة:'
+                          : 'No camera? Use this official simulator to experience instant premium security clearance by clicking your active reservation below:'}
+                      </p>
+                    </div>
+
+                    {/* Show only bookings requiring check-in */}
+                    <div className="space-y-2">
+                      {bookings.filter(b => b.status !== 'cancelled' && !b.checkedIn).length === 0 ? (
+                        <p className="text-[10px] text-slate-400 font-bold italic py-1 text-center">
+                          {lang === 'ar' ? 'جميع حجوزاتك النشطة مسجل حضورها بالفعل!' : 'All your active reservations are already checked-in.'}
+                        </p>
+                      ) : (
+                        <div className="grid grid-cols-1 gap-2 max-h-[140px] overflow-y-auto no-scrollbar">
+                          {bookings.filter(b => b.status !== 'cancelled' && !b.checkedIn).map(b => (
+                            <button
+                              key={`sim-${b.id}`}
+                              type="button"
+                              onClick={() => {
+                                setManualCode(b.qrCode || b.id);
+                                processCheckIn(b);
+                              }}
+                              disabled={isCheckInSubmitting}
+                              className="w-full text-left bg-slate-900 hover:bg-slate-850 border border-slate-800/80 hover:border-amber-500/40 p-2.5 rounded-xl flex items-center justify-between text-[11px] font-bold text-slate-200 transition-all cursor-pointer group"
+                            >
+                              <div className="truncate pr-2">
+                                <span className="block text-[8px] text-amber-500 font-black uppercase tracking-widest">EXPEDITION</span>
+                                <span className="truncate">{lang === 'ar' ? b.tourTitle.ar : b.tourTitle.en}</span>
+                              </div>
+                              <span className="bg-amber-400 group-hover:bg-amber-500 text-slate-950 font-black text-[9px] px-2 py-1 rounded-md shrink-0 uppercase transition-colors">
+                                {lang === 'ar' ? 'حضور' : 'Check-In'}
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Manual Reservation ID code input */}
+                    <div className="pt-2 border-t border-slate-800/80 space-y-2">
+                      <label className="block text-[9px] text-slate-500 uppercase font-black tracking-widest">
+                        {lang === 'ar' ? 'أو أدخل كود الحجز يدوياً' : 'Or input Booking ID / QR Pass Manually'}
+                      </label>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={manualCode}
+                          onChange={(e) => setManualCode(e.target.value)}
+                          placeholder="e.g. booking-1"
+                          className="bg-slate-900 border border-slate-800 focus:border-amber-500 focus:outline-none rounded-xl px-3 py-2 text-xs font-mono text-white placeholder-slate-600 font-bold grow"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (!manualCode.trim()) return;
+                            handleQrCodeDecoded(manualCode);
+                          }}
+                          disabled={isCheckInSubmitting}
+                          className="bg-slate-800 hover:bg-slate-700 text-amber-400 hover:text-white font-extrabold text-xs px-4 rounded-xl transition-colors cursor-pointer uppercase tracking-wider"
+                        >
+                          {lang === 'ar' ? 'إرسال' : 'Submit'}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
