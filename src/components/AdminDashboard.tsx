@@ -8,6 +8,15 @@ import ProfileModal from './ProfileModal.js';
 import SovereignDashboardCharts from './SovereignDashboardCharts.js';
 import { DatabaseBackupService } from '../services/DatabaseBackupService.js';
 
+// Enterprise Refactored Admin Feature Components
+import { AnalyticsTab } from '../features/admin/analytics/components/index.js';
+import { AuditTab } from '../features/admin/audit/components/index.js';
+import { BookingsTab, SheetsSyncTab } from '../features/admin/bookings/components/index.js';
+import { CrmTab } from '../features/admin/crm/components/index.js';
+import { CmsTab } from '../features/admin/dashboard/components/index.js';
+import { CouponsTab, BlogsTab, AiConsoleTab } from '../features/admin/marketing/components/index.js';
+import { TicketingTab } from '../features/admin/support/components/index.js';
+
 interface SpreadsheetInputProps {
   value: string;
   placeholder?: string;
