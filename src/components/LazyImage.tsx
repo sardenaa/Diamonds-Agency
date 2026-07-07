@@ -16,6 +16,7 @@ export default function LazyImage({
 }: LazyImageProps) {
   const [isLoaded, setIsLoaded] = useState(false);
   const [isInView, setIsInView] = useState(false);
+  const [displaySrc, setDisplaySrc] = useState<string | undefined>(undefined);
   const imgRef = useRef<HTMLImageElement | null>(null);
 
   useEffect(() => {
@@ -53,6 +54,70 @@ export default function LazyImage({
     };
   }, []);
 
+  // Handle modern Cache Storage API caching for full offline readiness
+  useEffect(() => {
+    if (!isInView || !src) return;
+
+    let isMounted = true;
+    let createdUrl: string | null = null;
+
+    const loadAndCacheImage = async () => {
+      if (typeof window !== 'undefined' && 'caches' in window) {
+        try {
+          const cache = await caches.open('mas-tour-images');
+          const cachedResponse = await cache.match(src);
+
+          if (cachedResponse) {
+            const blob = await cachedResponse.blob();
+            createdUrl = URL.createObjectURL(blob);
+            if (isMounted) {
+              setDisplaySrc(createdUrl);
+              return;
+            }
+          }
+
+          // Fetch and cache the high-resolution image asynchronously if online
+          if (navigator.onLine) {
+            try {
+              const response = await fetch(src, { mode: 'cors', credentials: 'omit' });
+              if (response.ok) {
+                await cache.put(src, response.clone());
+                const blob = await response.blob();
+                createdUrl = URL.createObjectURL(blob);
+                if (isMounted) {
+                  setDisplaySrc(createdUrl);
+                  return;
+                }
+              }
+            } catch (fetchErr) {
+              // CORS blocker fallback, bind src directly to displaySrc
+              if (isMounted) {
+                setDisplaySrc(src);
+              }
+              return;
+            }
+          }
+        } catch (err) {
+          console.warn('Image Cache Storage error, falling back to direct load:', err);
+        }
+      }
+
+      // Default fallback
+      if (isMounted) {
+        setDisplaySrc(src);
+      }
+    };
+
+    loadAndCacheImage();
+
+    return () => {
+      isMounted = false;
+      if (createdUrl) {
+        URL.revokeObjectURL(createdUrl);
+      }
+    };
+  }, [src, isInView]);
+
   return (
     <div className={`relative overflow-hidden w-full h-full ${placeholderBg}`}>
       {/* Skeleton loading block while not loaded or not in view */}
@@ -62,10 +127,10 @@ export default function LazyImage({
         </div>
       )}
 
-      {isInView && (
+      {isInView && displaySrc && (
         <img
           ref={imgRef}
-          src={src}
+          src={displaySrc}
           alt={alt}
           className={`${className} transition-opacity duration-700 ease-out ${
             isLoaded ? 'opacity-100' : 'opacity-0'

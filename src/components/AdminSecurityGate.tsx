@@ -12,6 +12,7 @@ export default function AdminSecurityGate({ lang, onVerify }: AdminSecurityGateP
   const [pin, setPin] = useState('');
   const [showPin, setShowPin] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isVerifying, setIsVerifying] = useState(false);
 
   const roles = {
     admin: {
@@ -43,24 +44,50 @@ export default function AdminSecurityGate({ lang, onVerify }: AdminSecurityGateP
     }
   };
 
-  const handleVerify = (e: React.FormEvent) => {
+  const handleVerify = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isVerifying || pin.length < 4) return;
     setError(null);
+    setIsVerifying(true);
 
-    const currentRole = roles[selectedTier];
-    if (pin === currentRole.pin) {
-      onVerify(currentRole.titleEn);
-    } else {
+    try {
+      const res = await fetch('/api/admin/verify-passcode', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          tier: selectedTier,
+          pin: pin
+        })
+      });
+
+      const data = await res.json();
+
+      if (res.ok && data.success) {
+        onVerify(data.tier);
+      } else {
+        setError(
+          lang === 'ar'
+            ? 'رمز الوصول الأمني غير صحيح. يرجى مراجعة إدارة MAS السيادية.'
+            : data.message || 'Invalid access credentials. Please consult your MAS Security System.'
+        );
+        setPin('');
+      }
+    } catch (err) {
+      console.error('Clearance Gate Auth Error:', err);
       setError(
         lang === 'ar'
-          ? 'رمز الوصول الأمني غير صحيح. يرجى مراجعة إدارة MAS السيادية.'
-          : 'Invalid access credentials. Please consult your MAS Security System.'
+          ? 'عذراً، فشل الاتصال بالخادم الأمني الرئيسي. يرجى المحاولة لاحقاً.'
+          : 'Sovereign authentication offline. Unable to reach security clearance nodes.'
       );
-      setPin('');
+    } finally {
+      setIsVerifying(false);
     }
   };
 
   const handleKeypadClick = (num: string) => {
+    if (isVerifying) return;
     if (pin.length < 4) {
       setPin(prev => prev + num);
       setError(null);
@@ -68,6 +95,7 @@ export default function AdminSecurityGate({ lang, onVerify }: AdminSecurityGateP
   };
 
   const handleBackspace = () => {
+    if (isVerifying) return;
     setPin(prev => prev.slice(0, -1));
   };
 
@@ -146,11 +174,14 @@ export default function AdminSecurityGate({ lang, onVerify }: AdminSecurityGateP
             })}
           </div>
 
-          <div className="p-3.5 bg-slate-950/50 rounded-xl border border-slate-850 text-[10px] text-slate-500 space-y-1 font-mono leading-relaxed">
+          <div className="p-3.5 bg-slate-950/50 rounded-xl border border-slate-850 text-[10px] text-slate-500 space-y-1.5 font-mono leading-relaxed">
             <span className="font-black text-slate-400 uppercase tracking-widest block mb-0.5">💡 Demo Security Keys</span>
             <p>🔑 {roles.admin.titleEn}: <span className="text-emerald-400 font-bold">{roles.admin.pin}</span></p>
             <p>🔑 {roles.operations.titleEn}: <span className="text-emerald-400 font-bold">{roles.operations.pin}</span></p>
             <p>🔑 {roles.crm.titleEn}: <span className="text-emerald-400 font-bold">{roles.crm.pin}</span></p>
+            <div className="pt-2 border-t border-slate-800 text-[9px] text-slate-500 leading-normal">
+              <span>{lang === 'ar' ? 'ملاحظة الإنتاج: يتم تعيين هذه الأكواد بأمان على الخادم عبر متغيرات البيئة.' : 'Production Note: These passcodes are securely configured on the server via .env variables (ADMIN_PIN, OPERATIONS_PIN, CRM_PIN), preventing exposure to the client browser.'}</span>
+            </div>
           </div>
         </div>
 
@@ -239,11 +270,19 @@ export default function AdminSecurityGate({ lang, onVerify }: AdminSecurityGateP
             {/* Verification Trigger Button */}
             <button
               type="submit"
-              disabled={pin.length < 4}
+              disabled={pin.length < 4 || isVerifying}
               className="w-full h-11 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-800 disabled:text-slate-600 text-white font-black text-xs uppercase tracking-wider rounded-xl transition-all duration-300 cursor-pointer shadow-md flex items-center justify-center gap-2 disabled:cursor-not-allowed border border-emerald-700/50"
             >
-              <ShieldCheck className="w-4 h-4" />
-              <span>{lang === 'ar' ? 'التحقق ومنح تصريح الوصول' : 'Verify & Request Access'}</span>
+              {isVerifying ? (
+                <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin shrink-0" />
+              ) : (
+                <ShieldCheck className="w-4 h-4" />
+              )}
+              <span>
+                {isVerifying 
+                  ? (lang === 'ar' ? 'جاري التحقق أمنياً...' : 'VERIFYING SECURITY CLEARANCE...')
+                  : (lang === 'ar' ? 'التحقق ومنح تصريح الوصول' : 'Verify & Request Access')}
+              </span>
             </button>
           </form>
         </div>

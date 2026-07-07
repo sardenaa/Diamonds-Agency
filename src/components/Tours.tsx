@@ -3,6 +3,8 @@ import { Star, Clock, MapPin, Compass, ArrowLeft, CheckCircle2, AlertCircle, Spa
 import { Tour, CurrencyConfig, AppLanguage } from '../types.js';
 import { translations } from '../translations.js';
 import LazyImage from './LazyImage.js';
+import TourCatalogSkeleton from './Skeleton/TourCatalogSkeleton.js';
+import { CacheManager } from '../utils/CacheManager.js';
 
 interface ToursProps {
   lang: AppLanguage;
@@ -70,6 +72,8 @@ export default function Tours({
       const res = await fetch('/api/tours');
       const data = await res.json();
       setTours(data);
+      // Prefetch high-resolution tour imagery for offline premium experiences
+      CacheManager.prefetchTourImages(data);
     } catch (e) {
       console.error(e);
     } finally {
@@ -183,6 +187,10 @@ export default function Tours({
       return [...prev, tour];
     });
   };
+
+  if (loading) {
+    return <TourCatalogSkeleton />;
+  }
 
   return (
     <div id="excursions-grid" className="space-y-8 font-sans scroll-mt-10">

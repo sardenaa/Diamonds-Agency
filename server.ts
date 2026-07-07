@@ -4,6 +4,7 @@ import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI } from '@google/genai';
 import PDFDocument from 'pdfkit';
 import { getDB, saveDB, logAudit, DEFAULT_CURRENCIES } from './src/server/db.js';
+import { createBackup, listBackups, restoreBackup, initDailyBackupScheduler } from './src/server/backup.js';
 import { Tour, Booking, Review, Blog, Coupon, CustomerCRM } from './src/types.js';
 import { buildSitemapXml } from './src/utils/generate-sitemap.js';
 
@@ -957,6 +958,42 @@ JSON Schema:
     res.json({ valid: true, discountPercent: coupon.discountPercent });
   });
 
+  // Secure Administrative Passcode Verification
+  app.post('/api/admin/verify-passcode', (req, res) => {
+    const { tier, pin } = req.body;
+    if (!tier || !pin) {
+      return res.status(400).json({ success: false, message: 'Missing tier or passcode.' });
+    }
+
+    const adminPin = process.env.ADMIN_PIN || '8899';
+    const operationsPin = process.env.OPERATIONS_PIN || '4455';
+    const crmPin = process.env.CRM_PIN || '2233';
+
+    let expectedPin = '';
+    let titleEn = '';
+
+    if (tier === 'admin') {
+      expectedPin = adminPin;
+      titleEn = 'Sovereign Admin';
+    } else if (tier === 'operations') {
+      expectedPin = operationsPin;
+      titleEn = 'Operations Manager';
+    } else if (tier === 'crm') {
+      expectedPin = crmPin;
+      titleEn = 'Guest Relations Coordinator';
+    } else {
+      return res.status(400).json({ success: false, message: 'Invalid clearance tier.' });
+    }
+
+    if (pin === expectedPin) {
+      logAudit('ADMIN_AUTH_SUCCESS', 'Sovereign Gate', `Clearance Level granted for role: ${titleEn}`);
+      res.json({ success: true, tier: titleEn });
+    } else {
+      logAudit('ADMIN_AUTH_FAILURE', 'Sovereign Gate', `Failed security verification attempt for role tier: ${tier}`);
+      res.status(401).json({ success: false, message: 'Invalid access credentials.' });
+    }
+  });
+
   // 7. CRM CRM CRUD
   app.get('/api/crm', (req, res) => {
     const db = getDB();
@@ -1158,6 +1195,62 @@ JSON Schema:
     const { action, user, details } = req.body;
     logAudit(action || 'CLIENT_ACTION', user || 'Client User', details || '');
     res.json({ success: true });
+  });
+
+  // Disaster Recovery Encrypted Backups API
+  app.get('/api/admin/backups', (req, res) => {
+    try {
+      const backups = listBackups();
+      res.json(backups);
+    } catch (err: any) {
+      res.status(500).json({ error: 'Failed to retrieve backups list.', details: err.message });
+    }
+  });
+
+  app.post('/api/admin/backups/create', (req, res) => {
+    try {
+      const { type } = req.body;
+      const meta = createBackup(type === 'Auto' ? 'Auto' : 'Manual');
+      res.status(201).json(meta);
+    } catch (err: any) {
+      res.status(500).json({ error: 'Failed to create database snapshot.', details: err.message });
+    }
+  });
+
+  app.post('/api/admin/backups/restore', (req, res) => {
+    try {
+      const { filename } = req.body;
+      if (!filename) {
+        return res.status(400).json({ error: 'Filename is required for restore operations.' });
+      }
+      restoreBackup(filename);
+      res.json({ success: true, message: `System state successfully restored from ${filename}.` });
+    } catch (err: any) {
+      res.status(500).json({ error: 'Restore operation failed.', details: err.message });
+    }
+  });
+
+  app.post('/api/admin/backups/import', (req, res) => {
+    try {
+      const { bookings, reviews, tours, blogs, coupons, crm, tickets, whatsappTemplates } = req.body;
+      if (!bookings || !reviews) {
+        return res.status(400).json({ error: 'Invalid backup file structure: Core collections "bookings" or "reviews" are missing.' });
+      }
+      const db = getDB();
+      db.bookings = bookings;
+      db.reviews = reviews;
+      if (tours && Array.isArray(tours)) db.tours = tours;
+      if (blogs && Array.isArray(blogs)) db.blogs = blogs;
+      if (coupons && Array.isArray(coupons)) db.coupons = coupons;
+      if (crm && Array.isArray(crm)) db.crm = crm;
+      if (tickets && Array.isArray(tickets)) db.tickets = tickets;
+      if (whatsappTemplates && Array.isArray(whatsappTemplates)) db.whatsappTemplates = whatsappTemplates;
+      saveDB(db);
+      logAudit('DISASTER_RECOVERY_IMPORTED', 'Admin Manager', `Manually imported/restored custom JSON database. Bookings: ${bookings.length}, Reviews: ${reviews.length}`);
+      res.json({ success: true, message: 'Database state successfully imported and written to master ledger.' });
+    } catch (err: any) {
+      res.status(500).json({ error: 'Database state import failed.', details: err.message });
+    }
   });
 
   // Dynamic Luxury Service Agreement PDF generator
@@ -1564,6 +1657,55 @@ JSON Schema:
     res.json({ success: true, sentCount });
   });
 
+  // Single Transactional WhatsApp Template Dispatcher
+  app.post('/api/whatsapp/send-template', (req, res) => {
+    const { bookingId, templateId } = req.body;
+    if (!bookingId || !templateId) {
+      return res.status(400).json({ error: 'bookingId and templateId are required' });
+    }
+
+    const db = getDB();
+    const booking = db.bookings.find(b => b.id === bookingId);
+    if (!booking) {
+      return res.status(404).json({ error: 'Booking record not found' });
+    }
+
+    const template = db.whatsappTemplates?.find(t => t.id === templateId);
+    if (!template) {
+      return res.status(404).json({ error: 'WhatsApp template not found' });
+    }
+
+    let text = template.templateText;
+    text = text.replace(/{customer_name}/g, booking.customerName);
+    text = text.replace(/{booking_id}/g, booking.id);
+    const tTitle = typeof booking.tourTitle === 'string'
+      ? booking.tourTitle
+      : (booking.tourTitle.en || '');
+    text = text.replace(/{tour_name}/g, tTitle);
+    text = text.replace(/{date}/g, booking.date);
+    text = text.replace(/{pickup_hotel}/g, booking.pickupHotel);
+    text = text.replace(/{qr_code}/g, booking.qrCode);
+    text = text.replace(/{driver_name}/g, booking.driverName || 'Sherif El Masry');
+    text = text.replace(/{guide_name}/g, booking.guideName || 'Dr. Zahi');
+
+    const customer = db.crm.find(c => c.email.toLowerCase() === booking.customerEmail.toLowerCase());
+    if (customer) {
+      if (!customer.whatsappHistory) {
+        customer.whatsappHistory = [];
+      }
+      customer.whatsappHistory.push({
+        sender: 'system',
+        message: text,
+        timestamp: new Date().toISOString()
+      });
+      saveDB(db);
+      logAudit('WHATSAPP_AUTO_DISPATCH', 'Automation Engine', `Manually triggered alert "${template.name}" for ${booking.id}`);
+      return res.json({ success: true, message: text });
+    }
+
+    res.status(404).json({ error: 'CRM profile not found' });
+  });
+
   app.get('/api/whatsapp-templates', (req, res) => {
     const db = getDB();
     res.json(db.whatsappTemplates || []);
@@ -1941,6 +2083,8 @@ JSON Schema:
 
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`[MAS AGENCY SERVING] Server fully operational at http://localhost:${PORT}`);
+    // Boot up the daily disaster recovery backup scheduler
+    initDailyBackupScheduler();
   });
 }
 

@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { BarChart3, Users, BookOpen, ShieldAlert, Sparkles, Plus, Trash2, Edit2, RotateCcw, Send, Calendar, CheckCircle2, DollarSign, Award, RefreshCw, Layers, Ticket, MessageSquare, Bot, AlertTriangle, ShieldCheck, FileSpreadsheet, FileText, Mail, Tag, FileEdit, Star, Search, Filter, Check } from 'lucide-react';
+import { BarChart3, Users, BookOpen, ShieldAlert, Sparkles, Plus, Trash2, Edit2, RotateCcw, Send, Calendar, CheckCircle2, DollarSign, Award, RefreshCw, Layers, Ticket, MessageSquare, Bot, AlertTriangle, ShieldCheck, FileSpreadsheet, FileText, Mail, Tag, FileEdit, Star, Search, Filter, Check, Download, Upload } from 'lucide-react';
 import { Tour, Booking, CustomerCRM, AuditLog, CurrencyConfig, SupportTicket, WhatsAppTemplate, AppLanguage } from '../types.js';
 import { translations } from '../translations.js';
 import { googleSignIn, logout, initAuth, getAccessToken } from '../lib/firebase.js';
 import { exportBookingsToSheets } from '../lib/googleSheets.js';
 import ProfileModal from './ProfileModal.js';
 import SovereignDashboardCharts from './SovereignDashboardCharts.js';
+import { DatabaseBackupService } from '../services/DatabaseBackupService.js';
 
 interface SpreadsheetInputProps {
   value: string;
@@ -271,6 +272,12 @@ export default function AdminDashboard({
   const [logSearch, setLogSearch] = useState('');
   const [logFilter, setLogFilter] = useState('all');
 
+  // Disaster Recovery Backups states
+  const [backups, setBackups] = useState<any[]>([]);
+  const [creatingBackup, setCreatingBackup] = useState(false);
+  const [restoringBackupId, setRestoringBackupId] = useState<string | null>(null);
+  const [backupMessage, setBackupMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+
   const fetchAdminData = async () => {
     setLoading(true);
     try {
@@ -315,6 +322,13 @@ export default function AdminDashboard({
           setSelectedCrmEmail(crmData[0].email);
         }
       }
+
+      // Fetch Disaster Recovery backup snapshots
+      const backupsRes = await fetch('/api/admin/backups');
+      if (backupsRes.ok) {
+        const backupsData = await backupsRes.json();
+        setBackups(backupsData);
+      }
     } catch (e) {
       console.error(e);
     } finally {
@@ -324,7 +338,95 @@ export default function AdminDashboard({
 
   useEffect(() => {
     fetchAdminData();
+    // Log administrative dashboard access
+    fetch('/api/audit-logs', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'DASHBOARD_ACCESS',
+        user: adminPermissionTier,
+        details: `Granted administrative dashboard access to clearance tier: ${adminPermissionTier}`
+      })
+    }).catch(err => console.error('Failed to log dashboard access audit:', err));
   }, []);
+
+  const handleCreateManualBackup = async () => {
+    setCreatingBackup(true);
+    setBackupMessage(null);
+    try {
+      const res = await fetch('/api/admin/backups/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'Manual' })
+      });
+      if (!res.ok) throw new Error('Failed to create manual backup snapshot.');
+      const data = await res.json();
+      setBackups(prev => [data, ...prev]);
+      setBackupMessage({ text: 'Encrypted database snapshot successfully saved for disaster recovery.', type: 'success' });
+    } catch (err: any) {
+      console.error(err);
+      setBackupMessage({ text: err.message || 'Failed to create backup.', type: 'error' });
+    } finally {
+      setCreatingBackup(false);
+    }
+  };
+
+  const handleRestoreBackup = async (filename: string, id: string) => {
+    if (!window.confirm(`WARNING: Are you absolutely sure you want to restore the database to snapshot "${filename}"? All active database records will be overwritten with the historical data from this backup.`)) {
+      return;
+    }
+    
+    setRestoringBackupId(id);
+    setBackupMessage(null);
+    try {
+      const res = await fetch('/api/admin/backups/restore', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filename })
+      });
+      if (!res.ok) throw new Error('Database restore operation failed.');
+      
+      setBackupMessage({ text: 'System state successfully restored. Reloading database values...', type: 'success' });
+      // Fetch fresh data
+      await fetchAdminData();
+    } catch (err: any) {
+      console.error(err);
+      setBackupMessage({ text: err.message || 'Database restore aborted.', type: 'error' });
+    } finally {
+      setRestoringBackupId(null);
+    }
+  };
+
+  const handleLocalExport = async () => {
+    setBackupMessage(null);
+    const success = await DatabaseBackupService.exportLocalBackup();
+    if (success) {
+      setBackupMessage({ text: 'Sovereign database collections successfully aggregated and downloaded as JSON.', type: 'success' });
+    } else {
+      setBackupMessage({ text: 'Failed to generate local database export.', type: 'error' });
+    }
+  };
+
+  const handleLocalImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!window.confirm(`CRITICAL DISASTER RECOVERY ALERT: Are you absolutely sure you want to upload and import "${file.name}"? This will completely overwrite your active reservations, reviews, and configurations with the contents of this JSON file.`)) {
+      e.target.value = '';
+      return;
+    }
+
+    setBackupMessage({ text: 'Parsing backup snapshot and reconstructing database...', type: 'success' });
+    const result = await DatabaseBackupService.importLocalBackup(file);
+    
+    if (result.success) {
+      setBackupMessage({ text: result.message, type: 'success' });
+      await fetchAdminData(); // Reload all states
+    } else {
+      setBackupMessage({ text: result.message, type: 'error' });
+    }
+    e.target.value = ''; // Reset file input
+  };
 
   useEffect(() => {
     const unsubscribe = initAuth(
@@ -1598,7 +1700,7 @@ export default function AdminDashboard({
             { id: 'cms', label: t.cmsManager, icon: BookOpen },
             { id: 'blogs', label: '📝 Blog Articles', icon: FileEdit },
             { id: 'coupons', label: '🎟️ Promo Codes & Coupons', icon: Tag },
-            { id: 'logs', label: t.auditLogs, icon: ShieldAlert },
+            { id: 'logs', label: '🛡️ Security Audit', icon: ShieldAlert },
             { id: 'ai', label: t.aiStudioConsole, icon: Sparkles },
             { id: 'sheets', label: '🟢 Google Sheets Sync', icon: FileSpreadsheet }
           ].map(tab => {
@@ -3320,6 +3422,175 @@ export default function AdminDashboard({
                         );
                       })
                     )}
+                  </div>
+                </div>
+
+                {/* Disaster Recovery Backups Control Panel */}
+                <div className="bg-slate-900/30 border border-slate-800 p-6 rounded-2xl space-y-6 mt-8 font-sans">
+                  <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-4 border-b border-slate-800">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <ShieldCheck className="w-5 h-5 text-emerald-400" />
+                        <h4 className="text-sm font-bold uppercase text-slate-300 tracking-wider">Sovereign Disaster Recovery & Backup Core</h4>
+                      </div>
+                      <p className="text-[11px] text-slate-500 font-medium">
+                        Secure AES-256-CBC encrypted backups of bookings and review databases for instant system-wide recovery.
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+                      <button
+                        type="button"
+                        onClick={handleCreateManualBackup}
+                        disabled={creatingBackup}
+                        className="bg-amber-500 hover:bg-amber-600 disabled:bg-amber-500/50 text-slate-950 font-black text-[11px] uppercase tracking-wider py-2 px-4 rounded-xl shadow-md shadow-amber-500/10 transition-all cursor-pointer flex items-center gap-1.5"
+                      >
+                        {creatingBackup ? (
+                          <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <Plus className="w-3.5 h-3.5" />
+                        )}
+                        <span>{creatingBackup ? 'Creating Snapshot...' : 'Trigger Secure Backup'}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={handleLocalExport}
+                        className="bg-slate-800 hover:bg-slate-750 text-white font-bold text-[11px] uppercase tracking-wider py-2 px-4 rounded-xl border border-slate-700 transition-all cursor-pointer flex items-center gap-1.5"
+                      >
+                        <Download className="w-3.5 h-3.5 text-amber-400" />
+                        <span>Export Database JSON</span>
+                      </button>
+
+                      <label className="bg-slate-800 hover:bg-slate-750 text-white font-bold text-[11px] uppercase tracking-wider py-2 px-4 rounded-xl border border-slate-700 transition-all cursor-pointer flex items-center gap-1.5">
+                        <Upload className="w-3.5 h-3.5 text-emerald-400" />
+                        <span>Import Database JSON</span>
+                        <input
+                          type="file"
+                          accept=".json"
+                          onChange={handleLocalImport}
+                          className="hidden"
+                        />
+                      </label>
+                    </div>
+                  </div>
+
+                  {backupMessage && (
+                    <div className={`p-4 rounded-xl border text-[11px] font-medium flex items-center gap-2.5 ${
+                      backupMessage.type === 'success'
+                        ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
+                        : 'bg-rose-500/10 border-rose-500/20 text-rose-400'
+                    }`}>
+                      {backupMessage.type === 'success' ? (
+                        <ShieldCheck className="w-4 h-4 shrink-0" />
+                      ) : (
+                        <AlertTriangle className="w-4 h-4 shrink-0" />
+                      )}
+                      <span>{backupMessage.text}</span>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                    {/* Config Stats Column */}
+                    <div className="lg:col-span-5 space-y-4">
+                      <div className="bg-slate-950 border border-slate-800/80 rounded-xl p-4 space-y-3">
+                        <h5 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider pb-1.5 border-b border-slate-900">
+                          Security Assurance Manifest
+                        </h5>
+                        
+                        <div className="flex justify-between items-center text-[11px]">
+                          <span className="text-slate-500 font-medium">Backup Cryptography</span>
+                          <span className="font-mono text-emerald-400 font-bold bg-emerald-950/40 px-2 py-0.5 rounded border border-emerald-900/30">
+                            AES-256-CBC
+                          </span>
+                        </div>
+
+                        <div className="flex justify-between items-center text-[11px]">
+                          <span className="text-slate-500 font-medium">Daily Auto-Scheduler</span>
+                          <span className="font-sans text-sky-400 font-bold bg-sky-950/40 px-2 py-0.5 rounded border border-sky-900/30 flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-sky-400 animate-pulse"></span>
+                            ACTIVE
+                          </span>
+                        </div>
+
+                        <div className="flex justify-between items-center text-[11px]">
+                          <span className="text-slate-500 font-medium">Durable Repositories</span>
+                          <span className="font-mono text-slate-300">
+                            backups/
+                          </span>
+                        </div>
+
+                        <div className="flex justify-between items-center text-[11px]">
+                          <span className="text-slate-500 font-medium">Total Saved Snapshots</span>
+                          <span className="font-bold text-white bg-slate-800 px-2.5 py-0.5 rounded">
+                            {backups.length}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="p-4 bg-amber-500/5 border border-amber-500/10 rounded-xl space-y-2">
+                        <div className="flex items-center gap-1.5 text-[11px] font-bold text-amber-500">
+                          <AlertTriangle className="w-4 h-4 shrink-0" />
+                          <span>DISASTER RECOVERY COMPLIANCE</span>
+                        </div>
+                        <p className="text-[10px] text-slate-400 leading-relaxed font-medium">
+                          These backups serve as military-grade offline archives. Restoring from any historical snapshot will overwrite all active database collections. Ensure validation is performed prior to restore.
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Backups History Column */}
+                    <div className="lg:col-span-7 space-y-3">
+                      <h5 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider pl-1">
+                        Encrypted Snapshots Ledger
+                      </h5>
+
+                      <div className="bg-slate-950 border border-slate-800 rounded-xl overflow-hidden divide-y divide-slate-900 max-h-[220px] overflow-y-auto">
+                        {backups.length === 0 ? (
+                          <div className="p-8 text-center text-slate-500 font-medium space-y-1">
+                            <p className="text-[11px]">No backup snapshots archived yet.</p>
+                            <p className="text-[9px] text-slate-600">Trigger manual snapshot above or wait for system schedule.</p>
+                          </div>
+                        ) : (
+                          backups.map((bk) => (
+                            <div key={bk.id} className="p-3 hover:bg-slate-900/20 transition-colors flex items-center justify-between gap-3 font-mono">
+                              <div className="space-y-1 min-w-0">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span className={`text-[8px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded ${
+                                    bk.type === 'Auto'
+                                      ? 'bg-sky-500/10 text-sky-400 border border-sky-500/20'
+                                      : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                                  }`}>
+                                    {bk.type}
+                                  </span>
+                                  <span className="text-white text-[10px] font-bold truncate max-w-[150px] sm:max-w-xs" title={bk.filename}>
+                                    {bk.filename}
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-2 text-[9px] text-slate-500 font-sans">
+                                  <span>{new Date(bk.timestamp).toLocaleString()}</span>
+                                  <span>•</span>
+                                  <span>{(bk.sizeBytes / 1024).toFixed(2)} KB</span>
+                                </div>
+                              </div>
+
+                              <button
+                                type="button"
+                                onClick={() => handleRestoreBackup(bk.filename, bk.id)}
+                                disabled={restoringBackupId !== null}
+                                className="bg-slate-900 hover:bg-slate-850 disabled:bg-slate-900/40 border border-slate-800 text-[10px] text-slate-300 hover:text-white font-bold py-1 px-2.5 rounded-lg transition-all cursor-pointer flex items-center gap-1 shrink-0"
+                              >
+                                {restoringBackupId === bk.id ? (
+                                  <RefreshCw className="w-3 h-3 animate-spin text-amber-400" />
+                                ) : (
+                                  <RotateCcw className="w-3 h-3" />
+                                )}
+                                <span>{restoringBackupId === bk.id ? 'Restoring...' : 'Restore'}</span>
+                              </button>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
