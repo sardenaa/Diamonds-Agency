@@ -1,7 +1,7 @@
 import React from 'react';
 import { RefreshCw } from 'lucide-react';
-import { AppLanguage } from '../../../types.js';
-import SovereignDashboardCharts from '../../../components/SovereignDashboardCharts.js';
+import { AppLanguage } from '../../../../types.js';
+import SovereignDashboardCharts from '../../../../components/SovereignDashboardCharts.js';
 
 interface AnalyticsTabProps {
   lang: AppLanguage;
@@ -78,7 +78,8 @@ export default function AnalyticsTab({
 
       {analyticsSubTab === 'sovereign' ? (
         <SovereignDashboardCharts
-          analytics={analytics}
+          lang={lang}
+          bookingTrendsData={analytics?.bookingTrends || []}
           destinationData={destinationData}
           revenueGrowthData={revenueGrowthData}
           formatLocalPrice={formatLocalPrice}

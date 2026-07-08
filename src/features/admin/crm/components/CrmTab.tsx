@@ -1,6 +1,6 @@
 import React from 'react';
 import { Plus, Users, MessageSquare, Send, Edit2, Trash2, Award, Mail, FileText, RefreshCw } from 'lucide-react';
-import { AppLanguage, Booking, CustomerCRM } from '../../../types.js';
+import { AppLanguage, Booking, CustomerCRM } from '../../../../types.js';
 
 interface CrmTabProps {
   lang: AppLanguage;

@@ -1,6 +1,6 @@
 import React from 'react';
 import { Tag } from 'lucide-react';
-import { Coupon } from '../../../types.js';
+import { Coupon } from '../../../../types.js';
 
 interface CouponsTabProps {
   coupons: Coupon[];

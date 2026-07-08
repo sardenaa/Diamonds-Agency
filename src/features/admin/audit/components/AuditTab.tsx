@@ -1,6 +1,6 @@
 import React from 'react';
 import { RefreshCw, Search, ShieldCheck, Plus, Download, Upload, AlertTriangle, RotateCcw } from 'lucide-react';
-import { AppLanguage, AuditLog } from '../../../types.js';
+import { AppLanguage, AuditLog } from '../../../../types.js';
 
 interface AuditTabProps {
   lang: AppLanguage;

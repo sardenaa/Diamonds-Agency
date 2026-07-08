@@ -1,5 +1,5 @@
 import React from 'react';
-import { Loader2 } from 'lucide-react';
+import { Loader2, X } from 'lucide-react';
 import Dashboard from '../components/Dashboard.js';
 import AdminSecurityGate from '../components/AdminSecurityGate.js';
 import { Tour, AppLanguage } from '../types.js';
@@ -44,6 +44,8 @@ interface AppRouterProps {
   setActiveTourCategory: (category: string) => void;
   setActiveTour: (tour: Tour | null) => void;
   userEmail: string;
+  isAdminThemeLight: boolean;
+  onToggleAdminTheme: () => void;
 }
 
 export default function AppRouter({
@@ -54,6 +56,8 @@ export default function AppRouter({
   setActiveTourCategory,
   setActiveTour,
   userEmail,
+  isAdminThemeLight,
+  onToggleAdminTheme,
 }: AppRouterProps) {
   const {
     role,
@@ -101,12 +105,27 @@ export default function AppRouter({
       {role === 'admin' && (
         <div className={`${tokens.spacing.containerWide} py-10`}>
           {!isAdminVerified ? (
-            <AdminSecurityGate
-              lang={lang}
-              onVerify={(tier) => {
-                verifyAdmin(tier);
-              }}
-            />
+            <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md overflow-y-auto animate-fade-in">
+              <div className="relative w-full max-w-4xl bg-slate-900 border border-slate-800 rounded-3xl p-1 shadow-2xl animate-scale-in">
+                {/* Close Button to return to Guest */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRole('guest');
+                  }}
+                  className="absolute top-6 right-6 text-slate-400 hover:text-white p-2 hover:bg-slate-800/50 rounded-xl transition-all cursor-pointer z-[10000] flex items-center justify-center border border-slate-800/80 shadow-md"
+                  aria-label="Cancel Admin Entry"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+                <AdminSecurityGate
+                  lang={lang}
+                  onVerify={(tier) => {
+                    verifyAdmin(tier);
+                  }}
+                />
+              </div>
+            </div>
           ) : (
             <React.Suspense fallback={<SuspenseFallback message={lang === 'ar' ? 'جاري فتح لوحة التحكم السيادية...' : 'Unlocking Sovereign Control Panel...'} />}>
               <AdminDashboard
@@ -118,6 +137,8 @@ export default function AppRouter({
                 onLogoutAdmin={() => {
                   logoutAdmin();
                 }}
+                isAdminThemeLight={isAdminThemeLight}
+                onToggleAdminTheme={onToggleAdminTheme}
               />
             </React.Suspense>
           )}

@@ -141,6 +141,7 @@ export interface Blog {
   author: string;
   date: string;
   slug: string;
+  category?: string;
 }
 
 export interface Coupon {

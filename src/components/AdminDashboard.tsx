@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { BarChart3, Users, BookOpen, ShieldAlert, Sparkles, Plus, Trash2, Edit2, RotateCcw, Send, Calendar, CheckCircle2, DollarSign, Award, RefreshCw, Layers, Ticket, MessageSquare, Bot, AlertTriangle, ShieldCheck, FileSpreadsheet, FileText, Mail, Tag, FileEdit, Star, Search, Filter, Check, Download, Upload } from 'lucide-react';
+import { BarChart3, Users, BookOpen, ShieldAlert, Sparkles, Plus, Trash2, Edit2, RotateCcw, Send, Calendar, CheckCircle2, DollarSign, Award, RefreshCw, Layers, Ticket, MessageSquare, Bot, AlertTriangle, ShieldCheck, FileSpreadsheet, FileText, Mail, Tag, FileEdit, Star, Search, Filter, Check, Download, Upload, Sun, Moon } from 'lucide-react';
 import { Tour, Booking, CustomerCRM, AuditLog, CurrencyConfig, SupportTicket, WhatsAppTemplate, AppLanguage } from '../types.js';
 import { translations } from '../translations.js';
 import { googleSignIn, logout, initAuth, getAccessToken } from '../lib/firebase.js';
@@ -118,6 +118,8 @@ interface AdminDashboardProps {
   onRefreshAll: () => void;
   adminPermissionTier?: string;
   onLogoutAdmin?: () => void;
+  isAdminThemeLight?: boolean;
+  onToggleAdminTheme?: () => void;
 }
 
 export default function AdminDashboard({
@@ -126,10 +128,15 @@ export default function AdminDashboard({
   currencies,
   onRefreshAll,
   adminPermissionTier = 'Sovereign Admin',
-  onLogoutAdmin
+  onLogoutAdmin,
+  isAdminThemeLight = false,
+  onToggleAdminTheme,
 }: AdminDashboardProps) {
   const t = translations[lang];
   const activeCurrency = currencies.find(c => c.code === currency) || currencies[0];
+
+  const theme = isAdminThemeLight ? 'light' : 'dark';
+  const toggleTheme = onToggleAdminTheme || (() => {});
 
   const [activeTab, setActiveTab] = useState<'analytics' | 'operations' | 'crm' | 'cms' | 'logs' | 'ai' | 'ticketing' | 'sheets' | 'coupons' | 'blogs'>(() => {
     if (adminPermissionTier === 'Operations Manager') return 'operations';
@@ -206,6 +213,14 @@ export default function AdminDashboard({
   const [opsSearchQuery, setOpsSearchQuery] = useState('');
   const [opsStatusFilter, setOpsStatusFilter] = useState('all');
   const [savingStatus, setSavingStatus] = useState<Record<string, 'idle' | 'saving' | 'saved' | 'error'>>({});
+
+  // Operations bulk communication dashboard states
+  const [opsView, setOpsView] = useState<'ledger' | 'bulk_comms'>('ledger');
+  const [opsBulkTourId, setOpsBulkTourId] = useState<string>('all');
+  const [opsSelectedTemplateId, setOpsSelectedTemplateId] = useState<string>('');
+  const [opsCheckedBookingIds, setOpsCheckedBookingIds] = useState<string[]>([]);
+  const [isOpsBroadcasting, setIsOpsBroadcasting] = useState(false);
+  const [opsBroadcastProgress, setOpsBroadcastProgress] = useState(0);
 
   // Bulk WhatsApp Blast states
   const [isBulkBlastOpen, setIsBulkBlastOpen] = useState(false);
@@ -1663,7 +1678,7 @@ export default function AdminDashboard({
   };
 
   return (
-    <div className="bg-slate-900 text-white rounded-3xl border border-slate-800 p-6 md:p-8 shadow-2xl font-sans">
+    <div className={`bg-slate-900 text-white rounded-3xl border border-slate-800 p-6 md:p-8 shadow-2xl font-sans transition-all duration-300 ${theme === 'light' ? 'admin-light' : ''}`}>
       
       {/* Top Admin Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center border-b border-slate-800 pb-6 mb-8 gap-4">
@@ -1676,6 +1691,23 @@ export default function AdminDashboard({
           <h2 className="text-2xl font-black font-sans tracking-tight">Admin Dashboard</h2>
         </div>
         <div className="flex items-center gap-3">
+          <button
+            onClick={toggleTheme}
+            className="bg-slate-800 hover:bg-slate-700 text-white border border-slate-700 px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer"
+            title={theme === 'dark' ? 'Switch to High-Contrast Light Mode' : 'Switch to Dark Mode'}
+          >
+            {theme === 'dark' ? (
+              <>
+                <Sun className="w-3.5 h-3.5 text-amber-400" />
+                <span>Light Mode</span>
+              </>
+            ) : (
+              <>
+                <Moon className="w-3.5 h-3.5 text-indigo-400" />
+                <span>Dark Mode</span>
+              </>
+            )}
+          </button>
           <button
             onClick={fetchAdminData}
             disabled={loading}
@@ -1891,7 +1923,292 @@ export default function AdminDashboard({
 
             return (
               <div className="space-y-6 animate-fade-in">
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                {/* Operations Section Sub-Tabs */}
+                <div className="flex gap-2 border-b border-slate-800 pb-3">
+                  <button
+                    type="button"
+                    onClick={() => setOpsView('ledger')}
+                    className={`px-3.5 py-1.5 rounded-xl border text-[10px] font-black uppercase transition-all cursor-pointer flex items-center gap-1.5 ${
+                      opsView === 'ledger'
+                        ? 'bg-emerald-600 text-white border-emerald-500 shadow-md'
+                        : 'bg-slate-900 text-slate-400 border-slate-800 hover:bg-slate-850 hover:text-slate-200'
+                    }`}
+                  >
+                    <FileSpreadsheet className="w-3.5 h-3.5" />
+                    <span>Excursion Ledger</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setOpsView('bulk_comms')}
+                    className={`px-3.5 py-1.5 rounded-xl border text-[10px] font-black uppercase transition-all cursor-pointer flex items-center gap-1.5 ${
+                      opsView === 'bulk_comms'
+                        ? 'bg-emerald-600 text-white border-emerald-500 shadow-md'
+                        : 'bg-slate-900 text-slate-400 border-slate-800 hover:bg-slate-850 hover:text-slate-200'
+                    }`}
+                  >
+                    <MessageSquare className="w-3.5 h-3.5" />
+                    <span>💬 Bulk WhatsApp Dispatch</span>
+                  </button>
+                </div>
+
+                {opsView === 'bulk_comms' ? (
+                  <div className="space-y-6 animate-fade-in text-xs text-left">
+                    {/* Header Details */}
+                    <div className="bg-slate-900/40 p-5 rounded-2xl border border-slate-800 space-y-2">
+                      <h4 className="text-sm font-bold uppercase text-slate-300 tracking-wider flex items-center gap-2">
+                        <span>💬 Operations Broadcast Control Hub</span>
+                        <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 font-bold text-[9px] uppercase tracking-widest border border-emerald-500/20">Active</span>
+                      </h4>
+                      <p className="text-[10px] text-slate-500 font-medium">
+                        Send targeted, automated status updates and itineraries to guest lists filtered by tour category and specific excursions via the integrated WhatsApp Gateway.
+                      </p>
+                    </div>
+
+                    {/* Filter & Template Setup */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      {/* Left Block: Filters */}
+                      <div className="bg-slate-900/40 p-5 rounded-2xl border border-slate-800 space-y-4">
+                        <h5 className="text-xs font-black uppercase text-amber-400 tracking-wider">1. Filter Guest Segments</h5>
+                        
+                        <div>
+                          <label className="block text-slate-400 font-bold mb-1.5">Filter by Expedition (Tour Type)</label>
+                          <select
+                            value={opsBulkTourId}
+                            onChange={(e) => {
+                              const selectedVal = e.target.value;
+                              setOpsBulkTourId(selectedVal);
+                              
+                              // Auto-select all matched bookings under this filter
+                              const matched = bookings.filter(b => selectedVal === 'all' || b.tourId === selectedVal).map(b => b.id);
+                              setOpsCheckedBookingIds(matched);
+                            }}
+                            className="bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-white w-full focus:outline-none focus:border-emerald-500 cursor-pointer text-xs font-semibold"
+                          >
+                            <option value="all">All Elite Tours & Expeditions</option>
+                            {tours.map(t => (
+                              <option key={t.id} value={t.id}>
+                                {lang === 'ar' ? t.title.ar : t.title.en} ({t.destination})
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block text-slate-400 font-bold mb-1.5">Select Automated Message Template</label>
+                          <select
+                            value={opsSelectedTemplateId}
+                            onChange={(e) => setOpsSelectedTemplateId(e.target.value)}
+                            className="bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-white w-full focus:outline-none focus:border-emerald-500 cursor-pointer text-xs font-semibold"
+                          >
+                            <option value="">-- Choose Automated WhatsApp Update Template --</option>
+                            {whatsappTemplates.map(tpl => (
+                              <option key={tpl.id} value={tpl.id}>
+                                {tpl.name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+
+                      {/* Right Block: Template Preview Mockup */}
+                      <div className="bg-slate-900/40 p-5 rounded-2xl border border-slate-800 flex flex-col justify-between">
+                        <div>
+                          <h5 className="text-xs font-black uppercase text-amber-400 tracking-wider mb-3">2. Mobile Gateway Preview</h5>
+                          {opsSelectedTemplateId ? (() => {
+                            const selectedTpl = whatsappTemplates.find(tpl => tpl.id === opsSelectedTemplateId);
+                            if (!selectedTpl) return null;
+                            
+                            // Sample rendering replacement
+                            let renderedPreview = selectedTpl.templateText
+                              .replace('{customer_name}', 'Charles Spencer')
+                              .replace('{booking_id}', 'BK-9982')
+                              .replace('{tour_name}', 'Pyramids VIP Royal Expedition')
+                              .replace('{pickup_time}', '07:30 AM')
+                              .replace('{pickup_hotel}', 'The Ritz-Carlton Cairo')
+                              .replace('{guide_name}', 'Dr. Zahi')
+                              .replace('{driver_name}', 'Sherif El Masry');
+
+                            return (
+                              <div className="bg-slate-950/70 p-4 rounded-xl border border-slate-800/80 font-mono text-[11px] text-emerald-400 leading-relaxed max-h-[140px] overflow-y-auto whitespace-pre-wrap text-left">
+                                {renderedPreview}
+                              </div>
+                            );
+                          })() : (
+                            <div className="h-[140px] bg-slate-950/40 rounded-xl border border-dashed border-slate-800 flex items-center justify-center text-slate-600 font-bold italic text-center">
+                              Select a template to view the real-time carrier simulated dispatch preview.
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Dispatch Actions */}
+                        <div className="mt-4 pt-3 border-t border-slate-800/50 flex items-center justify-between gap-4">
+                          <div className="text-left">
+                            <span className="block text-[10px] text-slate-500 font-black uppercase tracking-wider">Target Audience</span>
+                            <span className="text-sm font-black text-white">{opsCheckedBookingIds.length} Guests Selected</span>
+                          </div>
+                          
+                          {isOpsBroadcasting ? (
+                            <div className="flex-1 max-w-[200px] bg-slate-950 rounded-full h-2.5 overflow-hidden border border-slate-800 relative">
+                              <div
+                                className="bg-emerald-500 h-full transition-all duration-300"
+                                style={{ width: `${opsBroadcastProgress}%` }}
+                              />
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              disabled={opsCheckedBookingIds.length === 0 || !opsSelectedTemplateId}
+                              onClick={async () => {
+                                if (!opsSelectedTemplateId) {
+                                  alert('Please select an automated WhatsApp update template to dispatch.');
+                                  return;
+                                }
+                                if (opsCheckedBookingIds.length === 0) {
+                                  alert('Please select at least one recipient guest profile.');
+                                  return;
+                                }
+
+                                setIsOpsBroadcasting(true);
+                                setOpsBroadcastProgress(0);
+                                let successCount = 0;
+
+                                try {
+                                  for (let i = 0; i < opsCheckedBookingIds.length; i++) {
+                                    const bId = opsCheckedBookingIds[i];
+                                    const res = await fetch('/api/whatsapp/send-template', {
+                                      method: 'POST',
+                                      headers: { 'Content-Type': 'application/json' },
+                                      body: JSON.stringify({ bookingId: bId, templateId: opsSelectedTemplateId })
+                                    });
+                                    if (res.ok) {
+                                      successCount++;
+                                    }
+                                    setOpsBroadcastProgress(Math.round(((i + 1) / opsCheckedBookingIds.length) * 100));
+                                    // Small delay for natural dispatch simulation
+                                    await new Promise(resolve => setTimeout(resolve, 200));
+                                  }
+                                  alert(`Successfully transmitted automated status updates to ${successCount} guests.`);
+                                  // Refresh Logs and States
+                                  fetchAdminData();
+                                  onRefreshAll();
+                                } catch (err) {
+                                  console.error(err);
+                                  alert('Broadcast system encountered an unexpected error.');
+                                } finally {
+                                  setIsOpsBroadcasting(false);
+                                  setOpsBroadcastProgress(0);
+                                }
+                              }}
+                              className={`px-5 py-2.5 rounded-xl font-bold uppercase transition-all flex items-center gap-2 border cursor-pointer ${
+                                opsCheckedBookingIds.length === 0 || !opsSelectedTemplateId
+                                  ? 'bg-slate-900 text-slate-600 border-slate-800 cursor-not-allowed'
+                                  : 'bg-emerald-600 hover:bg-emerald-500 text-white border-emerald-500 shadow-lg shadow-emerald-950/20'
+                              }`}
+                            >
+                              <Send className="w-3.5 h-3.5" />
+                              <span>Dispatch Broadcast</span>
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Matched Recipients List */}
+                    <div className="bg-slate-900/40 rounded-2xl border border-slate-800 overflow-hidden">
+                      <div className="p-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/20">
+                        <h5 className="text-xs font-black uppercase text-slate-300 tracking-wider">3. Targeted Recipient Guest Roster</h5>
+                        <div className="flex items-center gap-3">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const matched = bookings.filter(b => opsBulkTourId === 'all' || b.tourId === opsBulkTourId);
+                              setOpsCheckedBookingIds(matched.map(b => b.id));
+                            }}
+                            className="text-amber-400 hover:text-amber-300 font-extrabold uppercase text-[9px] tracking-wider animate-pulse"
+                          >
+                            Select All Matches
+                          </button>
+                          <span className="text-slate-600">|</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setOpsCheckedBookingIds([]);
+                            }}
+                            className="text-slate-400 hover:text-white font-extrabold uppercase text-[9px] tracking-wider"
+                          >
+                            Deselect All
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="max-h-[350px] overflow-y-auto">
+                        {bookings.filter(b => opsBulkTourId === 'all' || b.tourId === opsBulkTourId).length === 0 ? (
+                          <div className="p-10 text-center text-slate-500 italic">
+                            No active guest reservations found matching the selected expedition filters.
+                          </div>
+                        ) : (
+                          <table className="w-full border-collapse text-left">
+                            <thead>
+                              <tr className="bg-slate-950/40 border-b border-slate-850 text-[10px] font-bold uppercase text-slate-400 tracking-wider">
+                                <th className="p-3 w-10 text-center">Select</th>
+                                <th className="p-3">Guest Profile</th>
+                                <th className="p-3">Expedition Details</th>
+                                <th className="p-3">Contact Number</th>
+                                <th className="p-3">Reservation Status</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-850">
+                              {bookings.filter(b => opsBulkTourId === 'all' || b.tourId === opsBulkTourId).map((b) => {
+                                const isChecked = opsCheckedBookingIds.includes(b.id);
+                                return (
+                                  <tr key={b.id} className="hover:bg-slate-850/20 transition-colors">
+                                    <td className="p-3 text-center">
+                                      <input
+                                        type="checkbox"
+                                        checked={isChecked}
+                                        onChange={() => {
+                                          if (isChecked) {
+                                            setOpsCheckedBookingIds(opsCheckedBookingIds.filter(id => id !== b.id));
+                                          } else {
+                                            setOpsCheckedBookingIds([...opsCheckedBookingIds, b.id]);
+                                          }
+                                        }}
+                                        className="rounded border-slate-800 text-emerald-500 focus:ring-emerald-500 bg-slate-950 cursor-pointer h-4 w-4"
+                                      />
+                                    </td>
+                                    <td className="p-3">
+                                      <p className="font-extrabold text-slate-200">{b.customerName}</p>
+                                      <p className="text-[10px] text-slate-500 font-mono">{b.customerEmail}</p>
+                                    </td>
+                                    <td className="p-3">
+                                      <p className="font-bold text-slate-300">{lang === 'ar' ? b.tourTitle?.ar : b.tourTitle?.en}</p>
+                                      <p className="text-[10px] text-slate-500 font-mono">Date: {b.date}</p>
+                                    </td>
+                                    <td className="p-3 font-mono text-slate-300">
+                                      {b.customerPhone}
+                                    </td>
+                                    <td className="p-3">
+                                      <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase border ${
+                                        b.status === 'confirmed' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
+                                        b.status === 'completed' ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' :
+                                        b.status === 'pending' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
+                                        'bg-rose-500/10 text-rose-400 border-rose-500/20'
+                                      }`}>
+                                        {b.status}
+                                      </span>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                   <div>
                     <h4 className="text-sm font-bold uppercase text-slate-400 tracking-wider">Live Excursion Ledger & Chauffeur Assignments</h4>
                     <p className="text-[10px] text-slate-500 font-medium">Manage existing bookings, assign chauffeurs and guides, or create a direct manual entry below.</p>
@@ -2289,6 +2606,8 @@ export default function AdminDashboard({
                     </tbody>
                   </table>
                 </div>
+                  </>
+                )}
               </div>
             );
           })()}
@@ -3381,55 +3700,69 @@ export default function AdminDashboard({
 
                 {/* Logs List Container */}
                 <div className="bg-slate-950 border border-slate-800 rounded-2xl shadow-inner overflow-hidden">
-                  <div className="max-h-[500px] overflow-y-auto divide-y divide-slate-900">
+                  <div className="max-h-[500px] overflow-y-auto">
                     {filteredLogs.length === 0 ? (
                       <div className="p-8 text-center text-slate-500 font-sans font-medium space-y-1">
                         <p className="text-xs">No matching administrative operations found.</p>
                         <p className="text-[10px] text-slate-600">Try adjusting your filters or search keywords.</p>
                       </div>
                     ) : (
-                      filteredLogs.map((log: AuditLog) => {
-                        const category = getLogCategory(log.action);
-                        const isSystem = log.user.toLowerCase().includes('system');
-                        return (
-                          <div key={log.id} className="p-4 hover:bg-slate-900/40 transition-colors flex flex-col md:flex-row md:items-center justify-between gap-3 font-mono">
-                            <div className="space-y-1.5">
-                              <div className="flex flex-wrap items-center gap-2">
-                                <span className="text-slate-500 text-[10px] font-medium font-sans">
-                                  {new Date(log.timestamp).toLocaleString(undefined, {
-                                    year: 'numeric',
-                                    month: '2-digit',
-                                    day: '2-digit',
-                                    hour: '2-digit',
-                                    minute: '2-digit',
-                                    second: '2-digit',
-                                    hour12: false
-                                  })}
-                                </span>
-                                <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-wider border font-sans ${getLogCategoryColor(category)}`}>
-                                  {getLogCategoryLabel(category)}
-                                </span>
-                                <span className="text-white font-extrabold text-[11px] font-sans">
-                                  {log.action}
-                                </span>
-                              </div>
-                              <p className="text-slate-300 text-[11px] leading-relaxed font-sans font-medium">
-                                {log.details}
-                              </p>
-                            </div>
+                      <div className="overflow-x-auto">
+                        <table className="w-full border-collapse text-left text-xs font-sans">
+                          <thead>
+                            <tr className="bg-slate-900 border-b border-slate-800 text-[10px] font-bold uppercase text-slate-400 tracking-wider">
+                              <th className="p-3.5">Timestamp</th>
+                              <th className="p-3.5">Category</th>
+                              <th className="p-3.5">Administrative Action</th>
+                              <th className="p-3.5">Operation Details</th>
+                              <th className="p-3.5">Operator</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-900">
+                            {filteredLogs.map((log: AuditLog) => {
+                              const category = getLogCategory(log.action);
+                              const isSystem = log.user.toLowerCase().includes('system');
+                              const formattedTime = new Date(log.timestamp).toLocaleString(undefined, {
+                                year: 'numeric',
+                                month: '2-digit',
+                                day: '2-digit',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                                second: '2-digit',
+                                hour12: false
+                              });
 
-                            <div className="flex items-center gap-2 shrink-0 md:text-right font-sans">
-                              <span className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border ${
-                                isSystem 
-                                  ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' 
-                                  : 'bg-slate-800 text-slate-300 border-slate-700/50'
-                              }`}>
-                                👤 {log.user}
-                              </span>
-                            </div>
-                          </div>
-                        );
-                      })
+                              return (
+                                <tr key={log.id} className="hover:bg-slate-900/40 transition-colors">
+                                  <td className="p-3.5 font-mono text-slate-400 whitespace-nowrap">
+                                    {formattedTime}
+                                  </td>
+                                  <td className="p-3.5 whitespace-nowrap">
+                                    <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-wider border ${getLogCategoryColor(category)}`}>
+                                      {getLogCategoryLabel(category)}
+                                    </span>
+                                  </td>
+                                  <td className="p-3.5 font-bold text-white whitespace-nowrap">
+                                    {log.action}
+                                  </td>
+                                  <td className="p-3.5 text-slate-300 font-medium">
+                                    {log.details}
+                                  </td>
+                                  <td className="p-3.5 whitespace-nowrap">
+                                    <span className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border ${
+                                      isSystem 
+                                        ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' 
+                                        : 'bg-slate-800 text-slate-300 border-slate-700/50'
+                                    }`}>
+                                      👤 {log.user}
+                                    </span>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
                     )}
                   </div>
                 </div>

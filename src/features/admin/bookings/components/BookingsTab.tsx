@@ -1,7 +1,7 @@
 import React from 'react';
 import { FileSpreadsheet, FileText, Plus, Search, Calendar } from 'lucide-react';
-import { AppLanguage, Booking, Tour } from '../../../types.js';
-import { SpreadsheetInput, SpreadsheetSelect } from '../../../components/SpreadsheetControls.js';
+import { AppLanguage, Booking, Tour } from '../../../../types.js';
+import { SpreadsheetInput, SpreadsheetSelect } from '../../../../components/SpreadsheetControls.js';
 
 interface BookingsTabProps {
   lang: AppLanguage;

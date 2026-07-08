@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Sparkles, CheckCircle2, Plus, Edit2, Trash2, Star } from 'lucide-react';
-import { AppLanguage, Tour } from '../../../types.js';
+import { AppLanguage, Tour } from '../../../../types.js';
 
 interface CmsTabProps {
   lang: AppLanguage;

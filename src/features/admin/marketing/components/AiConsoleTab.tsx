@@ -1,6 +1,6 @@
 import React from 'react';
 import { Sparkles } from 'lucide-react';
-import { AppLanguage } from '../../../types.js';
+import { AppLanguage } from '../../../../types.js';
 
 interface AiConsoleTabProps {
   lang: AppLanguage;

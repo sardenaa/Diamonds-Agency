@@ -1,6 +1,6 @@
 import React from 'react';
 import { FileEdit } from 'lucide-react';
-import { BlogArticle } from '../../../types.js';
+import { Blog as BlogArticle } from '../../../../types.js';
 
 interface BlogsTabProps {
   blogs: BlogArticle[];

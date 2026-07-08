@@ -1,6 +1,6 @@
 import React from 'react';
 import { FileSpreadsheet, CheckCircle2, AlertTriangle, RefreshCw, Plus } from 'lucide-react';
-import { AppLanguage, Booking } from '../../../types.js';
+import { AppLanguage, Booking } from '../../../../types.js';
 
 interface SheetsSyncTabProps {
   lang: AppLanguage;

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { MessageSquare, Bot, Send, Plus, Edit2, ShieldCheck } from 'lucide-react';
-import { AppLanguage, Booking, SupportTicket, WhatsAppTemplate } from '../../../types.js';
+import { AppLanguage, Booking, SupportTicket, WhatsAppTemplate } from '../../../../types.js';
 
 interface TicketingTabProps {
   lang: AppLanguage;

@@ -1,4 +1,4 @@
-import { Tour } from '../../../types.js';
+import { Tour } from '../../../../types.js';
 
 export type CmsTour = Tour;
 export type CmsCategory = 'Historical Tours' | 'Luxury Cruises' | 'Desert Safaris' | 'VIP Expeditions' | 'Exclusive Charters';

@@ -1,3 +1,3 @@
-import { CustomerCRM } from '../../../types.js';
+import { CustomerCRM } from '../../../../types.js';
 
 export type AdminCustomer = CustomerCRM;

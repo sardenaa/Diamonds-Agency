@@ -56,6 +56,27 @@ function AppContent({ lang, setLang }: { lang: AppLanguage; setLang: React.Dispa
     formatLocalPrice,
   } = useCurrency();
 
+  const [isAdminThemeLight, setIsAdminThemeLight] = useState<boolean>(() => {
+    return localStorage.getItem('admin_theme') === 'light';
+  });
+
+  // Apply high-contrast light theme when in admin role
+  useEffect(() => {
+    if (role === 'admin' && isAdminThemeLight) {
+      document.body.classList.add('admin-light');
+    } else {
+      document.body.classList.remove('admin-light');
+    }
+  }, [role, isAdminThemeLight]);
+
+  const toggleAdminTheme = () => {
+    setIsAdminThemeLight((prev) => {
+      const next = !prev;
+      localStorage.setItem('admin_theme', next ? 'light' : 'dark');
+      return next;
+    });
+  };
+
   const [searchFilters, setSearchFilters] = useState({ query: '', destination: '', date: '' });
 
   const [activeTourCategory, setActiveTourCategory] = useState<string>('All');
@@ -1127,6 +1148,8 @@ function AppContent({ lang, setLang }: { lang: AppLanguage; setLang: React.Dispa
         setActiveTourCategory={setActiveTourCategory}
         setActiveTour={setActiveTour}
         userEmail={userEmail}
+        isAdminThemeLight={isAdminThemeLight}
+        onToggleAdminTheme={toggleAdminTheme}
       />
 
       {/* 3. Global Premium Footer */}
