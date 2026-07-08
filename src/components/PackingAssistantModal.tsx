@@ -19,6 +19,109 @@ interface PackingAssistantModalProps {
   bookingId: string;
 }
 
+const uiTranslations: Record<AppLanguage, Record<string, string>> = {
+  en: {
+    tag: 'INTELLIGENT VIP WARDROBE PLANNER',
+    title: 'Sovereign Packing Assistant',
+    status: 'PRE-FLIGHT READY STATUS',
+    of: 'of',
+    ready: 'ready',
+    reset: 'Reset',
+    resetTitle: 'Reset checklist items',
+    sec1: '1. Mandatory Travel Credentials',
+    sec2: '2. Tailored Expedition Gear',
+    sec3: '3. Sovereign Comfort & Extras',
+    sec4: '4. Custom Items & Notes',
+    emptyCustom: 'No custom items added yet. Append personal gear below.',
+    placeholder: 'e.g. Spare backup camera batteries, evening gala suit...',
+    addBtn: 'Add Item',
+    note: 'Note: Packing selections are fully private and safely retained on your personal secure device.',
+    tourDesert: 'Desert',
+    tourMarine: 'Marine',
+    tourRiver: 'River Cruise'
+  },
+  ar: {
+    tag: 'مساعد التعبئة الذكي الفاخر',
+    title: 'حقيبة السفر الاستكشافية الملكية',
+    status: 'تقدم تحضير الحقائب',
+    of: 'من أصل',
+    ready: 'جاهز',
+    reset: 'إعادة تعيين',
+    resetTitle: 'إعادة ضبط كل الأغراض',
+    sec1: 'الأوراق والوثائق الأساسية',
+    sec2: 'معدات وملابس خاصة بالرحلة',
+    sec3: 'لمسات الرفاهية والراحة الفاخرة',
+    sec4: 'الأغراض الشخصية الإضافية',
+    emptyCustom: 'لا توجد أغراض إضافية مضافة بعد. أضف أغراضك الخاصة في المربع أدناه.',
+    placeholder: 'مثال: الشاحن المحمول، بدلة العشاء السهرة...',
+    addBtn: 'إضافة',
+    note: 'ملاحظة: هذا التحضير آمن بالكامل ويتم حفظه محلياً لخصوصية كبار الشخصيات.',
+    tourDesert: 'صحراء',
+    tourMarine: 'بحري',
+    tourRiver: 'رحلة نهرية'
+  },
+  de: {
+    tag: 'INTELLIGENTER VIP-GEPÄCKPLANER',
+    title: 'Souveräner Packassistent',
+    status: 'STATUS VOR DER ABREISE',
+    of: 'von',
+    ready: 'bereit',
+    reset: 'Zurücksetzen',
+    resetTitle: 'Checklistenelemente zurücksetzen',
+    sec1: '1. Obligatorische Reisedokumente',
+    sec2: '2. Maßgeschneiderte Expeditionsausrüstung',
+    sec3: '3. Erstklassiger Komfort & Extras',
+    sec4: '4. Eigene Artikel & Notizen',
+    emptyCustom: 'Noch keine eigenen Artikel hinzugefügt. Fügen Sie unten persönliche Ausrüstung hinzu.',
+    placeholder: 'z.B. Ersatzakkus für die Kamera, Abendgarderobe...',
+    addBtn: 'Hinzufügen',
+    note: 'Hinweis: Ihre Packliste ist völlig privat und wird sicher auf Ihrem persönlichen Gerät gespeichert.',
+    tourDesert: 'Wüste',
+    tourMarine: 'Marine',
+    tourRiver: 'Flusskreuzfahrt'
+  },
+  pl: {
+    tag: 'INTELIGENTNY PLANER GARDEROBY VIP',
+    title: 'Niezależny Asystent Pakowania',
+    status: 'STATUS PRZYGOTOWANIA PRZED LOTEM',
+    of: 'z',
+    ready: 'gotowe',
+    reset: 'Resetuj',
+    resetTitle: 'Resetuj elementy listy',
+    sec1: '1. Obowiązkowe Dokumenty Podróżne',
+    sec2: '2. Dostosowany Ekwipunek Wyprawowy',
+    sec3: '3. Wyjątkowy Komfort i Dodatki',
+    sec4: '4. Własne Rzeczy i Notatki',
+    emptyCustom: 'Nie dodano jeszcze własnych rzeczy. Dodaj osobisty ekwipunek poniżej.',
+    placeholder: 'np. zapasowe baterie do aparatu, garnitur wieczorowy...',
+    addBtn: 'Dodaj',
+    note: 'Uwaga: Wybory dotyczące pakowania są w pełni prywatne i bezpiecznie zapisywane na Twoim urządzeniu.',
+    tourDesert: 'Pustynia',
+    tourMarine: 'Morska',
+    tourRiver: 'Rejs po rzece'
+  },
+  cs: {
+    tag: 'INTELIGENTNÍ PLÁNOVAČ ŠATNÍKU VIP',
+    title: 'Suverénní Asistent Balení',
+    status: 'STAV PŘÍPRAVY PŘED LETEM',
+    of: 'z',
+    ready: 'připraveno',
+    reset: 'Resetovat',
+    resetTitle: 'Obnovit položky seznamu',
+    sec1: '1. Povinné Cestovní Doklady',
+    sec2: '2. Vybavení na Míru pro Expedici',
+    sec3: '3. Prvotřídní Komfort a Doplňky',
+    sec4: '4. Vlastní Položky a Poznámky',
+    emptyCustom: 'Zatím nebyly přidány žádné vlastní položky. Přidejte své věci níže.',
+    placeholder: 'např. náhradní baterie do fotoaparátu, večerní oblek...',
+    addBtn: 'Přidat',
+    note: 'Poznámka: Balící položky jsou zcela soukromé a bezpečně uložené na vašem osobním zařízení.',
+    tourDesert: 'Poušť',
+    tourMarine: 'Mořská',
+    tourRiver: 'Plavba po řece'
+  }
+};
+
 export default function PackingAssistantModal({
   isOpen,
   onClose,
@@ -27,7 +130,7 @@ export default function PackingAssistantModal({
   tourTitleEn,
   bookingId
 }: PackingAssistantModalProps) {
-  const isAr = lang === 'ar';
+  const t = uiTranslations[lang] || uiTranslations.en;
   const lowercaseTitle = tourTitleEn.toLowerCase();
 
   // Determine tour type
@@ -102,6 +205,10 @@ export default function PackingAssistantModal({
     setItems(defaults);
   }, [isOpen, bookingId, isDesert, isNile, isMarine]);
 
+  const getItemName = (item: PackingItem) => {
+    return lang === 'ar' ? item.nameAr : item.nameEn;
+  };
+
   // Persist items
   const saveItems = (updatedItems: PackingItem[]) => {
     setItems(updatedItems);
@@ -159,7 +266,7 @@ export default function PackingAssistantModal({
       <div 
         id="packing-assistant-modal"
         className="relative bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden text-slate-100 shadow-2xl"
-        dir={isAr ? 'rtl' : 'ltr'}
+        dir={lang === 'ar' ? 'rtl' : 'ltr'}
       >
         {/* Glow Effects */}
         <div className="absolute top-0 right-0 w-48 h-48 bg-amber-500/5 rounded-full blur-3xl pointer-events-none" />
@@ -173,10 +280,10 @@ export default function PackingAssistantModal({
             </div>
             <div>
               <span className="text-[9px] text-amber-400 font-extrabold uppercase tracking-widest block mb-0.5">
-                {isAr ? 'مساعد التعبئة الذكي الفاخر' : 'INTELLIGENT VIP WARDROBE PLANNER'}
+                {t.tag}
               </span>
               <h3 className="text-lg md:text-xl font-black font-serif text-white tracking-tight">
-                {isAr ? 'حقيبة السفر الاستكشافية الملكية' : 'Sovereign Packing Assistant'}
+                {t.title}
               </h3>
             </div>
           </div>
@@ -192,13 +299,13 @@ export default function PackingAssistantModal({
         <div className="bg-slate-950/60 p-5 border-b border-slate-800/50 flex flex-col md:flex-row items-center justify-between gap-4 relative z-10">
           <div className="space-y-1 w-full md:w-auto text-left">
             <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider block">
-              {isAr ? 'تقدم تحضير الحقائب' : 'PRE-FLIGHT READY STATUS'}
+              {t.status}
             </span>
             <div className="flex items-baseline gap-1.5">
               <span className="text-xl font-black text-amber-400">{packedCount}</span>
-              <span className="text-xs text-slate-500 font-medium">{isAr ? 'من أصل' : 'of'}</span>
+              <span className="text-xs text-slate-500 font-medium">{t.of}</span>
               <span className="text-sm font-bold text-slate-300">{totalCount}</span>
-              <span className="text-xs text-slate-400 font-semibold ml-2">({progressPercent}% {isAr ? 'جاهز' : 'ready'})</span>
+              <span className="text-xs text-slate-400 font-semibold ml-2">({progressPercent}% {t.ready})</span>
             </div>
           </div>
 
@@ -213,10 +320,10 @@ export default function PackingAssistantModal({
           <button
             onClick={handleReset}
             className="flex items-center gap-1.5 text-[10px] bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white border border-slate-800 py-2 px-3 rounded-xl font-bold uppercase tracking-wider cursor-pointer shrink-0 transition-colors"
-            title={isAr ? 'إعادة ضبط كل الأغراض' : 'Reset checklist items'}
+            title={t.resetTitle}
           >
             <RefreshCw className="w-3 h-3" />
-            <span>{isAr ? 'إعادة تعيين' : 'Reset'}</span>
+            <span>{t.reset}</span>
           </button>
         </div>
 
@@ -228,7 +335,7 @@ export default function PackingAssistantModal({
             <div className="space-y-3">
               <div className="flex items-center gap-2 text-[10px] text-slate-400 uppercase font-black tracking-wider">
                 <BookOpen className="w-3.5 h-3.5 text-emerald-400" />
-                <span>{isAr ? 'الأوراق والوثائق الأساسية' : '1. Mandatory Travel Credentials'}</span>
+                <span>{t.sec1}</span>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
                 {essentials.map(item => (
@@ -247,7 +354,7 @@ export default function PackingAssistantModal({
                       {item.packed && <Check className="w-3.5 h-3.5 stroke-[4px]" />}
                     </div>
                     <span className={`text-xs font-semibold ${item.packed ? 'line-through text-slate-500' : ''}`}>
-                      {isAr ? item.nameAr : item.nameEn}
+                      {getItemName(item)}
                     </span>
                   </button>
                 ))}
@@ -267,7 +374,7 @@ export default function PackingAssistantModal({
                   <Luggage className="w-3.5 h-3.5 text-indigo-400" />
                 )}
                 <span>
-                  {isAr ? 'معدات وملابس خاصة بالرحلة' : `2. Tailored Expedition Gear (${isDesert ? 'Desert' : isMarine ? 'Marine' : 'River Cruise'})`}
+                  {lang === 'ar' ? t.sec2 : `${t.sec2} (${isDesert ? t.tourDesert : isMarine ? t.tourMarine : t.tourRiver})`}
                 </span>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
@@ -287,7 +394,7 @@ export default function PackingAssistantModal({
                       {item.packed && <Check className="w-3.5 h-3.5 stroke-[4px]" />}
                     </div>
                     <span className={`text-xs font-semibold ${item.packed ? 'line-through text-slate-500' : ''}`}>
-                      {isAr ? item.nameAr : item.nameEn}
+                      {getItemName(item)}
                     </span>
                   </button>
                 ))}
@@ -300,7 +407,7 @@ export default function PackingAssistantModal({
             <div className="space-y-3">
               <div className="flex items-center gap-2 text-[10px] text-slate-400 uppercase font-black tracking-wider pt-2">
                 <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                <span>{isAr ? 'لمسات الرفاهية والراحة الفاخرة' : '3. Sovereign Comfort & Extras'}</span>
+                <span>{t.sec3}</span>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
                 {luxuryAccents.map(item => (
@@ -319,7 +426,7 @@ export default function PackingAssistantModal({
                       {item.packed && <Check className="w-3.5 h-3.5 stroke-[4px]" />}
                     </div>
                     <span className={`text-xs font-semibold ${item.packed ? 'line-through text-slate-500' : ''}`}>
-                      {isAr ? item.nameAr : item.nameEn}
+                      {getItemName(item)}
                     </span>
                   </button>
                 ))}
@@ -330,12 +437,12 @@ export default function PackingAssistantModal({
           {/* Section: Custom Items added by user */}
           <div className="space-y-3">
             <div className="text-[10px] text-slate-400 uppercase font-black tracking-wider pt-2">
-              <span>{isAr ? 'الأغراض الشخصية الإضافية' : '4. Custom Items & Notes'}</span>
+              <span>{t.sec4}</span>
             </div>
 
             {customs.length === 0 ? (
               <p className="text-slate-500 italic text-[11px] text-center py-2">
-                {isAr ? 'لا توجد أغراض إضافية مضافة بعد. أضف أغراضك الخاصة في المربع أدناه.' : 'No custom items added yet. Append personal gear below.'}
+                {t.emptyCustom}
               </p>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
@@ -364,7 +471,7 @@ export default function PackingAssistantModal({
                     <button
                       onClick={() => handleDeleteItem(item.id)}
                       className="text-slate-500 hover:text-rose-400 p-1 rounded-lg hover:bg-rose-500/10 cursor-pointer transition-colors"
-                      title={isAr ? 'حذف العنصر' : 'Delete item'}
+                      title={lang === 'ar' ? 'حذف العنصر' : 'Delete item'}
                     >
                       <X className="w-4 h-4" />
                     </button>
@@ -382,7 +489,7 @@ export default function PackingAssistantModal({
               type="text"
               value={customItemText}
               onChange={(e) => setCustomItemText(e.target.value)}
-              placeholder={isAr ? 'مثال: الشاحن المحمول، بدلة العشاء السهرة...' : 'e.g. Spare backup camera batteries, evening gala suit...'}
+              placeholder={t.placeholder}
               className="bg-slate-900 border border-slate-800 rounded-2xl px-4 py-3 text-xs text-white placeholder-slate-500 flex-1 focus:outline-none focus:border-amber-500 transition-colors"
             />
             <button
@@ -390,16 +497,14 @@ export default function PackingAssistantModal({
               className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-black text-xs px-5 py-3 rounded-2xl flex items-center justify-center gap-1.5 uppercase tracking-wider cursor-pointer shrink-0 transition-colors shadow-lg hover:shadow-amber-500/15"
             >
               <Plus className="w-4 h-4 stroke-[3px]" />
-              <span>{isAr ? 'إضافة' : 'Add Item'}</span>
+              <span>{t.addBtn}</span>
             </button>
           </form>
           
           <div className="mt-3 flex items-center gap-1.5 text-[10px] text-slate-500">
             <ShieldAlert className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
             <span>
-              {isAr
-                ? 'ملاحظة: هذا التحضير آمن بالكامل ويتم حفظه محلياً لخصوصية كبار الشخصيات.'
-                : 'Note: Packing selections are fully private and safely retained on your personal secure device.'}
+              {t.note}
             </span>
           </div>
         </div>

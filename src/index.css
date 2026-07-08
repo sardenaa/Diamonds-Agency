@@ -53,6 +53,19 @@
   }
 }
 
+@keyframes subtle-zoom {
+  from {
+    transform: scale(1.02);
+  }
+  to {
+    transform: scale(1.08);
+  }
+}
+
+.animate-subtle-zoom {
+  animation: subtle-zoom 20s infinite alternate ease-in-out;
+}
+
 .animate-fade-in {
   animation: fade-in 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }

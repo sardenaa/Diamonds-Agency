@@ -15,6 +15,41 @@ async function startServer() {
   app.use(express.json());
 
   // ----------------------------------------------------
+  // Real-Time Alert Dispatch Registry & Broadcast Helper
+  // ----------------------------------------------------
+  let sseClients: any[] = [];
+
+  function sendAdminNotification(type: string, message: string, data: any) {
+    const db = getDB();
+    if (!db.notifications) {
+      db.notifications = [];
+    }
+    const newNotification = {
+      id: `notif-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      type,
+      message,
+      timestamp: new Date().toISOString(),
+      read: false,
+      data
+    };
+    db.notifications.unshift(newNotification);
+    if (db.notifications.length > 100) {
+      db.notifications = db.notifications.slice(0, 100);
+    }
+    saveDB(db);
+
+    // Notify connected SSE clients
+    const payload = JSON.stringify(newNotification);
+    sseClients.forEach(client => {
+      try {
+        client.res.write(`data: ${payload}\n\n`);
+      } catch (err) {
+        // Failed write
+      }
+    });
+  }
+
+  // ----------------------------------------------------
   // Google Gemini AI Setup
   // ----------------------------------------------------
   let aiInstance: GoogleGenAI | null = null;
@@ -329,6 +364,8 @@ MAS Agency Royal Concierge Division`;
       customer.emailHistory.unshift(emailMsg);
     }
 
+    sendAdminNotification('NEW_BOOKING', `New luxury reservation confirmed: ${bookingId} for ${customerName} (${tour.title.en})`, newBooking);
+
     saveDB(db);
     logAudit('BOOKING_CREATED', 'Guest Client', `Booking ${bookingId} successfully checked out. Formal PDF itinerary confirmation dispatched to: ${customerEmail}`);
 
@@ -455,6 +492,10 @@ MAS Agency Royal Concierge Division`;
       }
     }
 
+    if (req.body.status === 'confirmed' && oldBooking.status !== 'confirmed') {
+      sendAdminNotification('BOOKING_CONFIRMED', `Reservation ${updated.id} has been CONFIRMED for ${updated.customerName} (${updated.tourTitle.en})`, updated);
+    }
+
     saveDB(db);
     logAudit('BOOKING_UPDATED', 'Admin Operations', `Updated reservation status/driver for ${updated.id}`);
     res.json(updated);
@@ -551,7 +592,8 @@ MAS Agency Royal Concierge Division`;
       rating: Number(reviewData.overallRating) || 5,
       comment: reviewData.generalComment || `Splendid tour components review. Chauffeur: ${reviewData.components?.chauffeur?.rating || 5}/5. Guide: ${reviewData.components?.guide?.rating || 5}/5.`,
       language: booking.customerNationality === 'Egypt' || booking.customerNationality === 'Saudi Arabia' ? 'ar' : 'en',
-      date: new Date().toISOString().split('T')[0]
+      date: new Date().toISOString().split('T')[0],
+      photoUri: reviewData.photoUri || undefined
     };
     db.reviews.unshift(newReview);
 
@@ -851,6 +893,65 @@ JSON Schema:
     saveDB(db);
     logAudit('REVIEW_SUBMITTED', 'Guest Client', `Review created by ${customerName} for tour: ${tourId}`);
     res.status(201).json(newReview);
+  });
+
+  // 4b. Notifications & Real-Time Alerts API
+  app.get('/api/admin/notifications', (req, res) => {
+    const db = getDB();
+    res.json(db.notifications || []);
+  });
+
+  app.post('/api/admin/notifications/:id/read', (req, res) => {
+    const db = getDB();
+    db.notifications = db.notifications || [];
+    const notif = db.notifications.find(n => n.id === req.params.id);
+    if (notif) {
+      notif.read = true;
+      saveDB(db);
+    }
+    res.json({ success: true, notifications: db.notifications });
+  });
+
+  app.post('/api/admin/notifications/mark-all-read', (req, res) => {
+    const db = getDB();
+    db.notifications = db.notifications || [];
+    db.notifications.forEach(n => { n.read = true; });
+    saveDB(db);
+    res.json({ success: true, notifications: db.notifications });
+  });
+
+  app.delete('/api/admin/notifications', (req, res) => {
+    const db = getDB();
+    db.notifications = [];
+    saveDB(db);
+    res.json({ success: true, notifications: [] });
+  });
+
+  app.get('/api/admin/notifications-stream', (req, res) => {
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache, no-transform');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+    res.flushHeaders();
+
+    // Send initial greeting ping
+    res.write(`data: ${JSON.stringify({ type: 'PING', timestamp: new Date().toISOString() })}\n\n`);
+
+    const client = { id: Date.now(), res };
+    sseClients.push(client);
+
+    const intervalId = setInterval(() => {
+      try {
+        res.write(`data: ${JSON.stringify({ type: 'HEARTBEAT' })}\n\n`);
+      } catch (err) {
+        // connection closed
+      }
+    }, 30000);
+
+    req.on('close', () => {
+      clearInterval(intervalId);
+      sseClients = sseClients.filter(c => c.id !== client.id);
+    });
   });
 
   // 5. Blogs API

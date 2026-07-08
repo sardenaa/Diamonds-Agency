@@ -142,7 +142,7 @@ export default function BookingCountdown({ bookings, lang }: BookingCountdownPro
   // Resolve current active countdown (real has priority, then simulated)
   const isReal = !!realUpcoming;
   const activeTitle = isReal 
-    ? (lang === 'ar' ? realUpcoming.booking.tourTitle.ar : realUpcoming.booking.tourTitle.en)
+    ? (realUpcoming.booking.tourTitle[lang] || realUpcoming.booking.tourTitle.en)
     : simulatedKey && PRESET_VOYAGES[simulatedKey]
     ? (lang === 'ar' ? PRESET_VOYAGES[simulatedKey].titleAr : PRESET_VOYAGES[simulatedKey].titleEn)
     : null;

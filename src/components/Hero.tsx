@@ -35,21 +35,39 @@ export default function Hero({ lang, onSearch }: HeroProps) {
 
   return (
     <section className="relative min-h-[92vh] flex items-center justify-center overflow-hidden bg-slate-950 text-white py-20 px-4 md:px-8">
-      {/* Cinematic Background Video/Image Overlay */}
-      <div className="absolute inset-0 z-0 opacity-40 mix-blend-lighten pointer-events-none">
+      {/* Cinematic Background Image & Ambient Gradients */}
+      <div className="absolute inset-0 z-0 pointer-events-none select-none overflow-hidden">
+        {/* High-Resolution Majestic Sunset at Giza Pyramids */}
+        <div 
+          className="absolute inset-0 bg-cover bg-center scale-105 animate-subtle-zoom opacity-40 transition-all duration-1000"
+          style={{
+            backgroundImage: `url('https://images.unsplash.com/photo-1600577916048-804c9191e36c?auto=format&fit=crop&q=80&w=2000')`
+          }}
+        />
+
+        {/* Cinematic Video Overlay (with Pyramids Image as poster and fallback) */}
         <video
           autoPlay
           loop
           muted
           playsInline
-          className="w-full h-full object-cover"
+          className="absolute inset-0 w-full h-full object-cover opacity-35 mix-blend-lighten pointer-events-none"
+          poster="https://images.unsplash.com/photo-1600577916048-804c9191e36c?auto=format&fit=crop&q=80&w=2000"
         >
           <source src="https://assets.mixkit.co/videos/preview/mixkit-camels-walking-in-front-of-the-egyptian-pyramids-41846-large.mp4" type="video/mp4" />
-          <source src="https://assets.mixkit.co/videos/preview/mixkit-modern-luxury-yacht-sailing-the-sea-43285-large.mp4" type="video/mp4" />
         </video>
-        {/* Luxury Gold/Emerald Gradients */}
-        <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/70 to-transparent" />
-        <div className="absolute inset-0 bg-gradient-to-r from-slate-950/90 via-transparent to-slate-950/90" />
+        
+        {/* Soft elegant glowing orbs/auroras in the background for luxury ambiance */}
+        <div className="absolute top-1/4 left-1/4 w-[40rem] h-[40rem] bg-emerald-500/10 rounded-full blur-[120px] mix-blend-screen pointer-events-none" />
+        <div className="absolute bottom-1/3 right-1/4 w-[35rem] h-[35rem] bg-amber-500/10 rounded-full blur-[120px] mix-blend-screen pointer-events-none" />
+
+        {/* Master Dark Overlays for pristine text legibility */}
+        <div className="absolute inset-0 bg-slate-950/40" />
+        <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/60 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-r from-slate-950/80 via-transparent to-slate-950/80" />
+        
+        {/* Subtle grid pattern overlay */}
+        <div className="absolute inset-0 bg-[radial-gradient(#1e293b_1px,transparent_1px)] [background-size:24px_24px] opacity-25" />
       </div>
 
       <div className="relative z-10 max-w-6xl w-full mx-auto flex flex-col items-center text-center">
@@ -82,7 +100,7 @@ export default function Hero({ lang, onSearch }: HeroProps) {
         {/* Bento Search Box */}
         <form 
           onSubmit={handleSearchSubmit}
-          className="w-full max-w-4xl bg-white/10 backdrop-blur-xl border border-white/20 p-3 md:p-4 rounded-2xl md:rounded-full shadow-2xl flex flex-col md:flex-row gap-3 items-center"
+          className="w-full max-w-4xl bg-slate-950/40 backdrop-blur-2xl border border-white/10 p-3 md:p-4 rounded-2xl md:rounded-full flex flex-col md:flex-row gap-3 items-center transition-all duration-500 focus-within:border-amber-500/40 focus-within:shadow-[0_0_30px_rgba(245,158,11,0.15),_inset_0_1px_0_rgba(255,255,255,0.2)] shadow-[inset_0_1px_0_rgba(255,255,255,0.1),_0_20px_50px_rgba(0,0,0,0.4)]"
         >
           {/* Keyword Search Input */}
           <div className="w-full flex-1 flex items-center gap-3 px-3 py-2 border-b border-white/10 md:border-b-0 md:border-r border-white/20">

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { BarChart3, Users, BookOpen, ShieldAlert, Sparkles, Plus, Trash2, Edit2, RotateCcw, Send, Calendar, CheckCircle2, DollarSign, Award, RefreshCw, Layers, Ticket, MessageSquare, Bot, AlertTriangle, ShieldCheck, FileSpreadsheet, FileText, Mail, Tag, FileEdit, Star, Search, Filter, Check, Download, Upload, Sun, Moon } from 'lucide-react';
+import { BarChart3, Users, BookOpen, ShieldAlert, Sparkles, Plus, Trash2, Edit2, RotateCcw, Send, Calendar, CheckCircle2, DollarSign, Award, RefreshCw, Layers, Ticket, MessageSquare, Bot, AlertTriangle, ShieldCheck, FileSpreadsheet, FileText, Mail, Tag, FileEdit, Star, Search, Filter, Check, Download, Upload, Sun, Moon, Bell, BellOff, X } from 'lucide-react';
 import { Tour, Booking, CustomerCRM, AuditLog, CurrencyConfig, SupportTicket, WhatsAppTemplate, AppLanguage } from '../types.js';
 import { translations } from '../translations.js';
 import { googleSignIn, logout, initAuth, getAccessToken } from '../lib/firebase.js';
@@ -214,6 +214,98 @@ export default function AdminDashboard({
   const [opsStatusFilter, setOpsStatusFilter] = useState('all');
   const [savingStatus, setSavingStatus] = useState<Record<string, 'idle' | 'saving' | 'saved' | 'error'>>({});
 
+  // Real-Time Notification Toast & Feed states
+  const [adminNotifications, setAdminNotifications] = useState<any[]>([]);
+  const [toasts, setToasts] = useState<{ id: string; message: string; type: string; data?: any }[]>([]);
+  const [showNotificationsFeed, setShowNotificationsFeed] = useState(false);
+
+  useEffect(() => {
+    // Connect to SSE stream
+    const eventSource = new EventSource('/api/admin/notifications-stream');
+
+    eventSource.onmessage = (event) => {
+      try {
+        const notif = JSON.parse(event.data);
+        if (notif.type === 'PING' || notif.type === 'HEARTBEAT') {
+          return;
+        }
+
+        // Add to persistent notification feed state
+        setAdminNotifications(prev => [notif, ...prev]);
+
+        // Add a visible real-time toast notification alert!
+        const toastId = `toast-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+        setToasts(prev => [...prev, {
+          id: toastId,
+          message: notif.message,
+          type: notif.type,
+          data: notif.data
+        }]);
+
+        // Auto-remove toast after 10 seconds
+        setTimeout(() => {
+          setToasts(prev => prev.filter(t => t.id !== toastId));
+        }, 10000);
+
+        // Also trigger refresh of operations/bookings metrics to make it feel super alive!
+        fetchAdminData();
+      } catch (err) {
+        console.error('Failed to parse SSE event:', err);
+      }
+    };
+
+    eventSource.onerror = (err) => {
+      console.warn('SSE connection errored, reconnecting in 5s...', err);
+      eventSource.close();
+    };
+
+    // Load historical notifications on mount
+    fetch('/api/admin/notifications')
+      .then(res => res.json())
+      .then(data => setAdminNotifications(data))
+      .catch(err => console.error('Error fetching admin notifications:', err));
+
+    return () => {
+      eventSource.close();
+    };
+  }, []);
+
+  const handleMarkNotificationRead = async (id: string) => {
+    try {
+      const res = await fetch(`/api/admin/notifications/${id}/read`, { method: 'POST' });
+      if (res.ok) {
+        const data = await res.json();
+        setAdminNotifications(data.notifications);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleMarkAllNotificationsRead = async () => {
+    try {
+      const res = await fetch('/api/admin/notifications/mark-all-read', { method: 'POST' });
+      if (res.ok) {
+        const data = await res.json();
+        setAdminNotifications(data.notifications);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleClearNotifications = async () => {
+    try {
+      const res = await fetch('/api/admin/notifications', { method: 'DELETE' });
+      if (res.ok) {
+        const data = await res.json();
+        setAdminNotifications(data.notifications || []);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   // Operations bulk communication dashboard states
   const [opsView, setOpsView] = useState<'ledger' | 'bulk_comms'>('ledger');
   const [opsBulkTourId, setOpsBulkTourId] = useState<string>('all');
@@ -352,6 +444,13 @@ export default function AdminDashboard({
       if (backupsRes.ok) {
         const backupsData = await backupsRes.json();
         setBackups(backupsData);
+      }
+
+      // Fetch administrative historical notifications
+      const alertsRes = await fetch('/api/admin/notifications');
+      if (alertsRes.ok) {
+        const alertsData = await alertsRes.json();
+        setAdminNotifications(alertsData);
       }
     } catch (e) {
       console.error(e);
@@ -739,7 +838,7 @@ export default function AdminDashboard({
       const rows = filteredBookings.map(b => {
         const titleEn = b.tourTitle?.en || '';
         const titleAr = b.tourTitle?.ar || '';
-        const selectedTitle = lang === 'ar' ? titleAr : titleEn;
+        const selectedTitle = b.tourTitle?.[lang] || b.tourTitle?.en || '';
         return [
           b.id,
           `"${selectedTitle.replace(/"/g, '""')}"`,
@@ -1716,6 +1815,88 @@ export default function AdminDashboard({
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
             <span>Sync Data</span>
           </button>
+
+          {/* Notifications Bell and Popover Feed */}
+          <div className="relative">
+            <button
+              onClick={() => setShowNotificationsFeed(!showNotificationsFeed)}
+              className="bg-slate-800 hover:bg-slate-700 text-white border border-slate-700 p-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center cursor-pointer relative"
+              title="Operations Alerts & Notifications"
+            >
+              <Bell className="w-4 h-4 text-slate-100" />
+              {adminNotifications.filter(n => !n.read).length > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 bg-amber-500 text-slate-950 text-[9px] font-black w-4.5 h-4.5 rounded-full flex items-center justify-center animate-bounce">
+                  {adminNotifications.filter(n => !n.read).length}
+                </span>
+              )}
+            </button>
+
+            {/* Dropdown panel */}
+            {showNotificationsFeed && (
+              <div className="absolute right-0 mt-3 w-80 bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl z-[150] overflow-hidden animate-fade-in text-left">
+                <div className="bg-slate-800/80 px-4 py-3 border-b border-slate-800/60 flex justify-between items-center">
+                  <span className="font-extrabold text-xs tracking-wider uppercase text-emerald-400">
+                    Sovereign Alerts
+                  </span>
+                  <div className="flex gap-2">
+                    {adminNotifications.filter(n => !n.read).length > 0 && (
+                      <button
+                        onClick={handleMarkAllNotificationsRead}
+                        className="text-[9px] text-slate-400 hover:text-white font-bold underline cursor-pointer"
+                      >
+                        Mark all read
+                      </button>
+                    )}
+                    {adminNotifications.length > 0 && (
+                      <button
+                        onClick={handleClearNotifications}
+                        className="text-[9px] text-rose-400 hover:text-rose-300 font-bold underline cursor-pointer"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                <div className="max-h-72 overflow-y-auto divide-y divide-slate-800/50">
+                  {adminNotifications.length > 0 ? (
+                    adminNotifications.map((notif) => (
+                      <div
+                        key={notif.id}
+                        className={`p-3 text-[11px] leading-relaxed transition-all flex gap-3 hover:bg-slate-800/30 ${
+                          notif.read ? 'opacity-60' : 'bg-emerald-950/5 border-l-2 border-emerald-500'
+                        }`}
+                      >
+                        <div className="bg-emerald-500/10 text-emerald-400 p-1.5 rounded-lg mt-0.5 self-start">
+                          <Sparkles className="w-3.5 h-3.5" />
+                        </div>
+                        <div className="flex-1 space-y-1">
+                          <p className="text-slate-100 font-medium font-sans">{notif.message}</p>
+                          <div className="flex justify-between items-center text-[9px] text-slate-400">
+                            <span>{new Date(notif.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                            {!notif.read && (
+                              <button
+                                onClick={() => handleMarkNotificationRead(notif.id)}
+                                className="text-emerald-400 hover:text-emerald-300 font-bold flex items-center gap-0.5 cursor-pointer"
+                              >
+                                <Check className="w-3 h-3" />
+                                <span>Mark read</span>
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="p-8 text-center text-slate-500 italic font-medium">
+                      No active alerts. Connection is live.
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
           {onLogoutAdmin && (
             <button
               onClick={onLogoutAdmin}
@@ -1987,7 +2168,7 @@ export default function AdminDashboard({
                             <option value="all">All Elite Tours & Expeditions</option>
                             {tours.map(t => (
                               <option key={t.id} value={t.id}>
-                                {lang === 'ar' ? t.title.ar : t.title.en} ({t.destination})
+                                {t.title[lang] || t.title.en} ({t.destination})
                               </option>
                             ))}
                           </select>
@@ -2181,7 +2362,7 @@ export default function AdminDashboard({
                                       <p className="text-[10px] text-slate-500 font-mono">{b.customerEmail}</p>
                                     </td>
                                     <td className="p-3">
-                                      <p className="font-bold text-slate-300">{lang === 'ar' ? b.tourTitle?.ar : b.tourTitle?.en}</p>
+                                      <p className="font-bold text-slate-300">{b.tourTitle?.[lang] || b.tourTitle?.en}</p>
                                       <p className="text-[10px] text-slate-500 font-mono">Date: {b.date}</p>
                                     </td>
                                     <td className="p-3 font-mono text-slate-300">
@@ -2296,7 +2477,7 @@ export default function AdminDashboard({
                           className="bg-slate-900 border border-slate-700 rounded-lg p-2 text-white w-full focus:outline-none cursor-pointer"
                         >
                           {tours.map(t => (
-                            <option key={t.id} value={t.id}>{lang === 'ar' ? t.title.ar : t.title.en} (${t.priceUSD}/guest)</option>
+                            <option key={t.id} value={t.id}>{t.title[lang] || t.title.en} (${t.priceUSD}/guest)</option>
                           ))}
                         </select>
                       </div>
@@ -2471,7 +2652,7 @@ export default function AdminDashboard({
                               )}
                             </td>
                             <td className="p-3">
-                              <div className="text-slate-200 font-semibold truncate max-w-[150px]">{lang === 'ar' ? b.tourTitle.ar : b.tourTitle.en}</div>
+                              <div className="text-slate-200 font-semibold truncate max-w-[150px]">{b.tourTitle[lang] || b.tourTitle.en}</div>
                               <div className="text-[10px] text-amber-400 font-bold flex items-center gap-1 mt-0.5">
                                 <Calendar className="w-3 h-3" />
                                 <span>{b.date}</span>
@@ -3570,7 +3751,7 @@ export default function AdminDashboard({
                   {tours.map(t => (
                     <div key={t.id} className="bg-slate-800/30 border border-slate-800 p-4 rounded-xl flex items-center justify-between hover:border-slate-700 transition-all">
                       <div>
-                        <h5 className="font-bold text-slate-200 text-xs md:text-sm">{lang === 'ar' ? t.title.ar : t.title.en}</h5>
+                        <h5 className="font-bold text-slate-200 text-xs md:text-sm">{t.title[lang] || t.title.en}</h5>
                         <p className="text-[10px] text-emerald-400 font-bold uppercase mt-1">
                           {t.category} | {t.destination} | {formatLocalPrice(t.priceUSD)}
                         </p>
@@ -4963,6 +5144,40 @@ export default function AdminDashboard({
               </div>
             )}
           </div>
+        </div>
+
+        {/* Real-time Toast Notifications Portal */}
+        <div className="fixed bottom-6 right-6 z-[999] flex flex-col gap-3 max-w-sm w-full pointer-events-none">
+          {toasts.map((toast) => (
+            <div
+              key={toast.id}
+              className="pointer-events-auto bg-slate-900/95 border border-slate-850 text-white p-4 rounded-2xl shadow-2xl backdrop-blur-md flex items-start gap-3 animate-slide-in hover:border-emerald-500/40 transition-all group"
+            >
+              <div className="bg-emerald-500/10 text-emerald-400 p-2 rounded-xl mt-0.5">
+                <Sparkles className="w-5 h-5 text-emerald-400 animate-pulse" />
+              </div>
+              <div className="flex-1 space-y-1 text-left">
+                <div className="flex justify-between items-start gap-2">
+                  <span className="font-extrabold text-[10px] uppercase tracking-wider text-emerald-400">
+                    Luxury Booking Confirmed
+                  </span>
+                  <button
+                    onClick={() => setToasts(prev => prev.filter(t => t.id !== toast.id))}
+                    className="text-slate-500 hover:text-white p-0.5 rounded-full transition-colors cursor-pointer"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+                <p className="text-xs text-slate-200 leading-relaxed font-sans font-medium">{toast.message}</p>
+                {toast.data?.totalAmountUSD && (
+                  <div className="flex justify-between items-center text-[10px] text-slate-400 font-mono mt-2 pt-2 border-t border-slate-800">
+                    <span>Amount: ${toast.data.totalAmountUSD.toLocaleString()} USD</span>
+                    <span className="bg-emerald-500/10 text-emerald-400 px-1.5 py-0.5 rounded font-bold uppercase">Paid</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
         </div>
 
       </div>

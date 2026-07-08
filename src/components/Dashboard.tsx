@@ -58,7 +58,7 @@ export default function Dashboard({
   const [isCheckInSubmitting, setIsCheckInSubmitting] = useState(false);
 
   const getShareHighlightsText = (b: Booking) => {
-    const tourTitleText = lang === 'ar' ? b.tourTitle.ar : b.tourTitle.en;
+    const tourTitleText = b.tourTitle[lang] || b.tourTitle.en;
     const shareUrl = `${window.location.origin}/?share-itinerary=${b.id}`;
     
     if (lang === 'ar') {
@@ -808,8 +808,8 @@ ${shareUrl}`;
                       </h4>
                       <p className="text-[11px] text-slate-500 font-semibold mt-0.5 leading-relaxed">
                         {lang === 'ar' 
-                          ? `تبدأ رحلتك الاستكشافية إلى [${b.tourTitle.ar}] قريبًا جدًا. يرجى مراجعة تفاصيل الاصطحاب لضمان التخليص الأمني وتنسيق سائق المرسيدس المخصص.` 
-                          : `Your luxury expedition to [${b.tourTitle.en}] begins very soon. Please verify your pickup coordinates to clear royal security logs & guide dispatch.`}
+                          ? `تبدأ رحلتك الاستكشافية إلى [${b.tourTitle[lang] || b.tourTitle.en}] قريبًا جدًا. يرجى مراجعة تفاصيل الاصطحاب لضمان التخليص الأمني وتنسيق سائق المرسيدس المخصص.` 
+                          : `Your luxury expedition to [${b.tourTitle[lang] || b.tourTitle.en}] begins very soon. Please verify your pickup coordinates to clear royal security logs & guide dispatch.`}
                       </p>
                     </div>
                   </div>
@@ -992,7 +992,7 @@ ${shareUrl}`;
                       </div>
 
                       <h3 className="text-base md:text-lg font-bold text-slate-800 font-sans tracking-tight">
-                        {lang === 'ar' ? b.tourTitle.ar : b.tourTitle.en}
+                        {b.tourTitle[lang] || b.tourTitle.en}
                       </h3>
 
                       <div className="grid grid-cols-2 gap-4 text-xs font-medium text-slate-600">
@@ -1149,8 +1149,8 @@ ${shareUrl}`;
                         <a 
                           href={`https://wa.me/201202181834?text=${encodeURIComponent(
                             lang === 'ar' 
-                              ? `مرحباً كونسيرج MAS الملكي، أود التنسيق بخصوص حجزي رقم ${b.id} لجولة "${b.tourTitle.ar || b.tourTitle.en}".` 
-                              : `Hello MAS Royal Concierge, I would like to coordinate about my booking ${b.id} for the "${b.tourTitle.en}" expedition.`
+                              ? `مرحباً كونسيرج MAS الملكي، أود التنسيق بخصوص حجزي رقم ${b.id} لجولة "${b.tourTitle[lang] || b.tourTitle.en}".` 
+                              : `Hello MAS Royal Concierge, I would like to coordinate about my booking ${b.id} for the "${b.tourTitle[lang] || b.tourTitle.en}" expedition.`
                           )}`}
                           target="_blank"
                           rel="noopener noreferrer"
@@ -1235,7 +1235,7 @@ ${shareUrl}`;
                                 ID: {b.id}
                               </span>
                               <h4 className="text-sm font-bold text-slate-800">
-                                {lang === 'ar' ? b.tourTitle.ar : b.tourTitle.en}
+                                {b.tourTitle[lang] || b.tourTitle.en}
                               </h4>
                               <p className="text-[10px] text-slate-400 font-bold">
                                 {lang === 'ar' ? `تاريخ الرحلة: ${b.date}` : `Tour Date: ${b.date}`}
@@ -3086,7 +3086,7 @@ ${shareUrl}`;
 
                     <div className="space-y-1.5">
                       <span className="block text-[9px] text-slate-500 uppercase font-black tracking-wider">{lang === 'ar' ? 'الرحلة الاستكشافية' : 'VIP Expedition'}</span>
-                      <p className="text-slate-200 font-bold text-xs">{lang === 'ar' ? scannedBooking.tourTitle.ar : scannedBooking.tourTitle.en}</p>
+                      <p className="text-slate-200 font-bold text-xs">{scannedBooking.tourTitle[lang] || scannedBooking.tourTitle.en}</p>
                     </div>
 
                     <div className="grid grid-cols-2 gap-4 pt-1">
@@ -3215,7 +3215,7 @@ ${shareUrl}`;
                             >
                               <div className="truncate pr-2">
                                 <span className="block text-[8px] text-amber-500 font-black uppercase tracking-widest">EXPEDITION</span>
-                                <span className="truncate">{lang === 'ar' ? b.tourTitle.ar : b.tourTitle.en}</span>
+                                <span className="truncate">{b.tourTitle[lang] || b.tourTitle.en}</span>
                               </div>
                               <span className="bg-amber-400 group-hover:bg-amber-500 text-slate-950 font-black text-[9px] px-2 py-1 rounded-md shrink-0 uppercase transition-colors">
                                 {lang === 'ar' ? 'حضور' : 'Check-In'}

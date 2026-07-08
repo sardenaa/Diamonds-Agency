@@ -131,6 +131,7 @@ export interface Review {
   comment: string;
   language: string;
   date: string;
+  photoUri?: string;
 }
 
 export interface Blog {
