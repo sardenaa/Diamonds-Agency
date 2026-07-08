@@ -242,22 +242,186 @@ export default function EgyptMap({ lang, onSelectBookTour }: EgyptMapProps) {
       <div className="relative z-10 grid grid-cols-1 lg:grid-cols-12 gap-8 items-stretch">
         
         {/* Interactive Map Visual Stage (Left 7 Columns) */}
-        <div className="lg:col-span-7 bg-slate-900/40 rounded-2xl border border-slate-800/80 p-4 flex flex-col justify-between relative min-h-[360px] md:min-h-[480px] overflow-hidden">
+        <div className="lg:col-span-7 bg-slate-950/90 rounded-3xl border border-slate-800/90 p-4 flex flex-col justify-between relative min-h-[380px] md:min-h-[500px] overflow-hidden shadow-[0_25px_60px_rgba(0,0,0,0.95),_inset_0_1px_2px_rgba(255,255,255,0.05)] backdrop-blur-xl group/map">
           {/* Abstract Egyptian Map Graphic Design */}
-          <div className="absolute inset-0 opacity-15 pointer-events-none">
+          <div className="absolute inset-0 pointer-events-none">
             {/* Styled background lines */}
             <svg className="w-full h-full" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M 40 10 Q 55 50 60 90" stroke="#059669" strokeWidth="1.5" strokeDasharray="3 3" />
-              <path d="M 38 10 Q 53 50 58 90" stroke="#f59e0b" strokeWidth="0.5" />
-              <circle cx="50" cy="50" r="40" stroke="#334155" strokeWidth="0.2" />
-              <circle cx="50" cy="50" r="25" stroke="#334155" strokeWidth="0.2" />
+              <defs>
+                {/* Gold Glow Filter */}
+                <filter id="gold-glow" x="-20%" y="-20%" width="140%" height="140%">
+                  <feGaussianBlur stdDeviation="1.2" result="blur" />
+                  <feComposite in="SourceGraphic" in2="blur" operator="over" />
+                </filter>
+                {/* Emerald Glow Filter */}
+                <filter id="emerald-glow" x="-20%" y="-20%" width="140%" height="140%">
+                  <feGaussianBlur stdDeviation="1.0" result="blur" />
+                  <feComposite in="SourceGraphic" in2="blur" operator="over" />
+                </filter>
+                {/* Nile Gradient */}
+                <linearGradient id="nile-gradient" x1="0" y1="1" x2="0" y2="0">
+                  <stop offset="0%" stopColor="#047857" stopOpacity="0.4" />
+                  <stop offset="50%" stopColor="#10b981" stopOpacity="0.8" />
+                  <stop offset="100%" stopColor="#fbbf24" stopOpacity="0.7" />
+                </linearGradient>
+                {/* Red Sea Gradient */}
+                <linearGradient id="redsea-gradient" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0%" stopColor="#020617" stopOpacity="0.95" />
+                  <stop offset="100%" stopColor="#064e3b" stopOpacity="0.4" />
+                </linearGradient>
+              </defs>
+
+              {/* Grid Lines (Cartography Grid) */}
+              <g stroke="rgba(245, 158, 11, 0.025)" strokeWidth="0.12">
+                <line x1="10" y1="0" x2="10" y2="100" />
+                <line x1="20" y1="0" x2="20" y2="100" />
+                <line x1="30" y1="0" x2="30" y2="100" />
+                <line x1="40" y1="0" x2="40" y2="100" />
+                <line x1="50" y1="0" x2="50" y2="100" />
+                <line x1="60" y1="0" x2="60" y2="100" />
+                <line x1="70" y1="0" x2="70" y2="100" />
+                <line x1="80" y1="0" x2="80" y2="100" />
+                <line x1="90" y1="0" x2="90" y2="100" />
+
+                <line x1="0" y1="10" x2="100" y2="10" />
+                <line x1="0" y1="20" x2="100" y2="20" />
+                <line x1="0" y1="30" x2="100" y2="30" />
+                <line x1="0" y1="40" x2="100" y2="40" />
+                <line x1="0" y1="50" x2="100" y2="50" />
+                <line x1="0" y1="60" x2="100" y2="60" />
+                <line x1="0" y1="70" x2="100" y2="70" />
+                <line x1="0" y1="80" x2="100" y2="80" />
+                <line x1="0" y1="90" x2="100" y2="90" />
+              </g>
+
+              {/* Elegant Grid Text Indicators */}
+              <text x="3" y="21" fill="rgba(245, 158, 11, 0.12)" className="font-mono text-[3px] tracking-widest">30° N</text>
+              <text x="3" y="41" fill="rgba(245, 158, 11, 0.12)" className="font-mono text-[3px] tracking-widest">28° N</text>
+              <text x="3" y="61" fill="rgba(245, 158, 11, 0.12)" className="font-mono text-[3px] tracking-widest">26° N</text>
+              <text x="3" y="81" fill="rgba(245, 158, 11, 0.12)" className="font-mono text-[3px] tracking-widest">24° N</text>
+              
+              <text x="21" y="96" fill="rgba(245, 158, 11, 0.12)" className="font-mono text-[3px] tracking-widest">30° E</text>
+              <text x="41" y="96" fill="rgba(245, 158, 11, 0.12)" className="font-mono text-[3px] tracking-widest">32° E</text>
+              <text x="61" y="96" fill="rgba(245, 158, 11, 0.12)" className="font-mono text-[3px] tracking-widest">34° E</text>
+              <text x="81" y="96" fill="rgba(245, 158, 11, 0.12)" className="font-mono text-[3px] tracking-widest">36° E</text>
+
+              {/* Red Sea Shaded Region */}
+              <polygon 
+                points="48,27 58,32 68,40 62,48 71,70 80,95 100,95 100,27" 
+                fill="url(#redsea-gradient)" 
+                opacity="0.35" 
+              />
+
+              {/* Gulf of Suez Line */}
+              <path d="M 48 27 L 68 40" stroke="rgba(16, 185, 129, 0.3)" strokeWidth="1.2" />
+              {/* Gulf of Aqaba Line */}
+              <path d="M 74 23 L 68 40" stroke="rgba(16, 185, 129, 0.25)" strokeWidth="0.8" />
+
+              {/* Nile River Flow Path */}
+              {/* Lake Nasser Base */}
+              <path 
+                d="M 57 95 C 56 92 59 90 58 87 C 57 85 61 84 58 81 C 57 80 59 79 58 78" 
+                stroke="url(#nile-gradient)" 
+                strokeWidth="2.8" 
+                fill="none" 
+                strokeLinecap="round" 
+                opacity="0.3"
+              />
+              {/* Main River Nile Line */}
+              <path 
+                d="M 58 78 C 57 73 53 66 55 62 C 57 58 52 53 53 50 C 54 47 48 44 46 42 C 44 40 44 37 43 35 C 42 33 43 31 42 28" 
+                stroke="url(#nile-gradient)" 
+                strokeWidth="1.5" 
+                fill="none" 
+                strokeLinecap="round" 
+                filter="url(#emerald-glow)"
+              />
+              {/* Nile Delta Branches */}
+              <path 
+                d="M 42 28 Q 38 22 33 14" 
+                stroke="#10b981" 
+                strokeWidth="1.0" 
+                fill="none" 
+                opacity="0.75"
+                filter="url(#emerald-glow)"
+              />
+              <path 
+                d="M 42 28 Q 45 22 48 14" 
+                stroke="#10b981" 
+                strokeWidth="1.0" 
+                fill="none" 
+                opacity="0.75"
+                filter="url(#emerald-glow)"
+              />
+              
+              {/* Elegant Golden Private Sovereign Flight Route Arcs */}
+              <path 
+                d="M 42 28 Q 52 38 62 48" 
+                stroke="#fbbf24" 
+                strokeWidth="0.75" 
+                strokeDasharray="3 3" 
+                fill="none" 
+                opacity="0.5"
+                filter="url(#gold-glow)"
+              />
+              <path 
+                d="M 42 28 Q 48 45 55 62" 
+                stroke="#fbbf24" 
+                strokeWidth="0.75" 
+                strokeDasharray="3 3" 
+                fill="none" 
+                opacity="0.4"
+                filter="url(#gold-glow)"
+              />
+              <path 
+                d="M 62 48 Q 65 55 55 62" 
+                stroke="#fbbf24" 
+                strokeWidth="0.5" 
+                strokeDasharray="2 2" 
+                fill="none" 
+                opacity="0.3"
+              />
+
+              {/* Geographical Text Labels */}
+              <text x="12" y="52" fill="rgba(255, 255, 255, 0.08)" className="font-mono text-[4px] tracking-[0.3em] uppercase font-bold">Sahara Desert</text>
+              <text x="74" y="32" fill="rgba(255, 255, 255, 0.08)" className="font-mono text-[4px] tracking-[0.25em] uppercase font-bold">Sinai</text>
+              <text x="82" y="65" fill="rgba(16, 185, 129, 0.08)" className="font-mono text-[4.5px] tracking-[0.2em] uppercase font-bold">Red Sea</text>
+              <text x="22" y="9" fill="rgba(255, 255, 255, 0.07)" className="font-mono text-[4px] tracking-[0.3em] uppercase font-bold">Mediterranean Sea</text>
+
+              {/* Decorative Scale Indicator */}
+              <g transform="translate(68, 92)" stroke="rgba(255, 255, 255, 0.25)" strokeWidth="0.5">
+                <line x1="0" y1="0" x2="16" y2="0" />
+                <line x1="0" y1="-1.5" x2="0" y2="1.5" />
+                <line x1="8" y1="-1" x2="8" y2="1" />
+                <line x1="16" y1="-1.5" x2="16" y2="1.5" />
+                <text x="3.5" y="-3.5" stroke="none" fill="rgba(255, 255, 255, 0.45)" className="font-mono text-[3px] text-center font-bold">150 KM</text>
+              </g>
+
+              {/* Compass Rose at (14, 82) with Royal Diamond Theme */}
+              <g transform="translate(14, 82)" className="opacity-65">
+                {/* Outer ring */}
+                <circle cx="0" cy="0" r="7.5" stroke="rgba(245, 158, 11, 0.2)" strokeWidth="0.3" strokeDasharray="1 1" />
+                <circle cx="0" cy="0" r="6.2" stroke="rgba(245, 158, 11, 0.15)" strokeWidth="0.2" />
+                {/* Cross hairs */}
+                <line x1="-9" y1="0" x2="9" y2="0" stroke="rgba(245, 158, 11, 0.15)" strokeWidth="0.2" />
+                <line x1="0" y1="-9" x2="0" y2="9" stroke="rgba(245, 158, 11, 0.15)" strokeWidth="0.2" />
+                {/* Diamond points */}
+                <polygon points="0,-7.5 1.8,-1.8 7.5,0 1.8,1.8 0,7.5 -1.8,1.8 -7.5,0 -1.8,-1.8" fill="url(#nile-gradient)" opacity="0.75" />
+                <polygon points="0,-7.5 0,0 7.5,0" fill="rgba(255, 255, 255, 0.3)" />
+                <polygon points="0,7.5 0,0 -7.5,0" fill="rgba(255, 255, 255, 0.25)" />
+                {/* Center Core */}
+                <circle cx="0" cy="0" r="1.5" fill="#020617" stroke="#f59e0b" strokeWidth="0.5" />
+                <text x="-1.5" y="-10" fill="#f59e0b" className="font-sans font-black text-[4px] tracking-normal">N</text>
+              </g>
             </svg>
           </div>
 
           {/* Map Compass Accent */}
-          <div className="absolute bottom-4 left-4 flex items-center gap-2 text-slate-500 text-[10px]">
-            <Navigation className="w-4 h-4 text-amber-500 animate-pulse rotate-45" />
-            <span>{lang === 'ar' ? 'البوصلة التفاعلية للموقع' : 'INTERACTIVE COMPASS NAVIGATOR'}</span>
+          <div className="absolute bottom-4 left-4 flex items-center gap-2 bg-slate-950/80 border border-slate-800/80 px-2.5 py-1.5 rounded-xl text-slate-400 text-[10px] shadow-lg backdrop-blur-md">
+            <Navigation className="w-3.5 h-3.5 text-amber-500 animate-pulse rotate-45" />
+            <span className="font-extrabold uppercase tracking-widest text-[8px] text-slate-300">
+              {lang === 'ar' ? 'البوصلة التفاعلية للموقع' : 'DIAMONDS AGENCY GEOMAP'}
+            </span>
           </div>
 
           {/* Dynamic Map Pins */}
@@ -269,19 +433,45 @@ export default function EgyptMap({ lang, onSelectBookTour }: EgyptMapProps) {
                   key={dest.id}
                   onClick={() => handlePinClick(dest.id)}
                   style={{ top: dest.coordinates.y, left: dest.coordinates.x }}
-                  className="absolute transform -translate-x-1/2 -translate-y-1/2 group cursor-pointer transition-all focus:outline-none"
+                  className="absolute transform -translate-x-1/2 -translate-y-1/2 group cursor-pointer transition-all focus:outline-none z-20"
                 >
-                  {/* Outer Ring pulse */}
-                  <span className={`absolute inline-flex h-10 w-10 rounded-full bg-amber-500/30 -left-3 -top-3 transition-transform ${isActive ? 'animate-ping' : 'scale-50 opacity-0 group-hover:opacity-100 group-hover:scale-75 duration-300'}`} />
+                  {/* Outer Ring pulse - Diamond shapes for premium look */}
+                  <span className={`absolute inline-flex rounded-md border border-amber-500/40 rotate-45 transition-transform ${
+                    isActive 
+                      ? 'h-11 w-11 -left-3.5 -top-3.5 animate-ping' 
+                      : 'h-8 w-8 -left-2 -top-2 scale-50 opacity-0 group-hover:opacity-100 group-hover:scale-100 duration-500'
+                  }`} />
                   
-                  {/* Pin Circle */}
-                  <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center transition-all shadow-md ${isActive ? 'bg-amber-500 border-white scale-125' : 'bg-slate-950 border-emerald-500 group-hover:bg-emerald-500'}`} />
+                  {/* Luxury Nested Diamond Map Marker */}
+                  {isActive ? (
+                    <div className="relative flex items-center justify-center w-8 h-8 drop-shadow-[0_10px_15px_rgba(245,158,11,0.35)]">
+                      {/* Outer spinning/pulsating diamond border */}
+                      <div className="absolute w-6 h-6 border border-amber-400/80 rotate-45 scale-110 animate-pulse" />
+                      {/* Solid luxury diamond */}
+                      <div className="w-5 h-5 bg-gradient-to-br from-amber-300 via-amber-500 to-amber-700 rotate-45 flex items-center justify-center shadow-[0_0_20px_rgba(245,158,11,0.65),_inset_0_1px_1px_rgba(255,255,255,0.4)] transition-all duration-300">
+                        {/* Inner nested slate-950 diamond */}
+                        <div className="w-2 h-2 bg-slate-950 rotate-45 flex items-center justify-center">
+                          {/* Core diamond point */}
+                          <div className="w-1 h-1 bg-amber-300 rotate-45" />
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="relative flex items-center justify-center w-6 h-6 group-hover:scale-110 transition-all duration-300 drop-shadow-[0_4px_8px_rgba(0,0,0,0.5)]">
+                      {/* Subtle outer diamond shadow */}
+                      <div className="absolute w-4.5 h-4.5 border border-emerald-500/40 rotate-45 group-hover:border-amber-500/60 duration-300" />
+                      {/* Core diamond */}
+                      <div className="w-3.5 h-3.5 bg-slate-950 border border-emerald-500 group-hover:border-amber-400 rotate-45 flex items-center justify-center transition-all duration-300">
+                        <div className="w-1.5 h-1.5 bg-emerald-500 group-hover:bg-amber-400 rotate-45" />
+                      </div>
+                    </div>
+                  )}
                   
                   {/* Pin Name Tag */}
-                  <div className={`absolute left-6 top-1/2 transform -translate-y-1/2 whitespace-nowrap px-2.5 py-1 rounded-md text-[10px] font-extrabold uppercase tracking-wider transition-all shadow border ${
+                  <div className={`absolute left-7 top-1/2 transform -translate-y-1/2 whitespace-nowrap px-3 py-1 rounded-full text-[9px] font-extrabold uppercase tracking-widest transition-all duration-300 border backdrop-blur-md shadow-[0_4px_15px_rgba(0,0,0,0.7)] ${
                     isActive 
-                      ? 'bg-amber-500 border-amber-400 text-slate-950 scale-105 font-black' 
-                      : 'bg-slate-950/90 border-slate-800 text-slate-300 group-hover:text-white'
+                      ? 'bg-amber-500 border-amber-400 text-slate-950 scale-105 shadow-[0_0_15px_rgba(245,158,11,0.25)] font-black' 
+                      : 'bg-slate-950/90 border-slate-850 text-slate-300 group-hover:border-emerald-500/60 group-hover:text-white'
                   }`}>
                     {getLocalizedValue(dest.name)}
                   </div>
@@ -298,7 +488,7 @@ export default function EgyptMap({ lang, onSelectBookTour }: EgyptMapProps) {
               return (
                 <div 
                   style={getPopoverStyle(popoverDest)}
-                  className="bg-slate-950/95 backdrop-blur-xl border border-amber-500/50 rounded-2xl p-4 shadow-2xl w-72 md:w-80 text-white animate-fade-in space-y-3 z-40"
+                  className="bg-slate-950/95 backdrop-blur-2xl border border-amber-500/40 rounded-2xl p-4 shadow-[0_25px_60px_rgba(0,0,0,0.85),_0_0_25px_rgba(245,158,11,0.08)] w-72 md:w-80 text-white animate-fade-in space-y-3 z-40"
                 >
                   <div className="flex justify-between items-start">
                     <div className="flex items-center gap-1.5">
@@ -363,7 +553,7 @@ export default function EgyptMap({ lang, onSelectBookTour }: EgyptMapProps) {
                             e.stopPropagation();
                             onSelectBookTour(matchedTour);
                           }}
-                          className="w-full bg-amber-500 hover:bg-amber-600 text-slate-950 font-black text-[10px] py-2 px-3 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 uppercase tracking-wider shadow-lg hover:shadow-amber-500/20"
+                          className="w-full bg-gradient-to-r from-amber-400 to-amber-600 hover:from-amber-500 hover:to-amber-700 text-slate-950 font-black text-[10px] py-2 px-3 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 uppercase tracking-wider shadow-lg hover:shadow-amber-500/20"
                         >
                           <Crown className="w-3.5 h-3.5 fill-slate-950" />
                           <span>{lang === 'ar' ? 'احجز فوراً الآن' : 'Instant Book Tour'}</span>
@@ -394,8 +584,8 @@ export default function EgyptMap({ lang, onSelectBookTour }: EgyptMapProps) {
           </div>
 
           {/* Quick Help Tip */}
-          <div className="bg-slate-950/60 backdrop-blur-md px-3 py-1.5 rounded-lg border border-slate-800/60 max-w-xs text-[10px] font-semibold text-slate-400">
-            {lang === 'ar' ? '💡 انقر على النقاط الذهبية لتغيير الوجهة الاستكشافية وعرض حجزها الفوري' : '💡 Select the golden pins to chart your itinerary & book instantly'}
+          <div className="bg-slate-950/80 backdrop-blur-md px-3 py-1.5 rounded-lg border border-slate-850 max-w-xs text-[10px] font-semibold text-slate-400 shadow-md">
+            {lang === 'ar' ? '💡 انقر على النقاط الذهبية لتغيير الوجهة الاستكشافية وعرض حجزها الفوري' : '💡 Select our bespoke diamond pins to chart your luxury itinerary & book instantly'}
           </div>
         </div>
 
