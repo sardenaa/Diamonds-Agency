@@ -15,6 +15,8 @@ interface AuthContextType {
   setCustomerUser: React.Dispatch<React.SetStateAction<{ name: string; email: string; phone: string; nationality: string; language: string; biography?: string } | null>>;
   logoutCustomer: () => Promise<void>;
   isCheckingCustomerSession: boolean;
+  customerAuthView: 'login' | 'register' | 'forgot';
+  setCustomerAuthView: React.Dispatch<React.SetStateAction<'login' | 'register' | 'forgot'>>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -30,6 +32,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const [customerUser, setCustomerUser] = useState<{ name: string; email: string; phone: string; nationality: string; language: string; biography?: string } | null>(null);
   const [isCheckingCustomerSession, setIsCheckingCustomerSession] = useState<boolean>(true);
+  const [customerAuthView, setCustomerAuthView] = useState<'login' | 'register' | 'forgot'>('login');
 
   // Check active customer session on load
   useEffect(() => {
@@ -136,6 +139,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setCustomerUser,
         logoutCustomer,
         isCheckingCustomerSession,
+        customerAuthView,
+        setCustomerAuthView,
       }}
     >
       {children}

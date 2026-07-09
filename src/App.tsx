@@ -50,6 +50,7 @@ function AppContent({ lang, setLang }: { lang: AppLanguage; setLang: React.Dispa
     setAdminPermissionTier,
     customerUser,
     logoutCustomer,
+    setCustomerAuthView,
   } = useAuth();
 
   const {
@@ -1161,6 +1162,32 @@ function AppContent({ lang, setLang }: { lang: AppLanguage; setLang: React.Dispa
                 title={lang === 'ar' ? 'تسجيل الخروج' : 'Sign Out'}
               >
                 {lang === 'ar' ? 'خروج' : 'Sign Out'}
+              </button>
+            </div>
+          )}
+
+          {/* Guest Sign Up / Log In buttons */}
+          {!customerUser && (
+            <div className="flex items-center gap-2 border-l border-slate-200 pl-3 md:pl-6 ml-1 md:ml-3" id="header-auth-buttons">
+              <button
+                onClick={() => {
+                  setRole('customer');
+                  setCustomerAuthView('login');
+                }}
+                className="text-[11px] font-bold text-slate-700 hover:text-slate-900 hover:bg-slate-50 px-2.5 py-1.5 rounded-lg border border-slate-200 transition-all cursor-pointer bg-white"
+                id="header-login-btn"
+              >
+                {lang === 'ar' ? 'تسجيل الدخول' : 'Log In'}
+              </button>
+              <button
+                onClick={() => {
+                  setRole('customer');
+                  setCustomerAuthView('register');
+                }}
+                className="text-[11px] font-bold bg-slate-900 text-amber-400 hover:bg-slate-800 px-2.5 py-1.5 rounded-lg border border-slate-900 transition-all cursor-pointer"
+                id="header-signup-btn"
+              >
+                {lang === 'ar' ? 'إنشاء حساب' : 'Sign Up'}
               </button>
             </div>
           )}

@@ -8,8 +8,7 @@ interface CustomerAuthProps {
 }
 
 export default function CustomerAuth({ lang }: CustomerAuthProps) {
-  const { setCustomerUser, setRole } = useAuth();
-  const [view, setView] = useState<'login' | 'register' | 'forgot'>('login');
+  const { setCustomerUser, setRole, customerAuthView: view, setCustomerAuthView: setView } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
