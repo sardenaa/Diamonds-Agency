@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { Tour, Booking, Review, Blog, Coupon, CustomerCRM, AuditLog, CurrencyConfig, SupportTicket, WhatsAppTemplate } from '../types.js';
+import { Tour, Booking, Review, Blog, Coupon, CustomerCRM, AuditLog, CurrencyConfig, SupportTicket, WhatsAppTemplate, CustomerUser } from '../types.js';
 
 const DB_FILE = path.join(process.cwd(), 'database.json');
 
@@ -25,6 +25,7 @@ interface DBData {
   tickets?: SupportTicket[];
   whatsappTemplates?: WhatsAppTemplate[];
   notifications?: any[];
+  users?: CustomerUser[];
 }
 
 const initialTours: Tour[] = [
@@ -803,7 +804,8 @@ const defaultDB: DBData = {
   auditLogs: initialAuditLogs,
   tickets: initialTickets,
   whatsappTemplates: initialTemplates,
-  notifications: []
+  notifications: [],
+  users: []
 };
 
 export function getDB(): DBData {
@@ -815,7 +817,7 @@ export function getDB(): DBData {
     const raw = fs.readFileSync(DB_FILE, 'utf-8');
     const db: DBData = JSON.parse(raw);
     
-    // Auto-migrate if support tickets or templates are missing
+    // Auto-migrate if support tickets, templates or users are missing
     let modified = false;
     if (!db.tickets) {
       db.tickets = initialTickets;
@@ -823,6 +825,10 @@ export function getDB(): DBData {
     }
     if (!db.whatsappTemplates) {
       db.whatsappTemplates = initialTemplates;
+      modified = true;
+    }
+    if (!db.users) {
+      db.users = [];
       modified = true;
     }
     if (modified) {

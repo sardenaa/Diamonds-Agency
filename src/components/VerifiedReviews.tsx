@@ -374,11 +374,7 @@ export default function VerifiedReviews({ lang }: { lang: AppLanguage }) {
       )}
 
       {/* Ministry certification seal */}
-      <div className="mt-6 pt-4 border-t border-slate-800/60 flex items-center justify-between text-[10px] text-slate-500 font-bold uppercase tracking-wider">
-        <span className="flex items-center gap-1.5">
-          <ShieldCheck className="w-4 h-4 text-emerald-500" />
-          <span>{t.viewSite[lang]}</span>
-        </span>
+      <div className="mt-6 pt-4 border-t border-slate-800/60 flex items-center justify-end text-[10px] text-slate-500 font-bold uppercase tracking-wider">
         <span className="font-mono text-[9px]">CERTIFICATE ID: #EGY-9033-MAS</span>
       </div>
 

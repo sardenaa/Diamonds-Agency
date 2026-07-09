@@ -228,3 +228,17 @@ export interface WhatsAppTemplate {
   templateText: string;
   active: boolean;
 }
+
+export interface CustomerUser {
+  email: string;
+  name: string;
+  phone: string;
+  nationality: string;
+  language: string;
+  passwordHash: string;
+  securityQuestion: string;
+  securityAnswer: string;
+  biography?: string;
+  createdAt: string;
+}
+

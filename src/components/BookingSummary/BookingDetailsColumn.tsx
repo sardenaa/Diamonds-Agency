@@ -21,7 +21,7 @@ export default function BookingDetailsColumn({
   const isAr = lang === 'ar';
 
   const handleDownload = () => {
-    alert(`Downloading Secure PDF invoice/vouchers for booking ${booking.id}`);
+    window.location.href = `/api/bookings/${booking.id}/invoice`;
   };
 
   return (
@@ -105,7 +105,7 @@ export default function BookingDetailsColumn({
             className={`${tokens.colors.secondaryBg} ${tokens.colors.secondaryHover} text-white font-bold text-xs py-3 ${tokens.borderRadius.button} cursor-pointer flex items-center justify-center gap-1.5`}
           >
             <Download className="w-4 h-4" />
-            <span>{isAr ? 'تحميل التذكرة (PDF)' : 'Download PDF'}</span>
+            <span>{isAr ? 'تصدير الفاتورة (PDF)' : 'Export Invoice'}</span>
           </button>
           <button
             onClick={onClose}

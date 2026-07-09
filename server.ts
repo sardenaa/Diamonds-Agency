@@ -1,5 +1,6 @@
 import express from 'express';
 import path from 'path';
+import crypto from 'crypto';
 import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI } from '@google/genai';
 import PDFDocument from 'pdfkit';
@@ -13,6 +14,47 @@ async function startServer() {
   const PORT = 3000;
 
   app.use(express.json());
+
+  // ----------------------------------------------------
+  // Secure Session Manager & Cookie Parser Helper
+  // ----------------------------------------------------
+  const activeSessions = new Map<string, { tier: string; createdAt: number }>();
+  const activeCustomerSessions = new Map<string, { email: string; createdAt: number }>();
+
+  const getCookie = (req: any, name: string) => {
+    const cookieHeader = req.headers.cookie;
+    if (!cookieHeader) return null;
+    const cookies = cookieHeader.split(';').reduce((acc: any, cookie: string) => {
+      const parts = cookie.split('=');
+      const k = parts[0]?.trim();
+      const v = parts.slice(1).join('=').trim();
+      if (k) acc[k] = decodeURIComponent(v);
+      return acc;
+    }, {});
+    return cookies[name] || null;
+  };
+
+  const requireClearance = (allowedTiers: string[]) => {
+    return (req: any, res: any, next: any) => {
+      const sessionToken = getCookie(req, 'mas_session_token');
+      if (!sessionToken) {
+        return res.status(401).json({ success: false, message: 'Unauthorized. No clearance token found.' });
+      }
+      const session = activeSessions.get(sessionToken);
+      if (!session) {
+        return res.status(401).json({ success: false, message: 'Unauthorized. Session expired or invalid.' });
+      }
+      
+      // Checking hierarchy: Sovereign Admin has master access to everything
+      const hasAccess = session.tier === 'Sovereign Admin' || allowedTiers.includes(session.tier);
+      if (hasAccess) {
+        req.adminSession = session;
+        return next();
+      }
+      
+      return res.status(403).json({ success: false, message: 'Forbidden. Insufficient security clearance.' });
+    };
+  };
 
   // ----------------------------------------------------
   // Real-Time Alert Dispatch Registry & Broadcast Helper
@@ -150,7 +192,7 @@ async function startServer() {
     res.json(db.tours);
   });
 
-  app.post('/api/tours', (req, res) => {
+  app.post('/api/tours', requireClearance(['Sovereign Admin', 'Operations Manager']), (req, res) => {
     const db = getDB();
     const newTour: Tour = {
       ...req.body,
@@ -169,7 +211,7 @@ async function startServer() {
     res.status(201).json(newTour);
   });
 
-  app.put('/api/tours/:id', (req, res) => {
+  app.put('/api/tours/:id', requireClearance(['Sovereign Admin', 'Operations Manager']), (req, res) => {
     const db = getDB();
     const index = db.tours.findIndex(t => t.id === req.params.id);
     if (index === -1) {
@@ -181,7 +223,7 @@ async function startServer() {
     res.json(db.tours[index]);
   });
 
-  app.delete('/api/tours/:id', (req, res) => {
+  app.delete('/api/tours/:id', requireClearance(['Sovereign Admin']), (req, res) => {
     const db = getDB();
     const index = db.tours.findIndex(t => t.id === req.params.id);
     if (index === -1) {
@@ -195,7 +237,7 @@ async function startServer() {
   });
 
   // 3. Bookings CRM & Checkout
-  app.get('/api/bookings', (req, res) => {
+  app.get('/api/bookings', requireClearance(['Sovereign Admin', 'Operations Manager', 'Guest Relations Coordinator']), (req, res) => {
     const db = getDB();
     res.json(db.bookings);
   });
@@ -375,7 +417,7 @@ MAS Agency Royal Concierge Division`;
     });
   });
 
-  app.post('/api/bookings/bulk-import', (req, res) => {
+  app.post('/api/bookings/bulk-import', requireClearance(['Sovereign Admin', 'Operations Manager']), (req, res) => {
     try {
       const db = getDB();
       const importedBookings = req.body;
@@ -454,7 +496,7 @@ MAS Agency Royal Concierge Division`;
     }
   });
 
-  app.put('/api/bookings/:id', (req, res) => {
+  app.put('/api/bookings/:id', requireClearance(['Sovereign Admin', 'Operations Manager']), (req, res) => {
     const db = getDB();
     const index = db.bookings.findIndex(b => b.id === req.params.id);
     if (index === -1) {
@@ -501,7 +543,7 @@ MAS Agency Royal Concierge Division`;
     res.json(updated);
   });
 
-  app.post('/api/bookings/:id/refund', (req, res) => {
+  app.post('/api/bookings/:id/refund', requireClearance(['Sovereign Admin', 'Operations Manager']), (req, res) => {
     const db = getDB();
     const index = db.bookings.findIndex(b => b.id === req.params.id);
     if (index === -1) {
@@ -528,7 +570,7 @@ MAS Agency Royal Concierge Division`;
     res.json(booking);
   });
 
-  app.delete('/api/bookings/:id', (req, res) => {
+  app.delete('/api/bookings/:id', requireClearance(['Sovereign Admin']), (req, res) => {
     const db = getDB();
     const index = db.bookings.findIndex(b => b.id === req.params.id);
     if (index === -1) {
@@ -896,12 +938,12 @@ JSON Schema:
   });
 
   // 4b. Notifications & Real-Time Alerts API
-  app.get('/api/admin/notifications', (req, res) => {
+  app.get('/api/admin/notifications', requireClearance(['Sovereign Admin', 'Operations Manager', 'Guest Relations Coordinator']), (req, res) => {
     const db = getDB();
     res.json(db.notifications || []);
   });
 
-  app.post('/api/admin/notifications/:id/read', (req, res) => {
+  app.post('/api/admin/notifications/:id/read', requireClearance(['Sovereign Admin', 'Operations Manager', 'Guest Relations Coordinator']), (req, res) => {
     const db = getDB();
     db.notifications = db.notifications || [];
     const notif = db.notifications.find(n => n.id === req.params.id);
@@ -912,7 +954,7 @@ JSON Schema:
     res.json({ success: true, notifications: db.notifications });
   });
 
-  app.post('/api/admin/notifications/mark-all-read', (req, res) => {
+  app.post('/api/admin/notifications/mark-all-read', requireClearance(['Sovereign Admin', 'Operations Manager', 'Guest Relations Coordinator']), (req, res) => {
     const db = getDB();
     db.notifications = db.notifications || [];
     db.notifications.forEach(n => { n.read = true; });
@@ -920,14 +962,14 @@ JSON Schema:
     res.json({ success: true, notifications: db.notifications });
   });
 
-  app.delete('/api/admin/notifications', (req, res) => {
+  app.delete('/api/admin/notifications', requireClearance(['Sovereign Admin']), (req, res) => {
     const db = getDB();
     db.notifications = [];
     saveDB(db);
     res.json({ success: true, notifications: [] });
   });
 
-  app.get('/api/admin/notifications-stream', (req, res) => {
+  app.get('/api/admin/notifications-stream', requireClearance(['Sovereign Admin', 'Operations Manager', 'Guest Relations Coordinator']), (req, res) => {
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache, no-transform');
     res.setHeader('Connection', 'keep-alive');
@@ -1001,12 +1043,12 @@ JSON Schema:
   });
 
   // 6. Coupons API
-  app.get('/api/coupons', (req, res) => {
+  app.get('/api/coupons', requireClearance(['Sovereign Admin', 'Operations Manager']), (req, res) => {
     const db = getDB();
     res.json(db.coupons);
   });
 
-  app.post('/api/coupons', (req, res) => {
+  app.post('/api/coupons', requireClearance(['Sovereign Admin', 'Operations Manager']), (req, res) => {
     const db = getDB();
     const newCoupon: Coupon = {
       code: req.body.code.toUpperCase(),
@@ -1020,7 +1062,7 @@ JSON Schema:
     res.status(201).json(newCoupon);
   });
 
-  app.put('/api/coupons/:code', (req, res) => {
+  app.put('/api/coupons/:code', requireClearance(['Sovereign Admin', 'Operations Manager']), (req, res) => {
     const db = getDB();
     const index = db.coupons.findIndex(c => c.code.toUpperCase() === req.params.code.toUpperCase());
     if (index === -1) {
@@ -1033,7 +1075,7 @@ JSON Schema:
     res.json(updated);
   });
 
-  app.delete('/api/coupons/:code', (req, res) => {
+  app.delete('/api/coupons/:code', requireClearance(['Sovereign Admin']), (req, res) => {
     const db = getDB();
     const index = db.coupons.findIndex(c => c.code.toUpperCase() === req.params.code.toUpperCase());
     if (index === -1) {
@@ -1088,6 +1130,23 @@ JSON Schema:
 
     if (pin === expectedPin) {
       logAudit('ADMIN_AUTH_SUCCESS', 'Sovereign Gate', `Clearance Level granted for role: ${titleEn}`);
+      
+      // Generate secure session token
+      const sessionToken = crypto.randomBytes(32).toString('hex');
+      activeSessions.set(sessionToken, {
+        tier: titleEn,
+        createdAt: Date.now()
+      });
+
+      // Set cookie in response
+      res.cookie('mas_session_token', sessionToken, {
+        maxAge: 24 * 60 * 60 * 1000, // 24 hours
+        httpOnly: false, // Allow client to read/verify if needed, but sent automatically
+        path: '/',
+        sameSite: 'strict',
+        secure: process.env.NODE_ENV === 'production'
+      });
+
       res.json({ success: true, tier: titleEn });
     } else {
       logAudit('ADMIN_AUTH_FAILURE', 'Sovereign Gate', `Failed security verification attempt for role tier: ${tier}`);
@@ -1095,13 +1154,312 @@ JSON Schema:
     }
   });
 
+  // Validate session endpoint
+  app.get('/api/admin/validate-session', (req, res) => {
+    const sessionToken = getCookie(req, 'mas_session_token');
+    if (!sessionToken) {
+      return res.json({ valid: false });
+    }
+    const session = activeSessions.get(sessionToken);
+    if (!session) {
+      return res.json({ valid: false });
+    }
+    res.json({ valid: true, tier: session.tier });
+  });
+
+  // Admin Logout endpoint
+  app.post('/api/admin/logout', (req, res) => {
+    const sessionToken = getCookie(req, 'mas_session_token');
+    if (sessionToken) {
+      activeSessions.delete(sessionToken);
+    }
+    res.clearCookie('mas_session_token', { path: '/' });
+    res.json({ success: true });
+  });
+
+  // ----------------------------------------------------
+  // Customer Auth & Account Management APIs
+  // ----------------------------------------------------
+  
+  // Register Customer
+  app.post('/api/auth/register', (req, res) => {
+    try {
+      const db = getDB();
+      const { name, email, phone, nationality, language, password, securityQuestion, securityAnswer, biography } = req.body;
+      
+      if (!name || !email || !password || !securityQuestion || !securityAnswer) {
+        return res.status(400).json({ success: false, message: 'Missing required registration parameters.' });
+      }
+
+      const existingUser = db.users?.find(u => u.email.toLowerCase() === email.toLowerCase());
+      if (existingUser) {
+        return res.status(400).json({ success: false, message: 'A user with this email address already exists.' });
+      }
+
+      // Add to users
+      const newUser = {
+        name,
+        email: email.toLowerCase(),
+        phone: phone || '',
+        nationality: nationality || 'Egyptian',
+        language: language || 'en',
+        passwordHash: password,
+        securityQuestion,
+        securityAnswer: securityAnswer.toLowerCase().trim(),
+        biography: biography || '',
+        createdAt: new Date().toISOString()
+      };
+      
+      if (!db.users) db.users = [];
+      db.users.push(newUser);
+
+      // Check or create matching CustomerCRM profile so existing crm mechanics work flawlessly
+      let crmProfile = db.crm.find(c => c.email.toLowerCase() === email.toLowerCase());
+      if (!crmProfile) {
+        crmProfile = {
+          email: email.toLowerCase(),
+          name,
+          phone: phone || '',
+          nationality: nationality || 'Egyptian',
+          language: language || 'en',
+          tags: ['Registered User'],
+          notes: 'Customer registered through Sovereign Portal.',
+          whatsappHistory: [],
+          supportHistory: [],
+          totalSpentUSD: 0,
+          createdAt: new Date().toISOString()
+        };
+        db.crm.push(crmProfile);
+      } else {
+        // Update phone and other fields on existing crm profile to match registration
+        crmProfile.name = name;
+        if (phone) crmProfile.phone = phone;
+        if (nationality) crmProfile.nationality = nationality;
+        if (language) crmProfile.language = language;
+      }
+
+      saveDB(db);
+      logAudit('CUSTOMER_REGISTER', email, `Customer registered: ${name}`);
+
+      // Generate session
+      const sessionToken = crypto.randomBytes(32).toString('hex');
+      activeCustomerSessions.set(sessionToken, {
+        email: email.toLowerCase(),
+        createdAt: Date.now()
+      });
+
+      res.cookie('mas_customer_token', sessionToken, {
+        maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+        httpOnly: false, // client can read to track login status
+        path: '/',
+        sameSite: 'strict',
+        secure: process.env.NODE_ENV === 'production'
+      });
+
+      res.json({
+        success: true,
+        user: {
+          name: newUser.name,
+          email: newUser.email,
+          phone: newUser.phone,
+          nationality: newUser.nationality,
+          language: newUser.language,
+          biography: newUser.biography
+        }
+      });
+    } catch (err: any) {
+      res.status(500).json({ success: false, message: err.message || 'Internal server error during registration.' });
+    }
+  });
+
+  // Login Customer
+  app.post('/api/auth/login', (req, res) => {
+    try {
+      const db = getDB();
+      const { email, password } = req.body;
+      
+      if (!email || !password) {
+        return res.status(400).json({ success: false, message: 'Please provide both email and password.' });
+      }
+
+      const user = db.users?.find(u => u.email.toLowerCase() === email.toLowerCase() && u.passwordHash === password);
+      if (!user) {
+        return res.status(401).json({ success: false, message: 'Invalid email address or password.' });
+      }
+
+      logAudit('CUSTOMER_LOGIN_SUCCESS', email, `Customer logged in: ${user.name}`);
+
+      // Generate session
+      const sessionToken = crypto.randomBytes(32).toString('hex');
+      activeCustomerSessions.set(sessionToken, {
+        email: user.email,
+        createdAt: Date.now()
+      });
+
+      res.cookie('mas_customer_token', sessionToken, {
+        maxAge: 30 * 24 * 60 * 60 * 1000,
+        httpOnly: false,
+        path: '/',
+        sameSite: 'strict',
+        secure: process.env.NODE_ENV === 'production'
+      });
+
+      res.json({
+        success: true,
+        user: {
+          name: user.name,
+          email: user.email,
+          phone: user.phone,
+          nationality: user.nationality,
+          language: user.language,
+          biography: user.biography
+        }
+      });
+    } catch (err: any) {
+      res.status(500).json({ success: false, message: err.message || 'Internal server error during login.' });
+    }
+  });
+
+  // Validate Customer Session
+  app.get('/api/auth/validate-session', (req, res) => {
+    const sessionToken = getCookie(req, 'mas_customer_token');
+    if (!sessionToken) {
+      return res.json({ valid: false });
+    }
+    const session = activeCustomerSessions.get(sessionToken);
+    if (!session) {
+      return res.json({ valid: false });
+    }
+    const db = getDB();
+    const user = db.users?.find(u => u.email.toLowerCase() === session.email.toLowerCase());
+    if (!user) {
+      return res.json({ valid: false });
+    }
+    res.json({
+      valid: true,
+      user: {
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        nationality: user.nationality,
+        language: user.language,
+        biography: user.biography
+      }
+    });
+  });
+
+  // Get Security Question (for reset password help)
+  app.get('/api/auth/security-question', (req, res) => {
+    const email = req.query.email as string;
+    if (!email) {
+      return res.status(400).json({ success: false, message: 'Please specify an email address.' });
+    }
+    const db = getDB();
+    const user = db.users?.find(u => u.email.toLowerCase() === email.toLowerCase());
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'No registered account found with this email address.' });
+    }
+    res.json({ success: true, securityQuestion: user.securityQuestion });
+  });
+
+  // Reset Password via Security Question Verification
+  app.post('/api/auth/reset-password', (req, res) => {
+    try {
+      const db = getDB();
+      const { email, securityAnswer, newPassword } = req.body;
+      
+      if (!email || !securityAnswer || !newPassword) {
+        return res.status(400).json({ success: false, message: 'Missing parameters for password reset.' });
+      }
+
+      const user = db.users?.find(u => u.email.toLowerCase() === email.toLowerCase());
+      if (!user) {
+        return res.status(404).json({ success: false, message: 'Account not found.' });
+      }
+
+      if (user.securityAnswer.toLowerCase().trim() !== securityAnswer.toLowerCase().trim()) {
+        return res.status(400).json({ success: false, message: 'Incorrect security answer.' });
+      }
+
+      user.passwordHash = newPassword;
+      saveDB(db);
+      logAudit('CUSTOMER_PASSWORD_RESET', email, 'Password reset successful via security question verification');
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(500).json({ success: false, message: err.message || 'Internal server error during password reset.' });
+    }
+  });
+
+  // Update Profile Details
+  app.put('/api/auth/profile', (req, res) => {
+    try {
+      const sessionToken = getCookie(req, 'mas_customer_token');
+      if (!sessionToken) {
+        return res.status(401).json({ success: false, message: 'Unauthorized. Please login.' });
+      }
+      const session = activeCustomerSessions.get(sessionToken);
+      if (!session) {
+        return res.status(401).json({ success: false, message: 'Session expired or invalid.' });
+      }
+
+      const db = getDB();
+      const user = db.users?.find(u => u.email.toLowerCase() === session.email.toLowerCase());
+      if (!user) {
+        return res.status(404).json({ success: false, message: 'Account details not found.' });
+      }
+
+      const { name, phone, nationality, language, biography } = req.body;
+      if (name) user.name = name;
+      if (phone !== undefined) user.phone = phone;
+      if (nationality !== undefined) user.nationality = nationality;
+      if (language !== undefined) user.language = language;
+      if (biography !== undefined) user.biography = biography;
+
+      // Sync with matching CustomerCRM profile
+      const crmProfile = db.crm.find(c => c.email.toLowerCase() === user.email.toLowerCase());
+      if (crmProfile) {
+        if (name) crmProfile.name = name;
+        if (phone !== undefined) crmProfile.phone = phone;
+        if (nationality !== undefined) crmProfile.nationality = nationality;
+        if (language !== undefined) crmProfile.language = language;
+      }
+
+      saveDB(db);
+      logAudit('CUSTOMER_PROFILE_UPDATE', user.email, 'Profile details updated');
+
+      res.json({
+        success: true,
+        user: {
+          name: user.name,
+          email: user.email,
+          phone: user.phone,
+          nationality: user.nationality,
+          language: user.language,
+          biography: user.biography
+        }
+      });
+    } catch (err: any) {
+      res.status(500).json({ success: false, message: err.message || 'Error updating profile details.' });
+    }
+  });
+
+  // Logout Customer
+  app.post('/api/auth/logout', (req, res) => {
+    const sessionToken = getCookie(req, 'mas_customer_token');
+    if (sessionToken) {
+      activeCustomerSessions.delete(sessionToken);
+    }
+    res.clearCookie('mas_customer_token', { path: '/' });
+    res.json({ success: true });
+  });
+
   // 7. CRM CRM CRUD
-  app.get('/api/crm', (req, res) => {
+  app.get('/api/crm', requireClearance(['Sovereign Admin', 'Guest Relations Coordinator']), (req, res) => {
     const db = getDB();
     res.json(db.crm);
   });
 
-  app.post('/api/crm', (req, res) => {
+  app.post('/api/crm', requireClearance(['Sovereign Admin', 'Guest Relations Coordinator']), (req, res) => {
     const db = getDB();
     const { email, name, phone, nationality, language, tags, notes } = req.body;
     if (!email || !name) {
@@ -1136,7 +1494,7 @@ JSON Schema:
     res.status(201).json(newCustomer);
   });
 
-  app.put('/api/crm/:email', (req, res) => {
+  app.put('/api/crm/:email', requireClearance(['Sovereign Admin', 'Guest Relations Coordinator']), (req, res) => {
     const db = getDB();
     const customer = db.crm.find(c => c.email.toLowerCase() === req.params.email.toLowerCase());
     if (!customer) {
@@ -1153,7 +1511,7 @@ JSON Schema:
     res.json(customer);
   });
 
-  app.delete('/api/crm/:email', (req, res) => {
+  app.delete('/api/crm/:email', requireClearance(['Sovereign Admin']), (req, res) => {
     const db = getDB();
     const index = db.crm.findIndex(c => c.email.toLowerCase() === req.params.email.toLowerCase());
     if (index === -1) {
@@ -1167,7 +1525,7 @@ JSON Schema:
   });
 
   // 8. Custom Chatbot Messages (WhatsApp / Support) via CRM Console
-  app.post('/api/crm/:email/whatsapp', (req, res) => {
+  app.post('/api/crm/:email/whatsapp', requireClearance(['Sovereign Admin', 'Guest Relations Coordinator']), (req, res) => {
     const db = getDB();
     const customer = db.crm.find(c => c.email.toLowerCase() === req.params.email.toLowerCase());
     if (!customer) {
@@ -1185,7 +1543,7 @@ JSON Schema:
     res.json(customer.whatsappHistory);
   });
 
-  app.post('/api/crm/:email/support', (req, res) => {
+  app.post('/api/crm/:email/support', requireClearance(['Sovereign Admin', 'Guest Relations Coordinator']), (req, res) => {
     const db = getDB();
     const customer = db.crm.find(c => c.email.toLowerCase() === req.params.email.toLowerCase());
     if (!customer) {
@@ -1204,7 +1562,7 @@ JSON Schema:
   });
 
   // 8.5. Support Tickets & WhatsApp Automation APIs
-  app.get('/api/tickets', (req, res) => {
+  app.get('/api/tickets', requireClearance(['Sovereign Admin', 'Guest Relations Coordinator']), (req, res) => {
     const db = getDB();
     res.json(db.tickets || []);
   });
@@ -1240,7 +1598,7 @@ JSON Schema:
     res.status(201).json(newTicket);
   });
 
-  app.put('/api/tickets/:id', (req, res) => {
+  app.put('/api/tickets/:id', requireClearance(['Sovereign Admin', 'Guest Relations Coordinator']), (req, res) => {
     const db = getDB();
     const ticket = db.tickets?.find(t => t.id === req.params.id);
     if (!ticket) {
@@ -1256,7 +1614,7 @@ JSON Schema:
     res.json(ticket);
   });
 
-  app.post('/api/tickets/:id/message', (req, res) => {
+  app.post('/api/tickets/:id/message', requireClearance(['Sovereign Admin', 'Guest Relations Coordinator']), (req, res) => {
     const db = getDB();
     const ticket = db.tickets?.find(t => t.id === req.params.id);
     if (!ticket) {
@@ -1276,7 +1634,7 @@ JSON Schema:
     res.json(ticket);
   });
 
-  app.delete('/api/tickets/:id', (req, res) => {
+  app.delete('/api/tickets/:id', requireClearance(['Sovereign Admin']), (req, res) => {
     const db = getDB();
     if (!db.tickets) {
       return res.status(404).json({ error: 'Ticket not found' });
@@ -1299,7 +1657,7 @@ JSON Schema:
   });
 
   // Disaster Recovery Encrypted Backups API
-  app.get('/api/admin/backups', (req, res) => {
+  app.get('/api/admin/backups', requireClearance(['Sovereign Admin']), (req, res) => {
     try {
       const backups = listBackups();
       res.json(backups);
@@ -1308,7 +1666,7 @@ JSON Schema:
     }
   });
 
-  app.post('/api/admin/backups/create', (req, res) => {
+  app.post('/api/admin/backups/create', requireClearance(['Sovereign Admin']), (req, res) => {
     try {
       const { type } = req.body;
       const meta = createBackup(type === 'Auto' ? 'Auto' : 'Manual');
@@ -1318,7 +1676,7 @@ JSON Schema:
     }
   });
 
-  app.post('/api/admin/backups/restore', (req, res) => {
+  app.post('/api/admin/backups/restore', requireClearance(['Sovereign Admin']), (req, res) => {
     try {
       const { filename } = req.body;
       if (!filename) {
@@ -1331,7 +1689,7 @@ JSON Schema:
     }
   });
 
-  app.post('/api/admin/backups/import', (req, res) => {
+  app.post('/api/admin/backups/import', requireClearance(['Sovereign Admin']), (req, res) => {
     try {
       const { bookings, reviews, tours, blogs, coupons, crm, tickets, whatsappTemplates } = req.body;
       if (!bookings || !reviews) {
@@ -1696,6 +2054,304 @@ JSON Schema:
     `);
   });
 
+  // Official Tax Invoice PDF generator
+  app.get('/api/bookings/:id/invoice', (req, res) => {
+    const db = getDB();
+    const booking = db.bookings.find(b => b.id === req.params.id);
+    if (!booking) {
+      return res.status(404).send('<h1>Invoice not found</h1>');
+    }
+    const tour = db.tours.find(t => t.id === booking.tourId);
+
+    const doc = new PDFDocument({
+      margin: 50,
+      size: 'A4',
+      info: {
+        Title: `Tax Invoice - ${booking.id}`,
+        Author: 'Meryet Amen Sovereignty (MAS)',
+        Subject: 'Official Sovereign Tax Invoice',
+      }
+    });
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="Invoice_${booking.id}.pdf"`);
+
+    doc.pipe(res);
+
+    // Decorative Top Border (Gold)
+    doc.rect(0, 0, 595, 15).fill('#d97706');
+
+    // Header Logo & Branding
+    doc.fillColor('#0f172a')
+       .font('Helvetica-Bold')
+       .fontSize(18)
+       .text('MERYET AMEN SOVEREIGNTY', 50, 45);
+    
+    doc.fillColor('#d97706')
+       .font('Helvetica-Bold')
+       .fontSize(8)
+       .text('PRIVATE & BESPOKE SOVEREIGN EXPEDITIONS', 50, 65);
+
+    // Reference ID on the top right
+    doc.fillColor('#64748b')
+       .font('Helvetica')
+       .fontSize(9)
+       .text('OFFICIAL TAX INVOICE', 400, 45, { align: 'right' });
+    
+    doc.fillColor('#0f172a')
+       .font('Helvetica-Bold')
+       .fontSize(13)
+       .text(`INV-${booking.id}`, 400, 58, { align: 'right' });
+
+    // Decorative line separator
+    doc.strokeColor('#e2e8f0')
+       .lineWidth(1)
+       .moveTo(50, 85)
+       .lineTo(545, 85)
+       .stroke();
+
+    // SECTION 1: BILLED TO & TRANSACTION METADATA
+    doc.fillColor('#64748b')
+       .font('Helvetica-Bold')
+       .fontSize(8.5)
+       .text('BILLED TO (DISTINGUISHED GUEST):', 50, 105);
+
+    doc.fillColor('#0f172a')
+       .font('Helvetica-Bold')
+       .fontSize(11)
+       .text(booking.customerName, 50, 120);
+
+    doc.fillColor('#475569')
+       .font('Helvetica')
+       .fontSize(9.5)
+       .text(`Nationality: ${booking.customerNationality || 'Global'}\nEmail: ${booking.customerEmail}\nPhone: ${booking.customerPhone || 'N/A'}`, 50, 134, { lineGap: 3 });
+
+    // Right Column: Invoice / Transaction details
+    doc.fillColor('#64748b')
+       .font('Helvetica-Bold')
+       .fontSize(8.5)
+       .text('TRANSACTION SUMMARY:', 320, 105);
+
+    const isPaid = booking.paymentStatus === 'paid' || booking.paymentStatus === 'deposit';
+    doc.fillColor(isPaid ? '#10b981' : '#f59e0b')
+       .font('Helvetica-Bold')
+       .fontSize(11)
+       .text(isPaid ? 'PAID IN FULL' : 'PENDING PAYMENT', 320, 120);
+
+    doc.fillColor('#475569')
+       .font('Helvetica')
+       .fontSize(9.5)
+       .text(`Date Issued: ${new Date(booking.createdAt || booking.date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}\nPayment Method: ${booking.paymentMethod}\nLedger Stamp: ${booking.qrCode}`, 320, 134, { lineGap: 3 });
+
+    // SECTION 2: CHARTER SPECIFICATIONS
+    doc.strokeColor('#e2e8f0')
+       .lineWidth(1)
+       .moveTo(50, 205)
+       .lineTo(545, 205)
+       .stroke();
+
+    doc.fillColor('#0f172a')
+       .font('Helvetica-Bold')
+       .fontSize(10)
+       .text('CHARTERED EXPEDITION SPECIFICATIONS', 50, 220);
+
+    // Box for details
+    doc.rect(50, 235, 495, 75).fill('#f8fafc');
+    doc.rect(50, 235, 495, 75).stroke('#e2e8f0');
+
+    doc.fillColor('#475569').font('Helvetica').fontSize(9);
+    
+    doc.text('Selected Expedition:', 65, 248);
+    doc.fillColor('#0f172a').font('Helvetica-Bold').fontSize(10).text(tour ? tour.title.en : booking.tourTitle.en, 180, 248);
+
+    doc.fillColor('#475569').font('Helvetica').fontSize(9).text('Departure Date:', 65, 268);
+    const dateFormatted = new Date(booking.date).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+    doc.fillColor('#0f172a').font('Helvetica-Bold').fontSize(9.5).text(dateFormatted, 180, 268);
+
+    doc.fillColor('#475569').font('Helvetica').fontSize(9).text('Private Fleet Pick-up:', 65, 288);
+    doc.fillColor('#0f172a').font('Helvetica-Bold').fontSize(9.5).text(`${booking.pickupHotel || 'Luxury Designated'} (Room: ${booking.roomNumber || 'VIP Suite'})`, 180, 288);
+
+    // SECTION 3: FINANCIAL ITEMIZED BREAKDOWN
+    doc.fillColor('#0f172a')
+       .font('Helvetica-Bold')
+       .fontSize(10)
+       .text('FINANCIAL ITEMIZED RECONCILIATION', 50, 335);
+
+    // Table Columns Header
+    doc.fillColor('#64748b').font('Helvetica-Bold').fontSize(8.5);
+    doc.text('DESCRIPTION', 50, 355);
+    doc.text('RATE', 320, 355, { align: 'right', width: 60 });
+    doc.text('QTY', 390, 355, { align: 'right', width: 40 });
+    doc.text('TOTAL', 460, 355, { align: 'right', width: 85 });
+
+    doc.strokeColor('#cbd5e1')
+       .lineWidth(1)
+       .moveTo(50, 370)
+       .lineTo(545, 370)
+       .stroke();
+
+    let currentY = 380;
+    
+    // Line Item 1: Base Seat Reservation
+    const seatRate = tour ? tour.priceUSD : (booking.totalAmountUSD / booking.travelerCount);
+    const baseTotal = seatRate * booking.travelerCount;
+    
+    doc.fillColor('#0f172a').font('Helvetica-Bold').fontSize(9);
+    doc.text('Base Seat Reservation', 50, currentY);
+    doc.fillColor('#64748b').font('Helvetica').fontSize(8)
+       .text('(Includes certified Egyptologist escort, luxury permits & entrance tickets)', 50, currentY + 11);
+    
+    doc.fillColor('#0f172a').font('Helvetica').fontSize(9);
+    doc.text(`$${seatRate.toLocaleString()}.00`, 320, currentY, { align: 'right', width: 60 });
+    doc.text(`${booking.travelerCount}`, 390, currentY, { align: 'right', width: 40 });
+    doc.text(`$${baseTotal.toLocaleString()}.00`, 460, currentY, { align: 'right', width: 85 });
+
+    currentY += 32;
+
+    // Line Item 2: Luxury Addon (if any)
+    let addonTotal = 0;
+    if (booking.luxuryAddon) {
+      addonTotal = booking.luxuryAddon.priceUSD;
+      doc.fillColor('#0f172a').font('Helvetica-Bold').fontSize(9);
+      doc.text(`Luxury Upgrade: ${booking.luxuryAddon.title.en}`, 50, currentY);
+      doc.fillColor('#64748b').font('Helvetica').fontSize(8)
+         .text('(Premium custom enhancement integrated into main charter)', 50, currentY + 11);
+      
+      doc.fillColor('#0f172a').font('Helvetica').fontSize(9);
+      doc.text(`$${addonTotal.toLocaleString()}.00`, 320, currentY, { align: 'right', width: 60 });
+      doc.text('1', 390, currentY, { align: 'right', width: 40 });
+      doc.text(`$${addonTotal.toLocaleString()}.00`, 460, currentY, { align: 'right', width: 85 });
+      
+      currentY += 32;
+    }
+
+    doc.strokeColor('#cbd5e1')
+       .lineWidth(1)
+       .moveTo(50, currentY)
+       .lineTo(545, currentY)
+       .stroke();
+
+    currentY += 10;
+
+    // Calculations for taxes and service fees included
+    const expectedTotal = baseTotal + addonTotal;
+    const actualTotal = booking.totalAmountUSD;
+    const discountUSD = Math.max(0, expectedTotal - actualTotal);
+
+    // Calculate Taxes & Fees included in actual total
+    // 10% VAT and 5% Service Fee (total 15% inclusive)
+    const taxUSD = actualTotal * 0.10;
+    const serviceFeeUSD = actualTotal * 0.05;
+    const preTaxSubtotal = actualTotal - taxUSD - serviceFeeUSD;
+
+    // Draw the financial breakdown
+    doc.font('Helvetica').fontSize(9.5).fillColor('#475569');
+    
+    // Pre-tax Subtotal
+    doc.text('Itemized Net Subtotal (Excl. Taxes):', 230, currentY);
+    doc.font('Helvetica-Bold').fillColor('#0f172a').text(`$${preTaxSubtotal.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} USD`, 420, currentY, { align: 'right', width: 125 });
+    
+    currentY += 18;
+
+    // Service Fee
+    doc.font('Helvetica').fillColor('#475569').text('Concierge Service Fee (5% Included):', 230, currentY);
+    doc.font('Helvetica-Bold').fillColor('#0f172a').text(`$${serviceFeeUSD.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} USD`, 420, currentY, { align: 'right', width: 125 });
+
+    currentY += 18;
+
+    // Value Added Tax
+    doc.font('Helvetica').fillColor('#475569').text('Value Added Tax (10% VAT Included):', 230, currentY);
+    doc.font('Helvetica-Bold').fillColor('#0f172a').text(`$${taxUSD.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} USD`, 420, currentY, { align: 'right', width: 125 });
+
+    currentY += 18;
+
+    // Discount if any
+    if (discountUSD > 0) {
+      doc.font('Helvetica').fillColor('#d97706').text('Promotional VIP Discount:', 230, currentY);
+      doc.font('Helvetica-Bold').fillColor('#d97706').text(`-$${discountUSD.toLocaleString()}.00 USD`, 420, currentY, { align: 'right', width: 125 });
+      currentY += 18;
+    }
+
+    // Divider
+    doc.strokeColor('#cbd5e1')
+       .lineWidth(1)
+       .moveTo(230, currentY + 4)
+       .lineTo(545, currentY + 4)
+       .stroke();
+
+    currentY += 12;
+
+    // Grand Total USD
+    doc.font('Helvetica-Bold').fontSize(11).fillColor('#0f172a').text('GRAND TOTAL AMOUNT (USD):', 210, currentY);
+    doc.fontSize(12).fillColor('#d97706').text(`$${actualTotal.toLocaleString()}.00 USD`, 420, currentY, { align: 'right', width: 125 });
+
+    currentY += 20;
+
+    // Currency conversion if not USD
+    if (booking.currencyUsed && booking.currencyUsed !== 'USD') {
+      const cur = currentCurrencies.find((c: any) => c.code === booking.currencyUsed);
+      if (cur) {
+        const rate = cur.rateToUSD || 1;
+        const symbol = cur.symbol || cur.code;
+        const converted = actualTotal * rate;
+        doc.font('Helvetica-Bold').fontSize(10).fillColor('#475569').text(`Equivalent in ${booking.currencyUsed}:`, 210, currentY);
+        doc.fontSize(10).fillColor('#d97706').text(`${symbol}${converted.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} ${booking.currencyUsed}`, 420, currentY, { align: 'right', width: 125 });
+        currentY += 18;
+      }
+    }
+
+    // SECTION 4: STAMP AND SIGNATURES (moved down dynamically)
+    const stampY = Math.max(595, currentY + 30);
+
+    doc.strokeColor('#e2e8f0')
+       .lineWidth(1)
+       .moveTo(50, stampY)
+       .lineTo(545, stampY)
+       .stroke();
+
+    doc.fillColor('#64748b')
+       .font('Helvetica-Bold')
+       .fontSize(8)
+       .text('ISSUING AUTHORITY & DIGITAL VERIFICATION', 50, stampY + 12);
+
+    // Left Column: official release stamp
+    doc.strokeColor('#d97706').lineWidth(0.8).rect(50, stampY + 28, 120, 50).stroke();
+    doc.fillColor('#d97706').font('Helvetica-Bold').fontSize(8.5).text('MAS CONCIERGE\nFINANCE TEAM\nPAID & RELEASED', 50, stampY + 36, { align: 'center', width: 120 });
+
+    // Right Column: Client Electronic Confirmation
+    doc.fillColor('#64748b').font('Helvetica').fontSize(8).text('CLIENT DIGITAL SIGNATURE', 320, stampY + 12);
+    doc.fillColor('#475569').font('Helvetica-Bold').fontSize(9.5).text(booking.customerName, 320, stampY + 25);
+
+    if (booking.signatureUrl) {
+      try {
+        const base64Data = booking.signatureUrl.replace(/^data:image\/\w+;base64,/, "");
+        const signatureBuffer = Buffer.from(base64Data, 'base64');
+        doc.image(signatureBuffer, 320, stampY + 38, { width: 130, height: 35 });
+        
+        doc.fillColor('#64748b')
+           .font('Helvetica-Oblique')
+           .fontSize(7)
+           .text(`Electronically Signed: ${new Date(booking.createdAt || booking.date).toUTCString()}`, 320, stampY + 76);
+      } catch (err) {
+        doc.fillColor('#d97706')
+           .font('Helvetica-Bold')
+           .fontSize(9)
+           .text('DIGITALLY SIGNED & VERIFIED', 320, stampY + 45);
+      }
+    } else {
+      doc.strokeColor('#cbd5e1').lineWidth(1).moveTo(320, stampY + 50).lineTo(470, stampY + 50).stroke();
+      doc.fillColor('#64748b').font('Helvetica-Oblique').fontSize(8).text('Verified Secure Checkout', 320, stampY + 55);
+    }
+
+    // Footer at the bottom
+    doc.fillColor('#94a3b8')
+       .font('Helvetica')
+       .fontSize(7.5)
+       .text('Meryet Amen Sovereignty (MAS) Ltd. is registered with the Ministry of Tourism under licence 8899-VIP.\nAll transactions are subject to standard premium concierge charter frameworks and regulatory local tax schedules.', 50, 770, { align: 'center', width: 495 });
+
+    doc.end();
+  });
+
   // Bulk WhatsApp Blast API
   app.post('/api/crm/whatsapp-blast', (req, res) => {
     const db = getDB();
@@ -1807,12 +2463,12 @@ JSON Schema:
     res.status(404).json({ error: 'CRM profile not found' });
   });
 
-  app.get('/api/whatsapp-templates', (req, res) => {
+  app.get('/api/whatsapp-templates', requireClearance(['Sovereign Admin', 'Operations Manager', 'Guest Relations Coordinator']), (req, res) => {
     const db = getDB();
     res.json(db.whatsappTemplates || []);
   });
 
-  app.put('/api/whatsapp-templates/:id', (req, res) => {
+  app.put('/api/whatsapp-templates/:id', requireClearance(['Sovereign Admin', 'Operations Manager']), (req, res) => {
     const db = getDB();
     const template = db.whatsappTemplates?.find(t => t.id === req.params.id);
     if (!template) {
@@ -1876,7 +2532,7 @@ JSON Schema:
   });
 
   // 9. Analytics Engine
-  app.get('/api/analytics', (req, res) => {
+  app.get('/api/analytics', requireClearance(['Sovereign Admin', 'Operations Manager', 'Guest Relations Coordinator']), (req, res) => {
     const db = getDB();
     
     // Total Revenue

@@ -14,6 +14,89 @@ import {
 import { Download } from 'lucide-react';
 import { AppLanguage } from '../types.js';
 
+const chartT = {
+  en: {
+    downloadReport: 'Download Report (CSV)',
+    volumeTrendsTitle: 'Sovereign Volume & Yield Trends',
+    volumeTrendsDesc: 'Dual-axis timeline of daily reservation volume and revenue yields.',
+    noTrendData: 'No trend data available.',
+    dailyBookingVolume: 'Daily Booking Volume',
+    dailyRevenue: 'Daily Revenue',
+    popularDestinations: 'Popular Destinations',
+    popularDestinationsDesc: 'Distribution of traveler counts (Guests) across destinations.',
+    noDestinationData: 'No destination data available.',
+    grossCumulativeGrowth: 'Gross Cumulative Revenue Growth',
+    grossCumulativeGrowthDesc: 'The continuous financial trajectory and sales cumulative growth curve (USD).',
+    noSalesHistory: 'No sales history available.',
+    grossCumulativeRevenue: 'Gross Cumulative Revenue',
+    dailyIncrementalSales: 'Daily Incremental Sales'
+  },
+  ar: {
+    downloadReport: 'تحميل التقرير الكامل CSV',
+    volumeTrendsTitle: 'اتجاهات الحجوزات السيادية والإيرادات',
+    volumeTrendsDesc: 'مخطط زمني مزدوج للحجوزات اليومية وحصيلة الإيرادات.',
+    noTrendData: 'لا توجد بيانات متاحة حالياً.',
+    dailyBookingVolume: 'حجم الحجوزات اليومية',
+    dailyRevenue: 'العائدات اليومية',
+    popularDestinations: 'الوجهات الأكثر شعبية',
+    popularDestinationsDesc: 'توزيع المسافرين (الضيوف) عبر الوجهات الرئيسية.',
+    noDestinationData: 'لا توجد بيانات متاحة حالياً.',
+    grossCumulativeGrowth: 'نمو الإيرادات الإجمالية التراكمية',
+    grossCumulativeGrowthDesc: 'المسار المالي المستمر ومنحنى نمو المبيعات التراكمي (بالدولار الأمريكي).',
+    noSalesHistory: 'لا توجد بيانات مبيعات متاحة حالياً.',
+    grossCumulativeRevenue: 'الإيرادات التراكمية الإجمالية',
+    dailyIncrementalSales: 'المبيعات اليومية الإضافية'
+  },
+  de: {
+    downloadReport: 'Bericht herunterladen (CSV)',
+    volumeTrendsTitle: 'Souveräne Volumen- und Ertragsentwicklungen',
+    volumeTrendsDesc: 'Doppelachsige Timeline des täglichen Buchungsvolumens und der Einnahmen.',
+    noTrendData: 'Keine Trenddaten verfügbar.',
+    dailyBookingVolume: 'Tägliches Buchungsvolumen',
+    dailyRevenue: 'Tägliche Einnahmen',
+    popularDestinations: 'Beliebte Reiseziele',
+    popularDestinationsDesc: 'Verteilung der Reisendenzahlen (Gäste) auf die Reiseziele.',
+    noDestinationData: 'Keine Destinationsdaten verfügbar.',
+    grossCumulativeGrowth: 'Bruttokumuliertes Umsatzwachstum',
+    grossCumulativeGrowthDesc: 'Die kontinuierliche finanzielle Entwicklung und kumulierte Umsatzwachstumskurve (USD).',
+    noSalesHistory: 'Keine Verkaufshistorie verfügbar.',
+    grossCumulativeRevenue: 'Bruttokumulierter Gesamtumsatz',
+    dailyIncrementalSales: 'Tägliche zusätzliche Verkäufe'
+  },
+  pl: {
+    downloadReport: 'Pobierz raport (CSV)',
+    volumeTrendsTitle: 'Trendy wolumenu i rentowności',
+    volumeTrendsDesc: 'Dwuosiowa oś czasu dziennej liczby rezerwacji i dochodów.',
+    noTrendData: 'Brak dostępnych danych o trendach.',
+    dailyBookingVolume: 'Dzienna liczba rezerwacji',
+    dailyRevenue: 'Dzienny przychód',
+    popularDestinations: 'Popularne kierunki',
+    popularDestinationsDesc: 'Rozkład liczby podróżnych (Gości) według kierunków.',
+    noDestinationData: 'Brak dostępnych danych o kierunkach.',
+    grossCumulativeGrowth: 'Skumulowany wzrost przychodów brutto',
+    grossCumulativeGrowthDesc: 'Ciągła ścieżka finansowa i skumulowana krzywa wzrostu sprzedaży (USD).',
+    noSalesHistory: 'Brak dostępnej historii sprzedaży.',
+    grossCumulativeRevenue: 'Skumulowany przychód brutto',
+    dailyIncrementalSales: 'Dzienny przyrost sprzedaży'
+  },
+  cs: {
+    downloadReport: 'Stáhnout zprávu (CSV)',
+    volumeTrendsTitle: 'Trendy objemu a výnosů',
+    volumeTrendsDesc: 'Dvouosá časová osa denního objemu rezervací a příjmů.',
+    noTrendData: 'Nejsou k dispozici žádné údaje o trendech.',
+    dailyBookingVolume: 'Denní objem rezervací',
+    dailyRevenue: 'Denní příjmy',
+    popularDestinations: 'Populární destinace',
+    popularDestinationsDesc: 'Rozdělení počtu cestujících (Hostů) podle destinací.',
+    noDestinationData: 'Nejsou k dispozici žádné údaje o destinacích.',
+    grossCumulativeGrowth: 'Hrubý kumulativní růst příjmů',
+    grossCumulativeGrowthDesc: 'Nepřetržitá finanční trajektorie a kumulativní křivka růstu prodejů (USD).',
+    noSalesHistory: 'Není k dispozici žádná historie prodejů.',
+    grossCumulativeRevenue: 'Hrubé kumulativní příjmy',
+    dailyIncrementalSales: 'Denní přírůstkové prodeje'
+  }
+};
+
 interface SovereignDashboardChartsProps {
   lang: AppLanguage;
   bookingTrendsData: any[];
@@ -100,7 +183,7 @@ export default function SovereignDashboardCharts({
           className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold py-2.5 px-5 rounded-xl shadow-lg hover:shadow-emerald-950/20 flex items-center gap-2 transition-all duration-300 cursor-pointer border border-emerald-500/30"
         >
           <Download className="w-4 h-4" />
-          <span>{lang === 'ar' ? 'تحميل التقرير الكامل CSV' : 'Download Report (CSV)'}</span>
+          <span>{(chartT[lang] || chartT.en).downloadReport}</span>
         </button>
       </div>
 
@@ -111,16 +194,16 @@ export default function SovereignDashboardCharts({
           <div>
             <div className="mb-4 text-left">
               <h4 className="text-xs font-black uppercase text-slate-300 tracking-wider">
-                {lang === 'ar' ? 'اتجاهات الحجوزات السيادية واليرادات' : 'Sovereign Volume & Yield Trends'}
+                {(chartT[lang] || chartT.en).volumeTrendsTitle}
               </h4>
               <p className="text-[10px] text-slate-500">
-                {lang === 'ar' ? 'مخطط زمني مزدوج للحجوزات اليومية وحصيلة الإيرادات.' : 'Dual-axis timeline of daily reservation volume and revenue yields.'}
+                {(chartT[lang] || chartT.en).volumeTrendsDesc}
               </p>
             </div>
             <div className="h-[260px] w-full">
               {bookingTrendsData.length === 0 ? (
                 <div className="h-full flex items-center justify-center text-xs text-slate-500 italic">
-                  {lang === 'ar' ? 'لا توجد بيانات متاحة حالياً.' : 'No trend data available.'}
+                  {(chartT[lang] || chartT.en).noTrendData}
                 </div>
               ) : (
                 <ResponsiveContainer width="100%" height="100%">
@@ -151,11 +234,11 @@ export default function SovereignDashboardCharts({
           <div className="mt-4 flex items-center justify-center gap-6 flex-wrap text-[10px] font-bold text-slate-400 uppercase tracking-wider border-t border-slate-800/50 pt-3">
             <div className="flex items-center gap-1.5">
               <span className="w-2.5 h-2.5 rounded-full bg-[#10b981] inline-block animate-pulse" />
-              <span>{lang === 'ar' ? 'حجم الحجوزات اليومية' : 'Daily Booking Volume'}</span>
+              <span>{(chartT[lang] || chartT.en).dailyBookingVolume}</span>
             </div>
             <div className="flex items-center gap-1.5">
               <span className="w-2.5 h-2.5 rounded-full bg-[#f59e0b] inline-block animate-pulse" />
-              <span>{lang === 'ar' ? 'العائدات اليومية' : 'Daily Revenue'}</span>
+              <span>{(chartT[lang] || chartT.en).dailyRevenue}</span>
             </div>
           </div>
         </div>
@@ -165,16 +248,16 @@ export default function SovereignDashboardCharts({
           <div>
             <div className="mb-4 text-left">
               <h4 className="text-xs font-black uppercase text-slate-300 tracking-wider">
-                {lang === 'ar' ? 'الوجهات الأكثر شعبية' : 'Popular Destinations'}
+                {(chartT[lang] || chartT.en).popularDestinations}
               </h4>
               <p className="text-[10px] text-slate-500">
-                {lang === 'ar' ? 'توزيع المسافرين (الضيوف) عبر الوجهات الرئيسية.' : 'Distribution of traveler counts (Guests) across destinations.'}
+                {(chartT[lang] || chartT.en).popularDestinationsDesc}
               </p>
             </div>
             <div className="h-[260px] w-full">
               {destinationData.length === 0 ? (
                 <div className="h-full flex items-center justify-center text-xs text-slate-500 italic">
-                  {lang === 'ar' ? 'لا توجد بيانات متاحة حالياً.' : 'No destination data available.'}
+                  {(chartT[lang] || chartT.en).noDestinationData}
                 </div>
               ) : (
                 <ResponsiveContainer width="100%" height="100%">
@@ -215,16 +298,16 @@ export default function SovereignDashboardCharts({
         <div>
           <div className="mb-4 text-left">
             <h4 className="text-xs font-black uppercase text-slate-300 tracking-wider">
-              {lang === 'ar' ? 'نمو الإيرادات الإجمالية التراكمية' : 'Gross Cumulative Revenue Growth'}
+              {(chartT[lang] || chartT.en).grossCumulativeGrowth}
             </h4>
             <p className="text-[10px] text-slate-500">
-              {lang === 'ar' ? 'المسار المالي المستمر ومنحنى نمو المبيعات التراكمي (بالدولار الأمريكي).' : 'The continuous financial trajectory and sales cumulative growth curve (USD).'}
+              {(chartT[lang] || chartT.en).grossCumulativeGrowthDesc}
             </p>
           </div>
           <div className="h-[280px] w-full">
             {revenueGrowthData.length === 0 ? (
               <div className="h-full flex items-center justify-center text-xs text-slate-500 italic">
-                {lang === 'ar' ? 'لا توجد بيانات مبيعات متاحة حالياً.' : 'No sales history available.'}
+              {(chartT[lang] || chartT.en).noSalesHistory}
               </div>
             ) : (
               <ResponsiveContainer width="100%" height="100%">
@@ -255,11 +338,11 @@ export default function SovereignDashboardCharts({
         <div className="mt-4 flex items-center justify-center gap-6 flex-wrap text-[10px] font-bold text-slate-400 uppercase tracking-wider border-t border-slate-800/50 pt-3">
           <div className="flex items-center gap-1.5">
             <span className="w-2.5 h-2.5 rounded-full bg-[#3b82f6] inline-block animate-pulse" />
-            <span>{lang === 'ar' ? 'الإيرادات التراكمية الإجمالية' : 'Gross Cumulative Revenue'}</span>
+            <span>{(chartT[lang] || chartT.en).grossCumulativeRevenue}</span>
           </div>
           <div className="flex items-center gap-1.5">
             <span className="w-2.5 h-2.5 rounded-full bg-[#06b6d4] inline-block animate-pulse" />
-            <span>{lang === 'ar' ? 'المبيعات اليومية الإضافية' : 'Daily Incremental Sales'}</span>
+            <span>{(chartT[lang] || chartT.en).dailyIncrementalSales}</span>
           </div>
         </div>
       </div>

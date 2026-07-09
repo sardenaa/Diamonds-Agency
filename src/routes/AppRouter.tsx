@@ -2,6 +2,7 @@ import React from 'react';
 import { Loader2, X } from 'lucide-react';
 import Dashboard from '../components/Dashboard.js';
 import AdminSecurityGate from '../components/AdminSecurityGate.js';
+import CustomerAuth from '../components/CustomerAuth.js';
 import { Tour, AppLanguage } from '../types.js';
 import { translations } from '../translations.js';
 import { tokens } from '../theme/tokens.js';
@@ -48,6 +49,14 @@ interface AppRouterProps {
   onToggleAdminTheme: () => void;
 }
 
+const routerT = {
+  en: 'Unlocking Sovereign Control Panel...',
+  ar: 'جاري فتح لوحة التحكم السيادية...',
+  de: 'Souveränes Kontrollzentrum wird entsperrt...',
+  pl: 'Odblokowywanie suwerennego panelu sterowania...',
+  cs: 'Odemykání suverénního ovládacího panelu...'
+};
+
 export default function AppRouter({
   lang,
   searchFilters,
@@ -66,6 +75,7 @@ export default function AppRouter({
     verifyAdmin,
     logoutAdmin,
     adminPermissionTier,
+    customerUser,
   } = useAuth();
 
   const {
@@ -92,13 +102,17 @@ export default function AppRouter({
 
       {role === 'customer' && (
         <div className={`${tokens.spacing.container} py-10`}>
-          <Dashboard
-            lang={lang}
-            currency={currency}
-            currencies={currencies}
-            userEmail={userEmail}
-            onRefreshAll={() => {}}
-          />
+          {!customerUser ? (
+            <CustomerAuth lang={lang} />
+          ) : (
+            <Dashboard
+              lang={lang}
+              currency={currency}
+              currencies={currencies}
+              userEmail={userEmail}
+              onRefreshAll={() => {}}
+            />
+          )}
         </div>
       )}
 
@@ -127,7 +141,7 @@ export default function AppRouter({
               </div>
             </div>
           ) : (
-            <React.Suspense fallback={<SuspenseFallback message={lang === 'ar' ? 'جاري فتح لوحة التحكم السيادية...' : 'Unlocking Sovereign Control Panel...'} />}>
+            <React.Suspense fallback={<SuspenseFallback message={routerT[lang] || routerT.en} />}>
               <AdminDashboard
                 lang={lang}
                 currency={currency}

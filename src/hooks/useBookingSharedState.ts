@@ -1,6 +1,29 @@
 import { useState, useEffect } from 'react';
 import { AppLanguage } from '../types.js';
 
+const hookT = {
+  en: {
+    notFound: 'Itinerary reservation not found or expired.',
+    failed: 'Failed to retrieve expedition itinerary.'
+  },
+  ar: {
+    notFound: 'لم يتم العثور على حجز تفاصيل الرحلة المشارك أو انتهت صلاحيته.',
+    failed: 'فشل استرجاع تفاصيل الرحلة الملكية من نظام التوزيع.'
+  },
+  de: {
+    notFound: 'Reiseplanreservierung nicht gefunden oder abgelaufen.',
+    failed: 'Abrufen des Expeditionsreiseplans fehlgeschlagen.'
+  },
+  pl: {
+    notFound: 'Nie znaleziono rezerwacji planu podróży lub jej ważność wygasła.',
+    failed: 'Nie udało się pobrać planu wyprawy.'
+  },
+  cs: {
+    notFound: 'Rezervace itineráře nebyla nalezena nebo vypršela její platnost.',
+    failed: 'Nepodařilo se načíst itinerář expedice.'
+  }
+};
+
 export function useBookingSharedState(lang: AppLanguage) {
   const [sharedBooking, setSharedBooking] = useState<any | null>(null);
   const [sharedBookingLoading, setSharedBookingLoading] = useState(false);
@@ -20,17 +43,13 @@ export function useBookingSharedState(lang: AppLanguage) {
             setSharedBooking(data);
           } else {
             setSharedBookingError(
-              lang === 'ar'
-                ? 'لم يتم العثور على حجز تفاصيل الرحلة المشارك أو انتهت صلاحيته.'
-                : 'Itinerary reservation not found or expired.'
+              (hookT[lang] || hookT.en).notFound
             );
           }
         } catch (e) {
           console.error('Error fetching shared booking:', e);
           setSharedBookingError(
-            lang === 'ar'
-              ? 'فشل استرجاع تفاصيل الرحلة الملكية من نظام التوزيع.'
-              : 'Failed to retrieve expedition itinerary.'
+            (hookT[lang] || hookT.en).failed
           );
         } finally {
           setSharedBookingLoading(false);

@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Html5Qrcode } from 'html5-qrcode';
-import { Ticket, Calendar, ShieldAlert, Award, MessageSquare, Bell, CreditCard, Send, Plus, Sparkles, User, RefreshCw, Smartphone, ShieldCheck, Fingerprint, Lock, Unlock, Activity, CheckCircle2, UserPlus, Gift, Copy, Mail, ExternalLink, Share2, Compass, Trophy, Gem, X, Star, Camera } from 'lucide-react';
+import { Ticket, Calendar, ShieldAlert, Award, MessageSquare, Bell, CreditCard, Send, Plus, Sparkles, User, RefreshCw, Smartphone, ShieldCheck, Fingerprint, Lock, Unlock, Activity, CheckCircle2, UserPlus, Gift, Copy, Mail, ExternalLink, Share2, Compass, Trophy, Gem, X, Star, Camera, FileText } from 'lucide-react';
 import { Booking, CurrencyConfig, CustomerCRM, SupportMessage, WhatsAppMessage, SupportTicket, AppLanguage } from '../types.js';
 import { translations } from '../translations.js';
 import LoyaltyTier, { TIER_CONFIGS } from './LoyaltyTier.js';
 import BookingCountdown from './BookingCountdown.js';
 import ProfileModal from './ProfileModal.js';
+import { useAuth } from '../contexts/AuthContext.js';
 
 interface DashboardProps {
   lang: AppLanguage;
@@ -25,11 +26,74 @@ export default function Dashboard({
   const t = translations[lang];
   const activeCurrency = currencies.find(c => c.code === currency) || currencies[0];
 
+  const { customerUser, setCustomerUser } = useAuth();
+
   const [crmProfile, setCrmProfile] = useState<CustomerCRM | null>(null);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [supportInput, setSupportInput] = useState('');
-  const [activeTab, setActiveTab] = useState<'trips' | 'support' | 'whatsapp' | 'rewards' | 'saved' | 'security' | 'referral'>('trips');
+  const [activeTab, setActiveTab] = useState<'trips' | 'support' | 'whatsapp' | 'rewards' | 'saved' | 'security' | 'referral' | 'profile'>('trips');
   const [loading, setLoading] = useState(false);
+
+  // Profile edit states
+  const [profName, setProfName] = useState('');
+  const [profPhone, setProfPhone] = useState('');
+  const [profNationality, setProfNationality] = useState('');
+  const [profLang, setProfLang] = useState('en');
+  const [profBio, setProfBio] = useState('');
+  const [profSaving, setProfSaving] = useState(false);
+  const [profSuccess, setProfSuccess] = useState(false);
+  const [profError, setProfError] = useState<string | null>(null);
+
+  // Sync profile form when tab changes to profile or when user is loaded
+  useEffect(() => {
+    if (customerUser) {
+      setProfName(customerUser.name || '');
+      setProfPhone(customerUser.phone || '');
+      setProfNationality(customerUser.nationality || '');
+      setProfLang(customerUser.language || 'en');
+      setProfBio(customerUser.biography || '');
+    }
+  }, [customerUser, activeTab]);
+
+  const handleSubmitProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setProfSaving(true);
+    setProfSuccess(false);
+    setProfError(null);
+    try {
+      const res = await fetch('/api/auth/profile', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: profName,
+          phone: profPhone,
+          nationality: profNationality,
+          biography: profBio,
+          language: profLang
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.message || 'Failed to update profile');
+      }
+      if (setCustomerUser) {
+        setCustomerUser(data.user);
+      }
+      setCrmProfile(prev => prev ? {
+        ...prev,
+        name: data.user.name,
+        phone: data.user.phone,
+        nationality: data.user.nationality,
+        language: data.user.language,
+        biography: data.user.biography
+      } : null);
+      setProfSuccess(true);
+    } catch (err: any) {
+      setProfError(err.message || 'An error occurred while saving.');
+    } finally {
+      setProfSaving(false);
+    }
+  };
 
   // 48-Hour Urgent Checklist Confirmation states
   const [confirmingBookingId, setConfirmingBookingId] = useState<string | null>(null);
@@ -758,7 +822,8 @@ ${shareUrl}`;
           { id: 'rewards', label: t.loyaltyClub, icon: Award },
           { id: 'saved', label: t.savedTravelers, icon: User },
           { id: 'security', label: lang === 'ar' ? 'الملف الأمني' : 'Security Profile', icon: ShieldCheck },
-          { id: 'referral', label: lang === 'ar' ? 'دعوة مسافر' : 'Refer a Traveler', icon: UserPlus }
+          { id: 'referral', label: lang === 'ar' ? 'دعوة مسافر' : 'Refer a Traveler', icon: UserPlus },
+          { id: 'profile', label: lang === 'ar' ? 'الملف الشخصي' : 'VIP Profile', icon: User }
         ].map(tab => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
@@ -1138,6 +1203,14 @@ ${shareUrl}`;
                         >
                           <ShieldCheck className="w-3.5 h-3.5 text-emerald-150" />
                           <span>{lang === 'ar' ? 'تحميل اتفاقية الخدمة الفاخرة (PDF)' : 'Luxury Agreement (PDF)'}</span>
+                        </a>
+                        <a 
+                          href={`/api/bookings/${b.id}/invoice`}
+                          download={`Invoice_${b.id}.pdf`}
+                          className="bg-amber-600 hover:bg-amber-700 text-slate-950 font-black text-xs w-full py-2 rounded-lg transition-all cursor-pointer block text-center flex items-center justify-center gap-1.5 shadow shadow-amber-500/10"
+                        >
+                          <FileText className="w-3.5 h-3.5 text-slate-950" />
+                          <span>{lang === 'ar' ? 'تصدير الفاتورة الرسمية (PDF)' : 'Export Invoice (PDF)'}</span>
                         </a>
                         <button 
                           onClick={() => setSharingBooking(b)}
@@ -2855,6 +2928,148 @@ ${shareUrl}`;
 
               </div>
 
+            </div>
+          </div>
+        )}
+
+        {/* VIP Profile Panel */}
+        {activeTab === 'profile' && (
+          <div className="space-y-6 animate-fade-in text-slate-800" id="profile-management-panel">
+            <div className="bg-white rounded-2xl border border-slate-200 p-6 md:p-8 shadow-sm max-w-2xl mx-auto space-y-6">
+              
+              {/* Luxury Header */}
+              <div className="border-b border-slate-100 pb-4">
+                <div className="flex items-center gap-2 mb-1">
+                  <User className="w-5 h-5 text-amber-500" />
+                  <h3 className="text-lg font-bold tracking-tight">
+                    {lang === 'ar' ? 'تعديل الملف الشخصي' : 'VIP Profile Settings'}
+                  </h3>
+                </div>
+                <p className="text-xs text-slate-500 font-medium">
+                  {lang === 'ar' 
+                    ? 'قم بتحديث بيانات العضوية الخاصة بك والبيانات التعريفية المستخدمة لحجوزاتك الحصرية.'
+                    : 'Manage your credentials and membership preferences for personalized luxury itineraries.'}
+                </p>
+              </div>
+
+              {/* Status messages */}
+              {profSuccess && (
+                <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex items-center gap-3 text-emerald-800 text-xs font-bold" id="profile-save-success">
+                  <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                  <span>
+                    {lang === 'ar' 
+                      ? 'تم تحديث الملف الشخصي بنجاح!' 
+                      : 'Your VIP Profile has been successfully synchronized and updated!'}
+                  </span>
+                </div>
+              )}
+
+              {profError && (
+                <div className="bg-rose-50 border border-rose-200 rounded-xl p-4 flex items-center gap-3 text-rose-800 text-xs font-bold" id="profile-save-error">
+                  <ShieldAlert className="w-5 h-5 text-rose-600 shrink-0" />
+                  <span>{profError}</span>
+                </div>
+              )}
+
+              {/* Form */}
+              <form onSubmit={handleSubmitProfile} className="space-y-5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* Name */}
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider block">
+                      {lang === 'ar' ? 'الاسم بالكامل' : 'Full Name'}
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={profName}
+                      onChange={(e) => setProfName(e.target.value)}
+                      className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:border-slate-400 focus:outline-hidden text-xs font-semibold bg-slate-50/50"
+                    />
+                  </div>
+
+                  {/* Phone */}
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider block">
+                      {lang === 'ar' ? 'رقم الهاتف' : 'Phone Number'}
+                    </label>
+                    <input
+                      type="tel"
+                      required
+                      value={profPhone}
+                      onChange={(e) => setProfPhone(e.target.value)}
+                      className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:border-slate-400 focus:outline-hidden text-xs font-semibold bg-slate-50/50"
+                    />
+                  </div>
+
+                  {/* Nationality */}
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider block">
+                      {lang === 'ar' ? 'الجنسية' : 'Nationality'}
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={profNationality}
+                      onChange={(e) => setProfNationality(e.target.value)}
+                      className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:border-slate-400 focus:outline-hidden text-xs font-semibold bg-slate-50/50"
+                    />
+                  </div>
+
+                  {/* Preferred Language */}
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider block">
+                      {lang === 'ar' ? 'اللغة المفضلة' : 'Preferred Language'}
+                    </label>
+                    <select
+                      value={profLang}
+                      onChange={(e) => setProfLang(e.target.value)}
+                      className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:border-slate-400 focus:outline-hidden text-xs font-semibold bg-slate-50/50 cursor-pointer"
+                    >
+                      <option value="en">English</option>
+                      <option value="ar">العربية (Arabic)</option>
+                      <option value="de">Deutsch (German)</option>
+                      <option value="pl">Polski (Polish)</option>
+                      <option value="cs">Čeština (Czech)</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Biography */}
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider block">
+                    {lang === 'ar' ? 'نبذة شخصية / اهتمامات السفر' : 'Traveler Biography & Tailoring Notes'}
+                  </label>
+                  <textarea
+                    rows={4}
+                    value={profBio}
+                    onChange={(e) => setProfBio(e.target.value)}
+                    placeholder={lang === 'ar' ? 'مثال: تفضيل الفنادق التاريخية، جولات الآثار الخاصة...' : 'e.g. Prefer bespoke archaeology tours, historical properties, private flight charters...'}
+                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:border-slate-400 focus:outline-hidden text-xs font-semibold bg-slate-50/50 resize-none leading-relaxed"
+                  />
+                </div>
+
+                {/* Submit */}
+                <div className="pt-2">
+                  <button
+                    type="submit"
+                    disabled={profSaving}
+                    className="w-full bg-slate-900 hover:bg-slate-800 text-amber-400 font-bold text-xs py-3 rounded-xl border border-slate-900 transition-all flex items-center justify-center gap-2 cursor-pointer shadow-md shadow-slate-900/10 disabled:opacity-50"
+                  >
+                    {profSaving ? (
+                      <>
+                        <RefreshCw className="w-4 h-4 animate-spin text-amber-400" />
+                        <span>{lang === 'ar' ? 'جاري حفظ البيانات...' : 'Synchronizing Changes...'}</span>
+                      </>
+                    ) : (
+                      <>
+                        <ShieldCheck className="w-4 h-4 text-amber-400" />
+                        <span>{lang === 'ar' ? 'حفظ التحديثات آمنًا' : 'Secure & Update Profile'}</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         )}

@@ -4,6 +4,159 @@ import { Tour, CurrencyConfig, Traveler, AppLanguage } from '../types.js';
 import { translations } from '../translations.js';
 import SignaturePad from './SignaturePad.js';
 
+const localT = {
+  en: {
+    availableForBooking: 'Available for Booking',
+    unavailable: 'Unavailable',
+    selected: 'Selected',
+    available: 'Available',
+    signatureAlert: 'Please sign the digital luxury service agreement before finalizing your reservation.',
+    contactInfo: 'Contact Information',
+    fullName: 'Full Name',
+    fullNamePlaceholder: 'e.g. John Doe',
+    emailAddress: 'Email Address',
+    phoneWhatsApp: 'Phone Number (WhatsApp)',
+    nationality: 'Nationality',
+    selectDateTravelers: 'Select Date & Travelers',
+    selectDepartureDate: 'Select Departure Date',
+    pickupHotelVenue: 'Pickup Hotel Venue',
+    numberOfTravelers: 'Number of Travelers',
+    travelerLabel: 'Traveler',
+    adultLabel: 'Adult (12+)',
+    childLabel: 'Child (2-11)',
+    infantLabel: 'Infant (0-2)',
+    vipUpgrade: 'VIP UPGRADE',
+    specialRequestsPlaceholder: 'e.g. Vegetarian diet, German-speaking escort, private wheel chair...',
+    seatPrice: 'Seat Price',
+    vipExtras: 'VIP Extras',
+    customArrangements: 'Need customized elite arrangements or instant butler support?',
+    whatsappConcierge: 'WhatsApp Concierge',
+    bookingBtn: 'Booking...',
+    continueBtn: 'Continue',
+    whatsappInquiryText: 'Hello, I am interested in booking the bespoke "{tourTitle}" expedition and would like to coordinate custom concierge details.'
+  },
+  ar: {
+    availableForBooking: 'متاح للحجز',
+    unavailable: 'غير متاح',
+    selected: 'المحدد',
+    available: 'متاح',
+    signatureAlert: 'الرجاء توقيع اتفاقية الخدمة الفاخرة رقمياً قبل متابعة الدفع.',
+    contactInfo: 'تفاصيل الاتصال الأساسية',
+    fullName: 'الاسم بالكامل',
+    fullNamePlaceholder: 'الاسم الثلاثي',
+    emailAddress: 'البريد الإلكتروني',
+    phoneWhatsApp: 'رقم الهاتف (واتساب)',
+    nationality: 'الجنسية',
+    selectDateTravelers: 'خيارات الجدولة والمرافقين',
+    selectDepartureDate: 'تحديد تاريخ الرحلة',
+    pickupHotelVenue: 'فندق الاصطحاب',
+    numberOfTravelers: 'عدد المسافرين',
+    travelerLabel: 'المسافر',
+    adultLabel: 'بالغ (+12)',
+    childLabel: 'طفل (2-11)',
+    infantLabel: 'رضيع (0-2)',
+    vipUpgrade: 'تعديل سيادي كبار الشخصيات',
+    specialRequestsPlaceholder: 'مثال: نظام غذائي نباتي، خادم ناطق بالألمانية...',
+    seatPrice: 'سعر المقعد',
+    vipExtras: 'الميزات الإضافية كبار الشخصيات',
+    customArrangements: 'هل تحتاج إلى ترتيبات حصرية أو مساعدة كونسيرج فورية؟',
+    whatsappConcierge: 'دردشة مع الكونسيرج الملكي',
+    bookingBtn: 'جاري تأمين المعاملة...',
+    continueBtn: 'الخطوة التالية',
+    whatsappInquiryText: 'مرحباً، أنا مهتم بحجز جولة "{tourTitle}" الفاخرة وأود الاستفسار من الكونسيرج الملكي مباشرة.'
+  },
+  de: {
+    availableForBooking: 'Für Buchung verfügbar',
+    unavailable: 'Nicht verfügbar',
+    selected: 'Ausgewählt',
+    available: 'Verfügbar',
+    signatureAlert: 'Bitte unterschreiben Sie die digitale Luxus-Servicevereinbarung, bevor Sie Ihre Buchung abschließen.',
+    contactInfo: 'Kontaktinformationen',
+    fullName: 'Vollständiger Name',
+    fullNamePlaceholder: 'z. B. John Doe',
+    emailAddress: 'E-Mail-Adresse',
+    phoneWhatsApp: 'Telefonnummer (WhatsApp)',
+    nationality: 'Staatsangehörigkeit',
+    selectDateTravelers: 'Datum & Reisende auswählen',
+    selectDepartureDate: 'Abreisedatum auswählen',
+    pickupHotelVenue: 'Abholhotel',
+    numberOfTravelers: 'Anzahl der Reisenden',
+    travelerLabel: 'Reisender',
+    adultLabel: 'Erwachsener (12+)',
+    childLabel: 'Kind (2-11)',
+    infantLabel: 'Kleinkind (0-2)',
+    vipUpgrade: 'VIP-UPGRADE',
+    specialRequestsPlaceholder: 'z. B. vegetarische Ernährung, deutschsprachige Begleitung, Rollstuhl...',
+    seatPrice: 'Sitzplatzpreis',
+    vipExtras: 'VIP-Extras',
+    customArrangements: 'Benötigen Sie maßgeschneiderte Elite-Arrangements oder sofortigen Butler-Support?',
+    whatsappConcierge: 'WhatsApp Concierge',
+    bookingBtn: 'Buchung...',
+    continueBtn: 'Weiter',
+    whatsappInquiryText: 'Hallo, ich bin an der Buchung der maßgeschneiderten Expedition "{tourTitle}" interessiert und möchte die Details koordinieren.'
+  },
+  pl: {
+    availableForBooking: 'Dostępne do rezerwacji',
+    unavailable: 'Niedostępne',
+    selected: 'Wybrane',
+    available: 'Dostępne',
+    signatureAlert: 'Proszę podpisać cyfrową umowę serwisową klasy premium przed sfinalizowaniem rezerwacji.',
+    contactInfo: 'Informacje kontaktowe',
+    fullName: 'Imię i nazwisko',
+    fullNamePlaceholder: 'np. Jan Kowalski',
+    emailAddress: 'Adres e-mail',
+    phoneWhatsApp: 'Numer telefonu (WhatsApp)',
+    nationality: 'Obywatelstwo',
+    selectDateTravelers: 'Wybierz datę i podróżnych',
+    selectDepartureDate: 'Wybierz datę wyjazdu',
+    pickupHotelVenue: 'Miejsce odbioru (Hotel)',
+    numberOfTravelers: 'Liczba podróżnych',
+    travelerLabel: 'Podróżny',
+    adultLabel: 'Dorosły (12+)',
+    childLabel: 'Dziecko (2-11)',
+    infantLabel: 'Niemowlę (0-2)',
+    vipUpgrade: 'VIP ULEPSZENIE',
+    specialRequestsPlaceholder: 'np. dieta wegetariańska, przewodnik mówiący po polsku, wózek inwalidzki...',
+    seatPrice: 'Cena miejsca',
+    vipExtras: 'Dodatki VIP',
+    customArrangements: 'Potrzebujesz spersonalizowanych ustaleń lub natychmiastowego wsparcia kamerdynera?',
+    whatsappConcierge: 'Konsjerż WhatsApp',
+    bookingBtn: 'Rezerwacja...',
+    continueBtn: 'Dalej',
+    whatsappInquiryText: 'Dzień dobry, jestem zainteresowany rezerwacją wyprawy "{tourTitle}" i chciałbym ustalić szczegóły.'
+  },
+  cs: {
+    availableForBooking: 'K dispozici k rezervaci',
+    unavailable: 'Nedostupné',
+    selected: 'Vybráno',
+    available: 'K dispozici',
+    signatureAlert: 'Před dokončením rezervace prosím podepište digitální dohodu o nadstandardních službách.',
+    contactInfo: 'Kontaktní informace',
+    fullName: 'Celé jméno',
+    fullNamePlaceholder: 'např. Jan Novák',
+    emailAddress: 'E-mailová adresa',
+    phoneWhatsApp: 'Telefonní číslo (WhatsApp)',
+    nationality: 'Národnost',
+    selectDateTravelers: 'Vyberte datum a cestující',
+    selectDepartureDate: 'Vyberte datum odjezdu',
+    pickupHotelVenue: 'Místo vyzvednutí (Hotel)',
+    numberOfTravelers: 'Počet cestujících',
+    travelerLabel: 'Cestující',
+    adultLabel: 'Dospělý (12+)',
+    childLabel: 'Dítě (2-11)',
+    infantLabel: 'Kojenec (0-2)',
+    vipUpgrade: 'VIP UPGRADE',
+    specialRequestsPlaceholder: 'např. vegetariánská strava, průvodce mluvící česky, invalidní vozík...',
+    seatPrice: 'Cena za osobu',
+    vipExtras: 'Doplňky VIP',
+    customArrangements: 'Potřebujete individuální uspořádání nebo okamžitou podporu komorníka?',
+    whatsappConcierge: 'Concierge přes WhatsApp',
+    bookingBtn: 'Rezervace...',
+    continueBtn: 'Pokračovat',
+    whatsappInquiryText: 'Dobrý den, mám zájem o rezervaci individuální expedice "{tourTitle}" a rád bych koordinoval podrobnosti.'
+  }
+};
+
 const getOtherHotelLabel = (lang: AppLanguage) => {
   switch (lang) {
     case 'ar': return 'فندق آخر (تحديد يدوي)';
@@ -290,7 +443,7 @@ export default function BookingModal({
                     ? 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-200/50 cursor-pointer'
                     : 'text-slate-300 cursor-not-allowed line-through hover:bg-transparent opacity-40'
                 }`}
-                title={isAvailable ? (lang === 'ar' ? 'متاح للحجز' : 'Available for Booking') : (lang === 'ar' ? 'غير متاح' : 'Unavailable')}
+                title={isAvailable ? (localT[lang] || localT.en).availableForBooking : (localT[lang] || localT.en).unavailable}
               >
                 <span>{day}</span>
                 {isAvailable && !isSelected && (
@@ -305,15 +458,15 @@ export default function BookingModal({
         <div className="flex items-center gap-4 text-[10px] font-bold text-slate-500 border-t border-slate-200 pt-2 justify-center">
           <div className="flex items-center gap-1">
             <span className="w-2 h-2 rounded bg-emerald-600" />
-            <span>{lang === 'ar' ? 'المحدد' : 'Selected'}</span>
+            <span>{(localT[lang] || localT.en).selected}</span>
           </div>
           <div className="flex items-center gap-1">
             <span className="w-2 h-2 rounded bg-emerald-50 border border-emerald-200" />
-            <span>{lang === 'ar' ? 'متاح' : 'Available'}</span>
+            <span>{(localT[lang] || localT.en).available}</span>
           </div>
           <div className="flex items-center gap-1">
             <span className="w-2 h-2 rounded bg-transparent border border-transparent text-slate-300 line-through text-[8px] flex items-center justify-center font-bold">15</span>
-            <span>{lang === 'ar' ? 'غير متاح' : 'Unavailable'}</span>
+            <span>{(localT[lang] || localT.en).unavailable}</span>
           </div>
         </div>
       </div>
@@ -329,9 +482,7 @@ export default function BookingModal({
     }
 
     if (!signatureUrl) {
-      alert(lang === 'ar' 
-        ? 'الرجاء توقيع اتفاقية الخدمة الفاخرة رقمياً قبل متابعة الدفع.' 
-        : 'Please sign the digital luxury service agreement before finalizing your reservation.');
+      alert((localT[lang] || localT.en).signatureAlert);
       return;
     }
 
@@ -440,23 +591,23 @@ export default function BookingModal({
             <div className="space-y-4 animate-fade-in">
               <h4 className="text-sm font-bold uppercase tracking-wider text-slate-400 flex items-center gap-2">
                 <UserCheck className="w-4 h-4 text-emerald-500" />
-                <span>{lang === 'ar' ? 'تفاصيل الاتصال الأساسية' : 'Contact Information'}</span>
+                <span>{(localT[lang] || localT.en).contactInfo}</span>
               </h4>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">{lang === 'ar' ? 'الاسم بالكامل' : 'Full Name'}</label>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">{(localT[lang] || localT.en).fullName}</label>
                   <input
                     required
                     type="text"
                     value={customerName}
                     onChange={(e) => setCustomerName(e.target.value)}
-                    placeholder={lang === 'ar' ? 'الاسم الثلاثي' : 'e.g. John Doe'}
+                    placeholder={(localT[lang] || localT.en).fullNamePlaceholder}
                     className="w-full text-slate-900 text-sm border border-slate-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">{lang === 'ar' ? 'البريد الإلكتروني' : 'Email Address'}</label>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">{(localT[lang] || localT.en).emailAddress}</label>
                   <input
                     required
                     type="email"
@@ -467,7 +618,7 @@ export default function BookingModal({
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">{lang === 'ar' ? 'رقم الهاتف (واتساب)' : 'Phone Number (WhatsApp)'}</label>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">{(localT[lang] || localT.en).phoneWhatsApp}</label>
                   <input
                     required
                     type="tel"
@@ -478,7 +629,7 @@ export default function BookingModal({
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">{lang === 'ar' ? 'الجنسية' : 'Nationality'}</label>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">{(localT[lang] || localT.en).nationality}</label>
                   <input
                     required
                     type="text"
@@ -497,14 +648,14 @@ export default function BookingModal({
             <div className="space-y-4 animate-fade-in">
               <h4 className="text-sm font-bold uppercase tracking-wider text-slate-400 flex items-center gap-2">
                 <Calendar className="w-4 h-4 text-emerald-500" />
-                <span>{lang === 'ar' ? 'خيارات الجدولة والمرافقين' : 'Select Date & Travelers'}</span>
+                <span>{(localT[lang] || localT.en).selectDateTravelers}</span>
               </h4>
 
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
                 {/* Visual Calendar Column */}
                 <div className="lg:col-span-5 space-y-2">
                   <label className="block text-xs font-extrabold text-slate-700 tracking-wider uppercase">
-                    {lang === 'ar' ? 'تحديد تاريخ الرحلة' : 'Select Departure Date'}
+                    {(localT[lang] || localT.en).selectDepartureDate}
                   </label>
                   {renderCalendar()}
                 </div>
@@ -513,7 +664,7 @@ export default function BookingModal({
                 <div className="lg:col-span-7 space-y-4 flex flex-col justify-between">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1">{lang === 'ar' ? 'فندق الاصطحاب' : 'Pickup Hotel Venue'}</label>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">{(localT[lang] || localT.en).pickupHotelVenue}</label>
                       <select
                         value={isCustomHotel ? '__custom__' : pickupHotel}
                         onChange={(e) => {
@@ -562,7 +713,7 @@ export default function BookingModal({
 
                   <div>
                     <div className="flex items-center justify-between mb-2">
-                      <label className="text-xs font-bold text-slate-700">{lang === 'ar' ? 'عدد المسافرين' : 'Number of Travelers'}</label>
+                      <label className="text-xs font-bold text-slate-700">{(localT[lang] || localT.en).numberOfTravelers}</label>
                       <div className="flex items-center gap-2">
                         <button
                           type="button"
@@ -588,7 +739,7 @@ export default function BookingModal({
                     <div className="space-y-3 bg-slate-50 p-4 rounded-xl max-h-[170px] overflow-y-auto border border-slate-200/60">
                       {travelers.map((tr, idx) => (
                         <div key={idx} className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-center border-b border-slate-200/30 pb-2 last:border-b-0 last:pb-0">
-                          <span className="sm:col-span-2 text-xs font-bold text-slate-500">{lang === 'ar' ? `المسافر ${idx + 1}` : `Traveler ${idx + 1}`}</span>
+                          <span className="sm:col-span-2 text-xs font-bold text-slate-500">{(localT[lang] || localT.en).travelerLabel} {idx + 1}</span>
                           <div className="sm:col-span-4">
                             <input
                               required
@@ -605,9 +756,9 @@ export default function BookingModal({
                               onChange={(e) => updateTraveler(idx, 'ageGroup', e.target.value as any)}
                               className="w-full text-slate-900 text-xs border border-slate-200 bg-white rounded-lg px-2 py-1.5 focus:outline-none"
                             >
-                              <option value="adult">{lang === 'ar' ? 'بالغ (12+)' : 'Adult (12+)'}</option>
-                              <option value="child">{lang === 'ar' ? 'طفل (2-11)' : 'Child (2-11)'}</option>
-                              <option value="infant">{lang === 'ar' ? 'رضيع (0-2)' : 'Infant (0-2)'}</option>
+                              <option value="adult">{(localT[lang] || localT.en).adultLabel}</option>
+                              <option value="child">{(localT[lang] || localT.en).childLabel}</option>
+                              <option value="infant">{(localT[lang] || localT.en).infantLabel}</option>
                             </select>
                           </div>
                           <div className="sm:col-span-3">
@@ -658,9 +809,9 @@ export default function BookingModal({
                         />
                         <div>
                           <p className="text-xs md:text-sm font-bold text-slate-800">
-                            {lang === 'ar' ? ext.name.ar : ext.name.en}
+                            {ext.name[lang] || ext.name.en}
                           </p>
-                          <p className="text-[10px] text-amber-500 font-bold uppercase mt-0.5">{lang === 'ar' ? 'تعديل سيادي كبار الشخصيات' : 'VIP UPGRADE'}</p>
+                          <p className="text-[10px] text-amber-500 font-bold uppercase mt-0.5">{(localT[lang] || localT.en).vipUpgrade}</p>
                         </div>
                       </div>
                       <span className="text-sm font-bold text-slate-900 font-sans">
@@ -676,7 +827,7 @@ export default function BookingModal({
                 <textarea
                   value={specialRequests}
                   onChange={(e) => setSpecialRequests(e.target.value)}
-                  placeholder={lang === 'ar' ? 'مثال: نظام غذائي نباتي، خادم ناطق بالألمانية...' : 'e.g. Vegetarian diet, German-speaking escort, private wheel chair...'}
+                  placeholder={(localT[lang] || localT.en).specialRequestsPlaceholder}
                   rows={2}
                   className="w-full text-slate-900 text-sm border border-slate-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                 />
@@ -751,12 +902,12 @@ export default function BookingModal({
                   <span className="font-bold text-slate-900">{tour.duration}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span>{lang === 'ar' ? 'سعر المقعد' : 'Seat Price'} ({travelerCount}x)</span>
+                  <span>{(localT[lang] || localT.en).seatPrice} ({travelerCount}x)</span>
                   <span className="font-bold text-slate-900 font-sans">{formatLocalPrice(tour.priceUSD * travelerCount)}</span>
                 </div>
                 {extrasCostUSD > 0 && (
                   <div className="flex justify-between text-emerald-600">
-                    <span>{lang === 'ar' ? 'الميزات الإضافية كبار الشخصيات' : 'VIP Extras'}</span>
+                    <span>{(localT[lang] || localT.en).vipExtras}</span>
                     <span className="font-bold font-sans">+{formatLocalPrice(extrasCostUSD)}</span>
                   </div>
                 )}
@@ -788,23 +939,19 @@ export default function BookingModal({
             <div className="text-slate-600 flex items-center gap-2">
               <span className="w-2 h-2 bg-emerald-500 rounded-full animate-ping shrink-0" />
               <span>
-                {lang === 'ar' 
-                  ? 'هل تحتاج إلى ترتيبات حصرية أو مساعدة كونسيرج فورية؟' 
-                  : 'Need customized elite arrangements or instant butler support?'}
+                {(localT[lang] || localT.en).customArrangements}
               </span>
             </div>
             <a 
               href={`https://wa.me/201202181834?text=${encodeURIComponent(
-                lang === 'ar' 
-                  ? `مرحباً، أنا مهتم بحجز جولة "${tour.title.ar || tour.title.en}" الفاخرة وأود الاستفسار من الكونسيرج الملكي مباشرة.` 
-                  : `Hello, I am interested in booking the bespoke "${tour.title.en}" expedition and would like to coordinate custom concierge details.`
+                ((localT[lang] || localT.en).whatsappInquiryText).replace('{tourTitle}', tour.title[lang] || tour.title.en)
               )}`}
               target="_blank" 
               rel="noopener noreferrer"
               className="text-emerald-700 hover:text-emerald-600 flex items-center gap-1.5 font-bold bg-white px-3.5 py-1.5 rounded-xl border border-emerald-500/20 shadow-sm transition-all hover:scale-105"
             >
               <MessageSquare className="w-3.5 h-3.5 text-emerald-600" />
-              <span>{lang === 'ar' ? 'دردشة مع الكونسيرج الملكي' : 'WhatsApp Concierge'}</span>
+              <span>{(localT[lang] || localT.en).whatsappConcierge}</span>
             </a>
           </div>
 
@@ -832,10 +979,10 @@ export default function BookingModal({
             className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm px-6 py-3 rounded-full shadow-lg shadow-emerald-500/10 flex items-center gap-2 hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer disabled:opacity-50"
           >
             {loading ? (
-              <span>{lang === 'ar' ? 'جاري تأمين المعاملة...' : 'Booking...'}</span>
+              <span>{(localT[lang] || localT.en).bookingBtn}</span>
             ) : (
               <>
-                <span>{step === 4 ? t.checkoutBtn : lang === 'ar' ? 'الخطوة التالية' : 'Continue'}</span>
+                <span>{step === 4 ? t.checkoutBtn : (localT[lang] || localT.en).continueBtn}</span>
                 <ChevronRight className="w-4 h-4" />
               </>
             )}

@@ -25,6 +25,7 @@ import SubSectionErrorBoundary from './components/SubSectionErrorBoundary.js';
 import { ReviewService } from './services/ReviewService.js';
 import { useNetworkStatus } from './hooks/useNetworkStatus.js';
 import { WhatsAppService } from './services/WhatsAppService.js';
+import ItineraryMap from './components/ItineraryMap.js';
 
 export default function App() {
   const [lang, setLang] = useState<AppLanguage>('en');
@@ -47,6 +48,8 @@ function AppContent({ lang, setLang }: { lang: AppLanguage; setLang: React.Dispa
     setIsAdminVerified,
     adminPermissionTier,
     setAdminPermissionTier,
+    customerUser,
+    logoutCustomer,
   } = useAuth();
 
   const {
@@ -123,7 +126,7 @@ function AppContent({ lang, setLang }: { lang: AppLanguage; setLang: React.Dispa
   }, []);
 
   // Primary VIP user email context
-  const userEmail = 'diamond.entertainment70@gmail.com';
+  const userEmail = customerUser?.email || '';
 
   // Shared Itinerary state encapsulated in a custom hook
   const {
@@ -584,10 +587,15 @@ function AppContent({ lang, setLang }: { lang: AppLanguage; setLang: React.Dispa
                   </h3>
                 </div>
 
+                {/* Interactive Map View of Daily Milestones */}
+                <SubSectionErrorBoundary name="Itinerary Map" silent>
+                  <ItineraryMap booking={sharedBooking} lang={lang} />
+                </SubSectionErrorBoundary>
+
                 {/* Staggered Day-by-Day Timeline */}
                 <div className="space-y-6 relative before:absolute before:left-3 before:top-2 before:bottom-2 before:w-[2px] before:bg-slate-800 print:before:bg-slate-200">
                   {getPrintItinerary().map((item, idx) => (
-                    <div key={idx} className="relative pl-8 space-y-2 group">
+                    <div key={idx} data-timeline-day={item.day} className="timeline-day-item relative pl-8 space-y-2 group">
                       {/* Timeline Dot */}
                       <div className="absolute left-[5px] top-1.5 w-4 h-4 rounded-full bg-slate-950 border-2 border-emerald-500 flex items-center justify-center group-hover:scale-110 transition-transform print:bg-white print:border-black">
                         <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full print:bg-black" />
@@ -1136,6 +1144,27 @@ function AppContent({ lang, setLang }: { lang: AppLanguage; setLang: React.Dispa
             setCurrency={setCurrency}
           />
 
+          {/* Customer Profile & Sign Out if logged in */}
+          {customerUser && (
+            <div className="flex items-center gap-2 border-l border-slate-200 pl-3 md:pl-6 ml-1 md:ml-3">
+              <div className="hidden sm:flex flex-col text-right">
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block leading-none">
+                  VIP CLIENT
+                </span>
+                <span className="text-xs font-bold text-slate-800 tracking-tight">
+                  {customerUser.name}
+                </span>
+              </div>
+              <button
+                onClick={logoutCustomer}
+                className="text-[11px] font-bold text-rose-600 hover:text-rose-700 hover:bg-rose-50 px-2.5 py-1.5 rounded-lg border border-rose-200/50 transition-all cursor-pointer bg-white"
+                title={lang === 'ar' ? 'تسجيل الخروج' : 'Sign Out'}
+              >
+                {lang === 'ar' ? 'خروج' : 'Sign Out'}
+              </button>
+            </div>
+          )}
+
         </div>
       </header>
 
@@ -1193,18 +1222,6 @@ function AppContent({ lang, setLang }: { lang: AppLanguage; setLang: React.Dispa
               <p>Email: luxury.operations@mas.agency</p>
               <p>Address: Terminal 4, Cairo Airport</p>
             </div>
-            <div className={`border px-3.5 py-1.5 rounded-lg inline-flex items-center gap-2 ${
-              isOnline 
-                ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' 
-                : 'bg-rose-500/10 border-rose-500/20 text-rose-400'
-            }`}>
-              <div className={`w-1.5 h-1.5 rounded-full ${isOnline ? 'bg-emerald-500 animate-ping' : 'bg-rose-500 animate-pulse'}`} />
-              <span className="text-[10px] font-black uppercase tracking-wider">
-                {isOnline 
-                  ? (lang === 'ar' ? 'جميع الأنظمة متصلة' : 'All Systems Online') 
-                  : (lang === 'ar' ? 'وضع عدم الاتصال' : 'Offline Mode')}
-              </span>
-            </div>
           </div>
 
         </div>
@@ -1217,16 +1234,6 @@ function AppContent({ lang, setLang }: { lang: AppLanguage; setLang: React.Dispa
             <a href="#" className="hover:text-slate-400 transition-colors font-medium">Privacy Policy</a>
             <a href="#" className="hover:text-slate-400 transition-colors font-medium">Terms of Service</a>
             <a href="#" className="hover:text-slate-400 transition-colors font-medium">Contact Support</a>
-            <button
-              onClick={() => {
-                setRole('admin');
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-              }}
-              className="hover:text-slate-300 text-emerald-400 hover:text-emerald-300 transition-colors cursor-pointer text-xs font-bold flex items-center gap-1 border-l border-slate-800 pl-4"
-            >
-              <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-              <span>{lang === 'ar' ? 'بوابة الموظفين' : 'Staff Portal'}</span>
-            </button>
           </div>
         </div>
       </footer>
