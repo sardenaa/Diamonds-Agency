@@ -1,0 +1,127 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Global Catch-All Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Reusable Global Helper Functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isStaff() {
+      return isSignedIn() && (
+        request.auth.token.email == 'diamond.entertainment70@gmail.com' ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // Model Validation Helpers
+    function isValidChat(data) {
+      return data.keys().hasAll(['id', 'userId', 'userEmail', 'createdAt', 'updatedAt', 'title'])
+        && data.keys().size() == 6
+        && data.id is string && data.id.size() <= 128
+        && data.userId is string && data.userId.size() <= 128
+        && data.userEmail is string && data.userEmail.size() <= 128
+        && data.title is string && data.title.size() <= 100;
+    }
+
+    function isValidMessage(data) {
+      return data.keys().hasAll(['id', 'sender', 'text', 'timestamp'])
+        && data.keys().size() >= 4 && data.keys().size() <= 6
+        && data.id is string && data.id.size() <= 128
+        && (data.sender == 'user' || data.sender == 'bot')
+        && data.text is string && data.text.size() <= 5000
+        && (!data.keys().hasAny(['type']) || data.type is string)
+        && (!data.keys().hasAny(['meta']) || data.meta is string);
+    }
+
+    function isValidTicket(data) {
+      return data.keys().hasAll(['id', 'userId', 'userEmail', 'userName', 'subject', 'status', 'createdAt', 'updatedAt'])
+        && data.keys().size() == 8
+        && data.id is string && data.id.size() <= 128
+        && data.userId is string && data.userId.size() <= 128
+        && data.userEmail is string && data.userEmail.size() <= 128
+        && data.userName is string && data.userName.size() <= 100
+        && data.subject is string && data.subject.size() <= 200
+        && (data.status == 'open' || data.status == 'resolved');
+    }
+
+    function isValidTicketMessage(data) {
+      return data.keys().hasAll(['id', 'sender', 'senderName', 'text', 'timestamp'])
+        && data.keys().size() == 5
+        && data.id is string && data.id.size() <= 128
+        && (data.sender == 'user' || data.sender == 'staff')
+        && data.senderName is string && data.senderName.size() <= 100
+        && data.text is string && data.text.size() <= 5000;
+    }
+
+    // Chats Collection
+    match /chats/{chatId} {
+      allow get, list: if isSignedIn() && (resource.data.userId == request.auth.uid || isStaff());
+      allow create: if isSignedIn() 
+        && isValidId(chatId)
+        && isValidChat(request.resource.data)
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time;
+      allow update: if isSignedIn()
+        && isValidId(chatId)
+        && isValidChat(request.resource.data)
+        && resource.data.userId == request.auth.uid
+        && request.resource.data.userId == resource.data.userId
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.updatedAt == request.time;
+      allow delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isStaff());
+
+      // Chat Messages Subcollection
+      match /messages/{messageId} {
+        allow get, list: if isSignedIn() && (get(/databases/$(database)/documents/chats/$(chatId)).data.userId == request.auth.uid || isStaff());
+        allow create: if isSignedIn()
+          && isValidId(messageId)
+          && isValidMessage(request.resource.data)
+          && get(/databases/$(database)/documents/chats/$(chatId)).data.userId == request.auth.uid
+          && request.resource.data.timestamp == request.time;
+        allow delete: if isSignedIn() && (get(/databases/$(database)/documents/chats/$(chatId)).data.userId == request.auth.uid || isStaff());
+      }
+    }
+
+    // Tickets Collection
+    match /tickets/{ticketId} {
+      allow get, list: if isSignedIn() && (resource.data.userId == request.auth.uid || isStaff());
+      allow create: if isSignedIn()
+        && isValidId(ticketId)
+        && isValidTicket(request.resource.data)
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time
+        && request.resource.data.status == 'open';
+      allow update: if isSignedIn()
+        && isValidId(ticketId)
+        && isValidTicket(request.resource.data)
+        && (resource.data.userId == request.auth.uid || isStaff())
+        && request.resource.data.userId == resource.data.userId
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.updatedAt == request.time;
+      allow delete: if isStaff();
+
+      // Ticket Messages Subcollection
+      match /messages/{messageId} {
+        allow get, list: if isSignedIn() && (get(/databases/$(database)/documents/tickets/$(ticketId)).data.userId == request.auth.uid || isStaff());
+        allow create: if isSignedIn()
+          && isValidId(messageId)
+          && isValidTicketMessage(request.resource.data)
+          && (get(/databases/$(database)/documents/tickets/$(ticketId)).data.userId == request.auth.uid || isStaff())
+          && request.resource.data.timestamp == request.time
+          && (request.resource.data.sender == 'user' ? request.resource.data.senderName == get(/databases/$(database)/documents/tickets/$(ticketId)).data.userName : isStaff());
+      }
+    }
+  }
+}

@@ -1,0 +1,79 @@
+{
+  "entities": {
+    "chat": {
+      "title": "Chat",
+      "description": "A persistent chatbot conversation session for a user",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "userId": { "type": "string" },
+        "userEmail": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "title": { "type": "string", "maxLength": 100 }
+      },
+      "required": ["id", "userId", "userEmail", "createdAt", "updatedAt", "title"]
+    },
+    "message": {
+      "title": "Message",
+      "description": "An individual message in a chatbot session",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "sender": { "type": "string", "enum": ["user", "bot"] },
+        "text": { "type": "string", "maxLength": 5000 },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "type": { "type": "string" },
+        "meta": { "type": "string" }
+      },
+      "required": ["id", "sender", "text", "timestamp"]
+    },
+    "ticket": {
+      "title": "Support Ticket",
+      "description": "A support ticket opened by a customer for chat with staff",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "userId": { "type": "string" },
+        "userEmail": { "type": "string" },
+        "userName": { "type": "string", "maxLength": 100 },
+        "subject": { "type": "string", "maxLength": 200 },
+        "status": { "type": "string", "enum": ["open", "resolved"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "userId", "userEmail", "userName", "subject", "status", "createdAt", "updatedAt"]
+    },
+    "ticketMessage": {
+      "title": "Ticket Message",
+      "description": "A message sent inside a support ticket chat",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "sender": { "type": "string", "enum": ["user", "staff"] },
+        "senderName": { "type": "string", "maxLength": 100 },
+        "text": { "type": "string", "maxLength": 5000 },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "sender", "senderName", "text", "timestamp"]
+    }
+  },
+  "firestore": {
+    "/chats/{chatId}": {
+      "schema": "chat",
+      "description": "User chatbot conversation documents"
+    },
+    "/chats/{chatId}/messages/{messageId}": {
+      "schema": "message",
+      "description": "Subcollection containing the conversation turns"
+    },
+    "/tickets/{ticketId}": {
+      "schema": "ticket",
+      "description": "Support ticket metadata documents"
+    },
+    "/tickets/{ticketId}/messages/{messageId}": {
+      "schema": "ticketMessage",
+      "description": "Conversation turns within a support ticket"
+    }
+  }
+}

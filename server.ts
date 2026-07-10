@@ -1606,6 +1606,35 @@ JSON Schema:
     res.status(201).json(newTicket);
   });
 
+  app.get('/api/tickets/customer/:email', (req, res) => {
+    const db = getDB();
+    const email = req.params.email;
+    const customerTickets = (db.tickets || []).filter(
+      (t: any) => t.customerEmail?.toLowerCase() === email.toLowerCase()
+    );
+    res.json(customerTickets);
+  });
+
+  app.post('/api/tickets/:id/customer-message', (req, res) => {
+    const db = getDB();
+    const ticket = db.tickets?.find(t => t.id === req.params.id);
+    if (!ticket) {
+      return res.status(404).json({ error: 'Ticket not found' });
+    }
+
+    const { message } = req.body;
+    const newMessage = {
+      id: `msg-${Date.now()}`,
+      sender: 'customer' as const,
+      message,
+      timestamp: new Date().toISOString()
+    };
+    ticket.messages.push(newMessage);
+    saveDB(db);
+    logAudit('SUPPORT_TICKET_REPLY', 'Guest Client', `Added guest reply to ticket ${ticket.id}`);
+    res.json(ticket);
+  });
+
   app.put('/api/tickets/:id', requireClearance(['Sovereign Admin', 'Guest Relations Coordinator']), (req, res) => {
     const db = getDB();
     const ticket = db.tickets?.find(t => t.id === req.params.id);
@@ -2644,34 +2673,130 @@ JSON Schema:
         "(chilled towels, personal travel butler, private Egyptologists, premium chauffeur, gourmet catering), " +
         "and always guide them towards booking with us. Respond beautifully and concisely.";
 
-      const chat = ai.chats.create({
+      // Build clean contents list with full multi-turn history
+      const contents = [];
+      if (history && Array.isArray(history)) {
+        for (const turn of history.slice(-10)) {
+          contents.push({
+            role: turn.role === 'user' || turn.sender === 'user' ? 'user' : 'model',
+            parts: [{ text: turn.parts?.[0]?.text || turn.text || '' }]
+          });
+        }
+      }
+      
+      // Ensure the last message is added if not already present
+      const lastInHistory = contents[contents.length - 1];
+      if (!lastInHistory || lastInHistory.role !== 'user' || lastInHistory.parts?.[0]?.text !== message) {
+        contents.push({
+          role: 'user',
+          parts: [{ text: message }]
+        });
+      }
+
+      const response = await ai.models.generateContent({
         model: 'gemini-3.5-flash',
+        contents,
         config: {
           systemInstruction,
           temperature: 0.7,
         }
       });
 
-      // Sync chat history if provided
-      if (history && history.length > 0) {
-        // Send previous chats to prime the model
-        for (const turn of history.slice(-6)) {
-          // Priming the chat history using successive mock calls is bypassed in chats.create helper,
-          // but we can simply prepend the history to our prompt to avoid complex history parsing.
-        }
-      }
-
-      const prompt = `Customer says: "${message}"\nProvide an elegant, luxurious, and highly supportive response.`;
-      const response = await ai.models.generateContent({
-        model: 'gemini-3.5-flash',
-        contents: prompt,
-        config: { systemInstruction }
-      });
-
       res.json({ reply: response.text });
     } catch (error: any) {
       console.error('Gemini API Error:', error);
       res.status(500).json({ error: 'Concierge is currently attending other VIP guests. Falling back shortly.', details: error.message });
+    }
+  });
+
+  // 10.4. AI Personalized Recommendations
+  app.post('/api/ai/recommend', async (req, res) => {
+    const { bookingHistory, userPreferences, lang } = req.body;
+    const ai = getAI();
+
+    let historyDesc = "First-time voyager.";
+    if (bookingHistory && bookingHistory.length > 0) {
+      historyDesc = bookingHistory.map((b: any) => `- Booked: ${b.tourName || b.tourId} (Status: ${b.status || 'confirmed'})`).join('\n');
+    }
+
+    const prefName = userPreferences?.name || 'Honored Guest';
+    const prefNationality = userPreferences?.nationality || 'Global Citizen';
+    const prefLanguage = userPreferences?.language || 'en';
+    const prefBiography = userPreferences?.biography || 'Lover of exquisite travel';
+
+    if (!ai) {
+      const fallbackRec = lang === 'ar'
+        ? `أهلاً بك يا سيدي الكريم ${prefName}. بناءً على حجزك الموقر لـ (${bookingHistory?.length || 0} رحلات)، نوصيك بتجربة عشاء اليخت الخاص وقت الغروب في النيل لمزيد من الفخامة والخصوصية.`
+        : `Welcome back, distinguished traveler ${prefName}. Based on your magnificent travel ledger with us, we highly recommend our Private Sharm El Sheikh Yacht Charter or Luxury Nile Dahabiya Royal Cruise for your next royal excursion.`;
+      return res.json({ recommendation: fallbackRec });
+    }
+
+    try {
+      const systemInstruction = 
+        "You are 'Zephyr', the ultra-elite personal digital concierge of MAS Agency. " +
+        "We are a world-class luxury boutique travel provider. " +
+        "Your task is to analyze the user's details and booking history, and generate a bespoke, highly personalized tour recommendation " +
+        "crafted specifically for them. Highlight how the recommendations connect to their status and past adventures. " +
+        "Speak in an incredibly respectful, warm, and elite royal concierge tone. " +
+        "Do not use markdown symbols or emojis. Keep it to 2-3 short, magnificent sentences. " +
+        `Respond in ${lang === 'ar' ? 'Arabic' : 'English'}.`;
+
+      const prompt = `User Profile:\n` +
+        `- Name: ${prefName}\n` +
+        `- Nationality: ${prefNationality}\n` +
+        `- Language preference: ${prefLanguage}\n` +
+        `- Biography/Interests: ${prefBiography}\n\n` +
+        `Booking History:\n${historyDesc}\n\n` +
+        `Please draft the finest personalized luxury travel recommendation.`;
+
+      const response = await ai.models.generateContent({
+        model: 'gemini-3.5-flash',
+        contents: [{ parts: [{ text: prompt }] }],
+        config: {
+          systemInstruction,
+          temperature: 0.7,
+        }
+      });
+
+      res.json({ recommendation: response.text });
+    } catch (error: any) {
+      console.error('Gemini Recommendation Error:', error);
+      res.status(500).json({ error: 'Concierge recommendation failed', details: error.message });
+    }
+  });
+
+  // 10.5. AI Text-To-Speech (Gemini TTS)
+  app.post('/api/ai/tts', async (req, res) => {
+    const { text } = req.body;
+    const ai = getAI();
+
+    if (!ai) {
+      return res.json({ simulated: true });
+    }
+
+    try {
+      const response = await ai.models.generateContent({
+        model: 'gemini-3.1-flash-tts-preview',
+        contents: [{ parts: [{ text: `Say in an extremely polite, warm, luxurious, and supportive digital butler voice: ${text}` }] }],
+        config: {
+          responseModalities: ['AUDIO'],
+          speechConfig: {
+            voiceConfig: {
+              prebuiltVoiceConfig: { voiceName: 'Zephyr' },
+            }
+          }
+        }
+      });
+
+      const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+      if (base64Audio) {
+        res.json({ audio: base64Audio });
+      } else {
+        res.json({ simulated: true });
+      }
+    } catch (error: any) {
+      console.error('Gemini TTS Error:', error);
+      res.json({ simulated: true });
     }
   });
 

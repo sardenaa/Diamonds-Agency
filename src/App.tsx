@@ -30,6 +30,7 @@ import { ReviewService } from './services/ReviewService.js';
 import { useNetworkStatus } from './hooks/useNetworkStatus.js';
 import { WhatsAppService } from './services/WhatsAppService.js';
 import ItineraryMap from './components/ItineraryMap.js';
+import SessionTimeoutHandler from './components/SessionTimeoutHandler.js';
 
 export default function App() {
   const [lang, setLang] = useState<AppLanguage>('en');
@@ -1320,13 +1321,20 @@ function AppContent({ lang, setLang }: { lang: AppLanguage; setLang: React.Dispa
 
       {/* 4. Luxury Floating Digital Butler Chatbot & Price Converter */}
       <SubSectionErrorBoundary name="Chatbot" silent>
-        <Chatbot lang={lang} />
+        <Chatbot 
+          lang={lang} 
+          onSelectTour={(tour) => setSelectedBookTour(tour)}
+          onOpenPackingAssistant={() => setShowPackingModal(true)}
+        />
       </SubSectionErrorBoundary>
       <WhatsAppFloatingButton lang={lang} />
       <PriceConverter lang={lang} currencies={currencies} onUpdateRates={() => {}} />
 
       {/* 4.5 Online/Offline Network Status Toast */}
       <NetworkToast lang={lang} />
+
+      {/* Auto-logout security session inactive handler */}
+      <SessionTimeoutHandler lang={lang} />
 
       {/* 5. Interactive Checkout Booking Modal Dialog */}
       {selectedBookTour && (

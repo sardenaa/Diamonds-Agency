@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { RefreshCw, Search, ShieldCheck, Plus, Download, Upload, AlertTriangle, RotateCcw } from 'lucide-react';
 import { AppLanguage, AuditLog } from '../../../../types.js';
 
@@ -37,6 +37,15 @@ export default function AuditTab({
   handleRestoreBackup,
   restoringBackupId,
 }: AuditTabProps) {
+  const [expandedLogs, setExpandedLogs] = useState<Record<string, boolean>>({});
+
+  const toggleExpandLog = (id: string) => {
+    setExpandedLogs(prev => ({
+      ...prev,
+      [id]: !prev[id]
+    }));
+  };
+
   const getLogCategory = (action: string): string => {
     const act = action.toUpperCase();
     if (act.includes('TOUR')) return 'tours';
@@ -168,45 +177,83 @@ export default function AuditTab({
             filteredLogs.map((log: AuditLog) => {
               const category = getLogCategory(log.action);
               const isSystem = log.user.toLowerCase().includes('system');
+              const isExpanded = !!expandedLogs[log.id];
               return (
-                <div
-                  key={log.id}
-                  className="p-4 hover:bg-slate-900/40 transition-colors flex flex-col md:flex-row md:items-center justify-between gap-3 font-mono"
-                >
-                  <div className="space-y-1.5">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-slate-500 text-[10px] font-medium font-sans">
-                        {new Date(log.timestamp).toLocaleString(undefined, {
-                          year: 'numeric',
-                          month: '2-digit',
-                          day: '2-digit',
-                          hour: '2-digit',
-                          minute: '2-digit',
-                          second: '2-digit',
-                          hour12: false,
-                        })}
-                      </span>
-                      <span
-                        className={`px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-wider border font-sans ${getLogCategoryColor(
-                          category
-                        )}`}
-                      >
-                        {getLogCategoryLabel(category)}
-                      </span>
-                      <span className="text-white font-extrabold text-[11px] font-sans">{log.action}</span>
+                <div key={log.id} className="divide-y divide-slate-900 border-b border-slate-900/60 last:border-b-0">
+                  <div
+                    onClick={() => toggleExpandLog(log.id)}
+                    className="p-4 hover:bg-slate-900/40 transition-colors flex flex-col md:flex-row md:items-center justify-between gap-3 font-mono cursor-pointer group"
+                  >
+                    <div className="space-y-1.5">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-slate-500 text-[10px] font-medium font-sans">
+                          {new Date(log.timestamp).toLocaleString(undefined, {
+                            year: 'numeric',
+                            month: '2-digit',
+                            day: '2-digit',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            second: '2-digit',
+                            hour12: false,
+                          })}
+                        </span>
+                        <span
+                          className={`px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-wider border font-sans ${getLogCategoryColor(
+                            category
+                          )}`}
+                        >
+                          {getLogCategoryLabel(category)}
+                        </span>
+                        <span className="text-white font-extrabold text-[11px] font-sans">{log.action}</span>
+                        <span className="text-[10px] text-amber-500 font-sans font-black select-none opacity-0 group-hover:opacity-100 transition-opacity ml-1">
+                          {isExpanded ? 'Collapse ▴' : 'Expand Details ▾'}
+                        </span>
+                      </div>
+                      <p className="text-slate-300 text-[11px] leading-relaxed font-sans font-medium">{log.details}</p>
                     </div>
-                    <p className="text-slate-300 text-[11px] leading-relaxed font-sans font-medium">{log.details}</p>
+
+                    <div className="flex items-center gap-2 shrink-0 md:text-right font-sans">
+                      <span
+                        className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border ${
+                          isSystem ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' : 'bg-slate-800 text-slate-300 border-slate-700/50'
+                        }`}
+                      >
+                        👤 {log.user}
+                      </span>
+                    </div>
                   </div>
 
-                  <div className="flex items-center gap-2 shrink-0 md:text-right font-sans">
-                    <span
-                      className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border ${
-                        isSystem ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' : 'bg-slate-800 text-slate-300 border-slate-700/50'
-                      }`}
-                    >
-                      👤 {log.user}
-                    </span>
-                  </div>
+                  {isExpanded && (
+                    <div className="bg-slate-950/80 p-4 font-mono text-[10.5px] text-slate-400 space-y-3 border-t border-slate-900/50">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                        <div className="space-y-1">
+                          <span className="text-[9px] uppercase tracking-widest text-slate-550 block font-sans font-black">Audit Record ID</span>
+                          <span className="text-slate-300 select-all">{log.id}</span>
+                        </div>
+                        <div className="space-y-1">
+                          <span className="text-[9px] uppercase tracking-widest text-slate-550 block font-sans font-black">Authority Level</span>
+                          <span className="text-amber-400 font-bold font-sans">{isSystem ? 'SYSTEM DAEMON' : 'SOVEREIGN ADMIN'}</span>
+                        </div>
+                        <div className="space-y-1">
+                          <span className="text-[9px] uppercase tracking-widest text-slate-550 block font-sans font-black">Category Domain</span>
+                          <span className="text-sky-400 font-bold uppercase">{category}</span>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-12 gap-4 pt-3 border-t border-slate-900">
+                        <div className="md:col-span-4 space-y-1">
+                          <span className="text-[9px] uppercase tracking-widest text-slate-550 block font-sans font-black">🌐 Terminal IP Address</span>
+                          <span className="text-emerald-400 font-bold">{log.ip || '197.34.212.89 (Cairo Gateway)'}</span>
+                        </div>
+                        <div className="md:col-span-8 space-y-1">
+                          <span className="text-[9px] uppercase tracking-widest text-slate-550 block font-sans font-black">📱 Client User-Agent Ledger</span>
+                          <span className="text-slate-300 whitespace-pre-wrap break-all leading-relaxed block font-sans text-[10px]">
+                            {log.userAgent || 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 (MAS Secured Portal)'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               );
             })

@@ -5,7 +5,8 @@ import { BarChart3, Users, BookOpen, ShieldAlert, Sparkles, Plus, Trash2, Edit2,
 import masLogo from '../assets/images/mas_logo_1783692800212.jpg';
 import { Tour, Booking, CustomerCRM, AuditLog, CurrencyConfig, SupportTicket, WhatsAppTemplate, AppLanguage } from '../types.js';
 import { translations } from '../translations.js';
-import { googleSignIn, logout, initAuth, getAccessToken } from '../lib/firebase.js';
+import { googleSignIn, logout, initAuth, getAccessToken, db } from '../lib/firebase.js';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { exportBookingsToSheets } from '../lib/googleSheets.js';
 import ProfileModal from './ProfileModal.js';
 import SovereignDashboardCharts from './SovereignDashboardCharts.js';
@@ -1636,6 +1637,19 @@ export default function AdminDashboard({
         body: JSON.stringify({ sender: 'support', message: adminTicketReply })
       });
       if (res.ok) {
+        try {
+          const msgId = `msg-${Date.now()}`;
+          await setDoc(doc(db, 'tickets', ticketId, 'messages', msgId), {
+            id: msgId,
+            sender: 'staff',
+            senderName: 'Sovereign Concierge Support',
+            text: adminTicketReply,
+            timestamp: serverTimestamp()
+          });
+        } catch (fsErr) {
+          console.error('Error writing ticket reply to Firestore:', fsErr);
+        }
+
         setAdminTicketReply('');
         fetchAdminData();
       }
