@@ -3,12 +3,22 @@ import { Mail, Lock, User, Phone, Globe, Languages, Sparkles, ArrowRight, Loader
 import { useAuth } from '../contexts/AuthContext.js';
 import { tokens } from '../theme/tokens.js';
 
+// @ts-ignore
+import masLogo from '../assets/images/mas_logo_1783692800212.jpg';
+
 interface CustomerAuthProps {
   lang: string;
 }
 
 export default function CustomerAuth({ lang }: CustomerAuthProps) {
-  const { setCustomerUser, setRole, customerAuthView: view, setCustomerAuthView: setView } = useAuth();
+  const {
+    setCustomerUser,
+    setRole,
+    customerAuthView: view,
+    setCustomerAuthView: setView,
+    fetchSecurityQuestion: fetchSeqQuestion,
+    resetPassword: apiResetPassword
+  } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -25,6 +35,63 @@ export default function CustomerAuth({ lang }: CustomerAuthProps) {
   const [biography, setBiography] = useState('');
   const [securityQuestion, setSecurityQuestion] = useState('What is your favorite historical Egyptian monument?');
   const [securityAnswer, setSecurityAnswer] = useState('');
+
+  // Real-time validation states
+  const [emailValidationError, setEmailValidationError] = useState<string | null>(null);
+  const [passwordValidationError, setPasswordValidationError] = useState<string | null>(null);
+
+  const handleEmailChange = (val: string) => {
+    setEmail(val);
+    if (!val) {
+      setEmailValidationError(null);
+      return;
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(val)) {
+      setEmailValidationError(
+        isAr 
+          ? 'الرجاء إدخال بريد إلكتروني صالح (مثال: user@example.com)' 
+          : 'Please enter a valid email address (e.g., user@example.com)'
+      );
+    } else {
+      setEmailValidationError(null);
+    }
+  };
+
+  const handlePasswordChange = (val: string) => {
+    setPassword(val);
+    if (!val) {
+      setPasswordValidationError(null);
+      return;
+    }
+    if (val.length < 8) {
+      setPasswordValidationError(
+        isAr 
+          ? 'يجب أن تتكون كلمة المرور من ٨ أحرف على الأقل.' 
+          : 'Password must be at least 8 characters long.'
+      );
+    } else if (!/[A-Z]/.test(val)) {
+      setPasswordValidationError(
+        isAr 
+          ? 'يجب أن تحتوي كلمة المرور على حرف كبير واحد على الأقل.' 
+          : 'Password must contain at least one uppercase letter.'
+      );
+    } else if (!/[0-9]/.test(val)) {
+      setPasswordValidationError(
+        isAr 
+          ? 'يجب أن تحتوي كلمة المرور على رقم واحد على الأقل.' 
+          : 'Password must contain at least one number.'
+      );
+    } else if (!/[!@#$%^&*(),.?":{}|<>]/.test(val)) {
+      setPasswordValidationError(
+        isAr 
+          ? 'يجب أن تحتوي كلمة المرور على رمز خاص واحد على الأقل.' 
+          : 'Password must contain at least one special character.'
+      );
+    } else {
+      setPasswordValidationError(null);
+    }
+  };
 
   // Forgot password fields
   const [forgotStep, setForgotStep] = useState<1 | 2>(1);
@@ -79,6 +146,20 @@ export default function CustomerAuth({ lang }: CustomerAuthProps) {
       return;
     }
 
+    // Client-side real-time error validations
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      setError(isAr ? 'الرجاء إدخال بريد إلكتروني صالح.' : 'Please enter a valid email address.');
+      setLoading(false);
+      return;
+    }
+
+    if (password.length < 8 || !/[A-Z]/.test(password) || !/[0-9]/.test(password) || !/[!@#$%^&*(),.?":{}|<>]/.test(password)) {
+      setError(isAr ? 'كلمة المرور لا تلبي المتطلبات الأمنية.' : 'Password does not meet the security requirements.');
+      setLoading(false);
+      return;
+    }
+
     try {
       const res = await fetch('/api/auth/register', {
         method: 'POST',
@@ -115,20 +196,14 @@ export default function CustomerAuth({ lang }: CustomerAuthProps) {
     setLoading(true);
     setError(null);
 
-    try {
-      const res = await fetch(`/api/auth/security-question?email=${encodeURIComponent(email)}`);
-      const data = await res.json();
-      if (res.ok && data.success) {
-        setFetchedQuestion(data.securityQuestion);
-        setForgotStep(2);
-      } else {
-        setError(data.message || (isAr ? 'لم يتم العثور على حساب بهذا البريد الإلكتروني.' : 'Account not found with this email.'));
-      }
-    } catch (err) {
-      setError(isAr ? 'حدث خطأ في الاتصال بالخادم.' : 'Failed to connect to server.');
-    } finally {
-      setLoading(false);
+    const result = await fetchSeqQuestion(email);
+    if (result.success) {
+      setFetchedQuestion(result.securityQuestion || null);
+      setForgotStep(2);
+    } else {
+      setError(result.message || (isAr ? 'لم يتم العثور على حساب بهذا البريد الإلكتروني.' : 'Account not found with this email.'));
     }
+    setLoading(false);
   };
 
   const handleResetPassword = async (e: React.FormEvent) => {
@@ -136,32 +211,17 @@ export default function CustomerAuth({ lang }: CustomerAuthProps) {
     setLoading(true);
     setError(null);
 
-    try {
-      const res = await fetch('/api/auth/reset-password', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email,
-          securityAnswer: forgotAnswer,
-          newPassword
-        }),
-      });
-
-      const data = await res.json();
-      if (res.ok && data.success) {
-        setSuccess(isAr ? 'تم إعادة تعيين كلمة المرور بنجاح! يرجى تسجيل الدخول.' : 'Password reset successful! Please log in.');
-        setView('login');
-        setForgotStep(1);
-        setForgotAnswer('');
-        setNewPassword('');
-      } else {
-        setError(data.message || (isAr ? 'إجابة الأمان غير صحيحة.' : 'Incorrect security answer.'));
-      }
-    } catch (err) {
-      setError(isAr ? 'حدث خطأ في الاتصال بالخادم.' : 'Failed to connect to server.');
-    } finally {
-      setLoading(false);
+    const result = await apiResetPassword(email, forgotAnswer, newPassword);
+    if (result.success) {
+      setSuccess(isAr ? 'تم إعادة تعيين كلمة المرور بنجاح! يرجى تسجيل الدخول.' : 'Password reset successful! Please log in.');
+      setView('login');
+      setForgotStep(1);
+      setForgotAnswer('');
+      setNewPassword('');
+    } else {
+      setError(result.message || (isAr ? 'إجابة الأمان غير صحيحة.' : 'Incorrect security answer.'));
     }
+    setLoading(false);
   };
 
   return (
@@ -172,8 +232,13 @@ export default function CustomerAuth({ lang }: CustomerAuthProps) {
         <div className="absolute bottom-0 left-0 w-48 h-48 bg-amber-500/10 rounded-full blur-3xl -ml-20 -mb-20"></div>
         
         <div className="relative z-10 flex flex-col items-center text-center">
-          <div className="bg-gradient-to-tr from-emerald-500 to-emerald-600 p-3 rounded-2xl text-white shadow-lg mb-4 flex items-center justify-center">
-            <Sparkles className="w-6 h-6" />
+          <div className="bg-white border border-slate-800 p-1 rounded-2xl flex items-center justify-center overflow-hidden w-16 h-16 mb-4 shadow-lg shadow-emerald-500/10">
+            <img
+              src={masLogo}
+              alt="MAS Logo"
+              className="w-full h-full object-contain rounded-xl"
+              referrerPolicy="no-referrer"
+            />
           </div>
           <h2 className="text-2xl font-black tracking-tight uppercase font-sans">
             {isAr ? 'بوابة العميل VIP' : 'Sovereign VIP Gate'}
@@ -307,11 +372,18 @@ export default function CustomerAuth({ lang }: CustomerAuthProps) {
                     type="email"
                     required
                     value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    onChange={(e) => handleEmailChange(e.target.value)}
                     placeholder="guest@sovereign.com"
-                    className="w-full pl-11 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all text-slate-800"
+                    className={`w-full pl-11 pr-4 py-2.5 bg-slate-50 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all text-slate-800 ${
+                      emailValidationError ? 'border-rose-400 focus:ring-rose-500' : 'border-slate-200'
+                    }`}
                   />
                 </div>
+                {emailValidationError && (
+                  <p className="text-[10px] font-semibold text-rose-500 mt-1" id="email-validation-error">
+                    {emailValidationError}
+                  </p>
+                )}
               </div>
             </div>
 
@@ -380,11 +452,18 @@ export default function CustomerAuth({ lang }: CustomerAuthProps) {
                     type="password"
                     required
                     value={password}
-                    onChange={(e) => setPassword(e.target.value)}
+                    onChange={(e) => handlePasswordChange(e.target.value)}
                     placeholder="Secret Passphrase"
-                    className="w-full pl-11 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all text-slate-800"
+                    className={`w-full pl-11 pr-4 py-2.5 bg-slate-50 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white transition-all text-slate-800 ${
+                      passwordValidationError ? 'border-rose-400 focus:ring-rose-500' : 'border-slate-200'
+                    }`}
                   />
                 </div>
+                {passwordValidationError && (
+                  <p className="text-[10px] font-semibold text-rose-500 mt-1" id="password-validation-error">
+                    {passwordValidationError}
+                  </p>
+                )}
               </div>
             </div>
 

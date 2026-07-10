@@ -3,6 +3,7 @@ import { Star, Clock, MapPin, Compass, ArrowLeft, CheckCircle2, AlertCircle, Spa
 import { Tour, CurrencyConfig, AppLanguage, LocalizedText, Review } from '../types.js';
 import { translations } from '../translations.js';
 import LazyImage from './LazyImage.js';
+import ResponsiveItineraryImage from './ResponsiveItineraryImage.js';
 import TourCatalogSkeleton from './Skeleton/TourCatalogSkeleton.js';
 import { CacheManager } from '../utils/CacheManager.js';
 
@@ -764,19 +765,28 @@ export default function Tours({
             {/* Itinerary panel */}
             {activeDetailTab === 'itinerary' && (
               <div className="space-y-6 animate-fade-in font-medium text-xs md:text-sm">
-                {selectedTour.itinerary.map((day) => (
-                  <div key={day.day} className="flex gap-4 border-l-2 border-emerald-500 pb-6 pl-4 relative last:pb-0">
-                    <div className="absolute -left-[9px] top-0 bg-emerald-500 text-white rounded-full h-4 w-4 flex items-center justify-center font-bold text-[10px] shadow" />
-                    <div>
-                      <h4 className="font-extrabold text-slate-800 text-sm md:text-base">
-                        {day.title[lang] || day.title.en}
-                      </h4>
-                      <p className="text-slate-500 leading-relaxed mt-1">
-                        {day.description[lang] || day.description.en}
-                      </p>
+                {selectedTour.itinerary.map((day) => {
+                  const dayImg = selectedTour.images[(day.day - 1) % selectedTour.images.length] || selectedTour.images[0] || 'https://images.unsplash.com/photo-1503177119275-0aa32b31d468?auto=format&fit=crop&q=80&w=1200';
+                  return (
+                    <div key={day.day} className="flex flex-col md:flex-row gap-5 border-l-2 border-emerald-500 pb-6 pl-4 relative last:pb-0 items-start">
+                      <div className="absolute -left-[9px] top-0 bg-emerald-500 text-white rounded-full h-4 w-4 flex items-center justify-center font-bold text-[10px] shadow" />
+                      <div className="flex-1 space-y-1">
+                        <h4 className="font-extrabold text-slate-800 text-sm md:text-base">
+                          {day.title[lang] || day.title.en}
+                        </h4>
+                        <p className="text-slate-500 leading-relaxed text-xs md:text-sm">
+                          {day.description[lang] || day.description.en}
+                        </p>
+                      </div>
+                      <div className="w-full md:w-48 shrink-0">
+                        <ResponsiveItineraryImage
+                          src={dayImg}
+                          alt={day.title.en || 'Destination highlight'}
+                        />
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
 

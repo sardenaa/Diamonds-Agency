@@ -1,7 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Html5Qrcode } from 'html5-qrcode';
-import { Ticket, Calendar, ShieldAlert, Award, MessageSquare, Bell, CreditCard, Send, Plus, Sparkles, User, RefreshCw, Smartphone, ShieldCheck, Fingerprint, Lock, Unlock, Activity, CheckCircle2, UserPlus, Gift, Copy, Mail, ExternalLink, Share2, Compass, Trophy, Gem, X, Star, Camera, FileText } from 'lucide-react';
-import { Booking, CurrencyConfig, CustomerCRM, SupportMessage, WhatsAppMessage, SupportTicket, AppLanguage } from '../types.js';
+import { Ticket, Calendar, ShieldAlert, Award, MessageSquare, Bell, CreditCard, Send, Plus, Sparkles, User, RefreshCw, Smartphone, ShieldCheck, Fingerprint, Lock, Unlock, Activity, CheckCircle2, UserPlus, Gift, Copy, Mail, ExternalLink, Share2, Compass, Trophy, Gem, X, Star, Camera, FileText, Cloud, Sun, CloudRain, CloudSnow, CloudLightning, CloudDrizzle, CloudFog, SunDim } from 'lucide-react';
+
+// @ts-ignore
+import masLogo from '../assets/images/mas_logo_1783692800212.jpg';
+import { Booking, CurrencyConfig, CustomerCRM, SupportMessage, WhatsAppMessage, SupportTicket, AppLanguage, Tour } from '../types.js';
 import { translations } from '../translations.js';
 import LoyaltyTier, { TIER_CONFIGS } from './LoyaltyTier.js';
 import BookingCountdown from './BookingCountdown.js';
@@ -30,6 +33,8 @@ export default function Dashboard({
 
   const [crmProfile, setCrmProfile] = useState<CustomerCRM | null>(null);
   const [bookings, setBookings] = useState<Booking[]>([]);
+  const [tours, setTours] = useState<Tour[]>([]);
+  const [weatherForecasts, setWeatherForecasts] = useState<Record<string, { date: string; maxTemp: number; minTemp: number; weatherCode: number }[]>>({});
   const [supportInput, setSupportInput] = useState('');
   const [activeTab, setActiveTab] = useState<'trips' | 'support' | 'whatsapp' | 'rewards' | 'saved' | 'security' | 'referral' | 'profile'>('trips');
   const [loading, setLoading] = useState(false);
@@ -364,6 +369,79 @@ ${shareUrl}`;
       : `${activeCurrency.symbol}${price}`;
   };
 
+  const getWeatherDetails = (code: number) => {
+    switch (code) {
+      case 0:
+        return {
+          icon: <Sun className="w-4 h-4 text-amber-500 animate-pulse" />,
+          label: lang === 'ar' ? 'مشمس' : 'Sunny'
+        };
+      case 1:
+      case 2:
+      case 3:
+        return {
+          icon: <SunDim className="w-4 h-4 text-amber-400" />,
+          label: lang === 'ar' ? 'غائم جزئياً' : 'Partly Cloudy'
+        };
+      case 45:
+      case 48:
+        return {
+          icon: <CloudFog className="w-4 h-4 text-slate-400 animate-pulse" />,
+          label: lang === 'ar' ? 'ضبابي' : 'Foggy'
+        };
+      case 51:
+      case 53:
+      case 55:
+      case 56:
+      case 57:
+        return {
+          icon: <CloudDrizzle className="w-4 h-4 text-blue-300" />,
+          label: lang === 'ar' ? 'رذاذ' : 'Drizzle'
+        };
+      case 61:
+      case 63:
+      case 65:
+      case 66:
+      case 67:
+      case 80:
+      case 81:
+      case 82:
+        return {
+          icon: <CloudRain className="w-4 h-4 text-blue-400" />,
+          label: lang === 'ar' ? 'ممطر' : 'Rainy'
+        };
+      case 71:
+      case 73:
+      case 75:
+      case 77:
+        return {
+          icon: <CloudSnow className="w-4 h-4 text-sky-200" />,
+          label: lang === 'ar' ? 'مثلج' : 'Snowy'
+        };
+      case 95:
+      case 96:
+      case 99:
+        return {
+          icon: <CloudLightning className="w-4 h-4 text-violet-500 animate-bounce" />,
+          label: lang === 'ar' ? 'عاصف' : 'Stormy'
+        };
+      default:
+        return {
+          icon: <Cloud className="w-4 h-4 text-slate-400" />,
+          label: lang === 'ar' ? 'غائم' : 'Cloudy'
+        };
+    }
+  };
+
+  const formatForecastDate = (dateStr: string) => {
+    try {
+      const date = new Date(dateStr);
+      return date.toLocaleDateString(lang === 'ar' ? 'ar-EG' : 'en-US', { weekday: 'short', month: 'numeric', day: 'numeric' });
+    } catch {
+      return dateStr;
+    }
+  };
+
   const fetchData = async () => {
     setLoading(true);
     try {
@@ -373,6 +451,11 @@ ${shareUrl}`;
       // Filter for current user email
       const myBookings = allBookings.filter((b: Booking) => b.customerEmail.toLowerCase() === userEmail.toLowerCase());
       setBookings(myBookings);
+
+      // Get tours to resolve destinations
+      const toursRes = await fetch('/api/tours');
+      const allTours = await toursRes.json();
+      setTours(allTours);
 
       // Get CRM profile
       const crmRes = await fetch('/api/crm');
@@ -722,6 +805,67 @@ ${shareUrl}`;
   const upcomingBookings = bookings.filter(b => b.status === 'pending' || b.status === 'confirmed');
   const pastBookings = bookings.filter(b => b.status === 'completed' || b.status === 'cancelled');
 
+  // Fetch 3-day weather forecast for upcoming bookings
+  useEffect(() => {
+    const fetchWeatherForBookings = async () => {
+      const forecasts: Record<string, { date: string; maxTemp: number; minTemp: number; weatherCode: number }[]> = {};
+      for (const booking of upcomingBookings) {
+        // Find matching tour
+        const tour = tours.find(t => t.id === booking.tourId);
+        const dest = (tour?.destination || booking.tourTitle.en || '').toLowerCase().trim();
+        
+        // Coordinates for Egypt destinations
+        let lat = 30.0444;
+        let lon = 31.2357; // Default Cairo
+        if (dest.includes('luxor')) {
+          lat = 25.6872; lon = 32.6396;
+        } else if (dest.includes('aswan')) {
+          lat = 24.0889; lon = 32.8998;
+        } else if (dest.includes('giza')) {
+          lat = 30.0131; lon = 31.2089;
+        } else if (dest.includes('alexandria')) {
+          lat = 31.2001; lon = 29.9187;
+        } else if (dest.includes('sharm')) {
+          lat = 27.9158; lon = 34.3299;
+        } else if (dest.includes('hurghada')) {
+          lat = 27.2579; lon = 33.8116;
+        } else if (dest.includes('fayoum') || dest.includes('faiyum')) {
+          lat = 29.3084; lon = 30.8428;
+        }
+
+        try {
+          const response = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=temperature_2m_max,temperature_2m_min,weathercode&timezone=auto`);
+          if (response.ok) {
+            const data = await response.json();
+            if (data?.daily?.time) {
+              const days = [];
+              for (let i = 0; i < 3; i++) {
+                if (data.daily.time[i]) {
+                  days.push({
+                    date: data.daily.time[i],
+                    maxTemp: Math.round(data.daily.temperature_2m_max[i]),
+                    minTemp: Math.round(data.daily.temperature_2m_min[i]),
+                    weatherCode: data.daily.weathercode[i]
+                  });
+                }
+              }
+              forecasts[booking.id] = days;
+            }
+          }
+        } catch (err) {
+          console.error(`Failed to fetch weather for booking ${booking.id}:`, err);
+        }
+      }
+      if (Object.keys(forecasts).length > 0) {
+        setWeatherForecasts(prev => ({ ...prev, ...forecasts }));
+      }
+    };
+
+    if (upcomingBookings.length > 0 && tours.length > 0) {
+      fetchWeatherForBookings();
+    }
+  }, [upcomingBookings, tours]);
+
   const bookingsWithin48Hours = upcomingBookings.filter(b => {
     if (b.detailsConfirmed) return false;
     const bookingTime = b.date.includes('T') ? new Date(b.date).getTime() : new Date(`${b.date}T08:00:00`).getTime();
@@ -780,17 +924,27 @@ ${shareUrl}`;
           <Award className="w-40 h-40 text-amber-400" />
         </div>
         
-        <div>
-          <div className="flex items-center gap-2 mb-1">
-            <span className="text-[10px] text-amber-400 font-bold uppercase tracking-widest">{t.brandName} My Account</span>
-            <Sparkles className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
+        <div className="flex items-center gap-4">
+          <div className="bg-white border border-slate-800 p-0.5 rounded-xl w-14 h-14 flex items-center justify-center overflow-hidden shrink-0">
+            <img
+              src={masLogo}
+              alt="MAS Logo"
+              className="w-full h-full object-contain rounded-lg"
+              referrerPolicy="no-referrer"
+            />
           </div>
-          <h2 className="text-2xl md:text-3xl font-bold font-sans tracking-tight">
-            {lang === 'ar' ? `مرحبًا بك، ${crmProfile.name}` : `Welcome, ${crmProfile.name}`}
-          </h2>
-          <p className="text-slate-300 text-xs font-medium mt-1">
-            {crmProfile.email} | {crmProfile.phone} | {crmProfile.nationality}
-          </p>
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-[10px] text-amber-400 font-bold uppercase tracking-widest">{t.brandName} My Account</span>
+              <Sparkles className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
+            </div>
+            <h2 className="text-2xl md:text-3xl font-bold font-sans tracking-tight">
+              {lang === 'ar' ? `مرحبًا بك، ${crmProfile.name}` : `Welcome, ${crmProfile.name}`}
+            </h2>
+            <p className="text-slate-300 text-xs font-medium mt-1">
+              {crmProfile.email} | {crmProfile.phone} | {crmProfile.nationality}
+            </p>
+          </div>
         </div>
 
         <div className="flex items-center gap-4">
@@ -1115,6 +1269,53 @@ ${shareUrl}`;
                           <p className="text-slate-700 text-xs font-medium">{b.specialRequests}</p>
                         </div>
                       )}
+
+                      {/* Weather Forecast Section */}
+                      <div className="bg-gradient-to-r from-slate-50 to-slate-100/50 p-4 rounded-xl border border-slate-200/60 mt-3 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] font-extrabold uppercase text-slate-500 tracking-wider flex items-center gap-1.5">
+                            <Cloud className="w-3.5 h-3.5 text-slate-400" />
+                            <span>{lang === 'ar' ? 'توقعات الطقس الفاخرة (٣ أيام)' : 'Sovereign 3-Day Weather Forecast'}</span>
+                          </span>
+                          <span className="text-[10px] bg-emerald-50 text-emerald-700 px-2.5 py-0.5 rounded-full font-bold">
+                            {(() => {
+                              const tour = tours.find(t => t.id === b.tourId);
+                              return tour?.destination || 'Cairo';
+                            })()}
+                          </span>
+                        </div>
+                        
+                        {weatherForecasts[b.id] ? (
+                          <div className="grid grid-cols-3 gap-2.5 pt-1">
+                            {weatherForecasts[b.id].map((f, idx) => {
+                              const weather = getWeatherDetails(f.weatherCode);
+                              return (
+                                <div key={idx} className="bg-white p-2.5 rounded-lg border border-slate-100 flex flex-col items-center justify-between text-center gap-1.5 shadow-sm hover:border-slate-300 transition-colors">
+                                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">
+                                    {formatForecastDate(f.date)}
+                                  </span>
+                                  <div className="p-1 bg-slate-50 rounded-full">
+                                    {weather.icon}
+                                  </div>
+                                  <span className="text-[10px] font-black text-slate-700 leading-none">
+                                    {weather.label}
+                                  </span>
+                                  <div className="flex items-center gap-1 text-[10px] font-extrabold text-slate-500">
+                                    <span className="text-slate-800">{f.maxTemp}°C</span>
+                                    <span className="text-slate-300">|</span>
+                                    <span>{f.minTemp}°C</span>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <div className="flex items-center justify-center py-4 text-[10px] text-slate-400 font-bold uppercase tracking-wider gap-2">
+                            <span className="w-3.5 h-3.5 border-2 border-slate-300/30 border-t-slate-500 rounded-full animate-spin" />
+                            <span>{lang === 'ar' ? 'جاري الاتصال بالأرصاد الجوية...' : 'Tuning Royal Meteorological Feed...'}</span>
+                          </div>
+                        )}
+                      </div>
 
                       <div className="flex justify-between items-center bg-slate-50 p-3 rounded-lg border border-slate-100">
                         <span className="text-xs font-bold text-slate-500">{t.total}</span>

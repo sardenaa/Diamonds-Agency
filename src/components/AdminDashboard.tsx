@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { BarChart3, Users, BookOpen, ShieldAlert, Sparkles, Plus, Trash2, Edit2, RotateCcw, Send, Calendar, CheckCircle2, DollarSign, Award, RefreshCw, Layers, Ticket, MessageSquare, Bot, AlertTriangle, ShieldCheck, FileSpreadsheet, FileText, Mail, Tag, FileEdit, Star, Search, Filter, Check, Download, Upload, Sun, Moon, Bell, BellOff, X } from 'lucide-react';
+
+// @ts-ignore
+import masLogo from '../assets/images/mas_logo_1783692800212.jpg';
 import { Tour, Booking, CustomerCRM, AuditLog, CurrencyConfig, SupportTicket, WhatsAppTemplate, AppLanguage } from '../types.js';
 import { translations } from '../translations.js';
 import { googleSignIn, logout, initAuth, getAccessToken } from '../lib/firebase.js';
@@ -1781,13 +1784,23 @@ export default function AdminDashboard({
       
       {/* Top Admin Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center border-b border-slate-800 pb-6 mb-8 gap-4">
-        <div>
-          <div className="flex items-center gap-2 mb-1 flex-wrap">
-            <span className="text-[10px] text-amber-400 font-extrabold uppercase tracking-widest">{t.brandName}</span>
-            <span className="bg-emerald-500 text-white text-[8px] font-black px-1.5 py-0.5 rounded">ADMIN CONSOLE</span>
-            <span className="bg-amber-500/10 text-amber-400 text-[8px] font-black px-1.5 py-0.5 rounded border border-amber-500/20 uppercase tracking-wider">{adminPermissionTier}</span>
+        <div className="flex items-center gap-3">
+          <div className="bg-white border border-slate-800 p-0.5 rounded-xl w-12 h-12 flex items-center justify-center overflow-hidden">
+            <img
+              src={masLogo}
+              alt="MAS Logo"
+              className="w-full h-full object-contain rounded-lg"
+              referrerPolicy="no-referrer"
+            />
           </div>
-          <h2 className="text-2xl font-black font-sans tracking-tight">Admin Dashboard</h2>
+          <div>
+            <div className="flex items-center gap-2 mb-1 flex-wrap">
+              <span className="text-[10px] text-amber-400 font-extrabold uppercase tracking-widest">{t.brandName}</span>
+              <span className="bg-emerald-500 text-white text-[8px] font-black px-1.5 py-0.5 rounded">ADMIN CONSOLE</span>
+              <span className="bg-amber-500/10 text-amber-400 text-[8px] font-black px-1.5 py-0.5 rounded border border-amber-500/20 uppercase tracking-wider">{adminPermissionTier}</span>
+            </div>
+            <h2 className="text-2xl font-black font-sans tracking-tight">Admin Dashboard</h2>
+          </div>
         </div>
         <div className="flex items-center gap-3">
           <button

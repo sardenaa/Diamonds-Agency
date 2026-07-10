@@ -10,9 +10,13 @@ import { Tour, AppLanguage } from './types.js';
 import { translations } from './translations.js';
 import { tokens } from './theme/tokens.js';
 import LazyImage from './components/LazyImage.js';
+import ResponsiveItineraryImage from './components/ResponsiveItineraryImage.js';
 import WebVitalsLogger from './components/WebVitalsLogger.js';
 import SEOHelper from './components/SEOHelper.js';
 import AppRouter from './routes/AppRouter.js';
+
+// @ts-ignore
+import masLogo from './assets/images/mas_logo_1783692800212.jpg';
 
 // Import newly refactored contexts, hooks, services, and components
 import { AuthProvider, useAuth } from './contexts/AuthContext.js';
@@ -472,8 +476,13 @@ function AppContent({ lang, setLang }: { lang: AppLanguage; setLang: React.Dispa
               {/* Header Details */}
               <div className="space-y-6">
                 <div className="flex items-center gap-3">
-                  <div className="bg-emerald-500/10 p-3 rounded-2xl text-emerald-400 print:bg-slate-100 print:text-black">
-                    <Compass className="w-8 h-8" />
+                  <div className="bg-white border border-slate-800 p-1 rounded-2xl flex items-center justify-center overflow-hidden w-14 h-14 print:bg-white print:border-slate-300">
+                    <img
+                      src={masLogo}
+                      alt="MAS Logo"
+                      className="w-full h-full object-contain rounded-xl"
+                      referrerPolicy="no-referrer"
+                    />
                   </div>
                   <div>
                     <h1 className="text-xl font-black uppercase tracking-tight text-white print:text-black">{t.brandName}</h1>
@@ -595,24 +604,56 @@ function AppContent({ lang, setLang }: { lang: AppLanguage; setLang: React.Dispa
 
                 {/* Staggered Day-by-Day Timeline */}
                 <div className="space-y-6 relative before:absolute before:left-3 before:top-2 before:bottom-2 before:w-[2px] before:bg-slate-800 print:before:bg-slate-200">
-                  {getPrintItinerary().map((item, idx) => (
-                    <div key={idx} data-timeline-day={item.day} className="timeline-day-item relative pl-8 space-y-2 group">
-                      {/* Timeline Dot */}
-                      <div className="absolute left-[5px] top-1.5 w-4 h-4 rounded-full bg-slate-950 border-2 border-emerald-500 flex items-center justify-center group-hover:scale-110 transition-transform print:bg-white print:border-black">
-                        <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full print:bg-black" />
-                      </div>
+                  {getPrintItinerary().map((item, idx) => {
+                    const tourImages: Record<string, string[]> = {
+                      'tour-1': [
+                        'https://images.unsplash.com/photo-1503177119275-0aa32b31d468',
+                        'https://images.unsplash.com/photo-1539650116574-8efeb43e2750'
+                      ],
+                      'tour-2': [
+                        'https://images.unsplash.com/photo-1544644181-1484b3fdfc62',
+                        'https://images.unsplash.com/photo-1543051932-6ef9fecfbc80'
+                      ],
+                      'tour-3': [
+                        'https://images.unsplash.com/photo-1569263979104-865ab7cd8d13',
+                        'https://images.unsplash.com/photo-1544551763-46a013bb70d5'
+                      ],
+                      'tour-4': [
+                        'https://images.unsplash.com/photo-1559136555-9303baea8ebd',
+                        'https://images.unsplash.com/photo-1507525428034-b723cf961d3e'
+                      ],
+                    };
+                    const imagesList = tourImages[sharedBooking.tourId] || tourImages['tour-1'];
+                    const dayImg = imagesList[(item.day - 1) % imagesList.length] || imagesList[0];
 
-                      <span className="text-[10px] text-emerald-400 font-extrabold uppercase tracking-widest block font-mono">
-                        {isAr ? `اليوم ${item.day}` : `Day ${item.day}`}
-                      </span>
-                      <h4 className="text-sm font-black text-slate-200 tracking-tight leading-tight print:text-black">
-                        {item.title}
-                      </h4>
-                      <p className="text-[11px] text-slate-400 leading-relaxed font-semibold print:text-black/80">
-                        {item.description}
-                      </p>
-                    </div>
-                  ))}
+                    return (
+                      <div key={idx} data-timeline-day={item.day} className="timeline-day-item relative pl-8 flex flex-col md:flex-row gap-5 group items-start">
+                        {/* Timeline Dot */}
+                        <div className="absolute left-[5px] top-1.5 w-4 h-4 rounded-full bg-slate-950 border-2 border-emerald-500 flex items-center justify-center group-hover:scale-110 transition-transform print:bg-white print:border-black z-10">
+                          <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full print:bg-black" />
+                        </div>
+
+                        <div className="flex-1 space-y-1.5">
+                          <span className="text-[10px] text-emerald-400 font-extrabold uppercase tracking-widest block font-mono">
+                            {isAr ? `اليوم ${item.day}` : `Day ${item.day}`}
+                          </span>
+                          <h4 className="text-sm font-black text-slate-200 tracking-tight leading-tight print:text-black">
+                            {item.title}
+                          </h4>
+                          <p className="text-[11px] text-slate-400 leading-relaxed font-semibold print:text-black/80">
+                            {item.description}
+                          </p>
+                        </div>
+
+                        <div className="w-full md:w-44 shrink-0 print:hidden">
+                          <ResponsiveItineraryImage
+                            src={dayImg}
+                            alt={item.title || 'Day highlight'}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
 
@@ -1051,8 +1092,13 @@ function AppContent({ lang, setLang }: { lang: AppLanguage; setLang: React.Dispa
         
         {/* Luxury Brand Logo */}
         <div className="flex items-center gap-2">
-          <div className={`bg-gradient-to-tr from-emerald-600 to-emerald-700 p-2.5 ${tokens.borderRadius.button} text-white shadow-md shadow-emerald-600/10 flex items-center justify-center`}>
-            <Compass className="w-5 h-5" />
+          <div className={`bg-white border border-slate-200/80 p-1 ${tokens.borderRadius.button} shadow-sm shadow-emerald-600/5 flex items-center justify-center overflow-hidden w-11 h-11`}>
+            <img
+              src={masLogo}
+              alt="MAS Logo"
+              className="w-full h-full object-contain rounded-lg"
+              referrerPolicy="no-referrer"
+            />
           </div>
           <div>
             <div className="flex items-center gap-1">
@@ -1214,7 +1260,14 @@ function AppContent({ lang, setLang }: { lang: AppLanguage; setLang: React.Dispa
           
           <div className="space-y-4">
             <div className="flex items-center gap-2 text-white">
-              <Compass className="w-6 h-6 text-emerald-500" />
+              <div className="bg-white p-0.5 rounded-lg w-8 h-8 flex items-center justify-center overflow-hidden border border-slate-800">
+                <img
+                  src={masLogo}
+                  alt="MAS Logo"
+                  className="w-full h-full object-contain rounded-md"
+                  referrerPolicy="no-referrer"
+                />
+              </div>
               <span className="font-black uppercase tracking-wider text-base">{t.brandName}</span>
             </div>
             <p className="leading-relaxed text-slate-500 text-xs font-semibold">
