@@ -539,7 +539,9 @@ MAS Agency Royal Concierge Division`;
     }
 
     saveDB(db);
-    logAudit('BOOKING_UPDATED', 'Admin Operations', `Updated reservation status/driver for ${updated.id}`);
+    const clientIp = (req.headers['x-forwarded-for'] as string || req.ip || req.socket.remoteAddress || '').split(',')[0].trim();
+    const userAgentHeader = req.headers['user-agent'] || '';
+    logAudit('BOOKING_UPDATED', 'Admin Operations', `Updated reservation status/driver for ${updated.id}`, clientIp, userAgentHeader);
     res.json(updated);
   });
 
@@ -566,7 +568,9 @@ MAS Agency Royal Concierge Division`;
     }
 
     saveDB(db);
-    logAudit('BOOKING_REFUNDED', 'Admin Finance', `Fully refunded booking ${booking.id} and updated CRM ledger.`);
+    const clientIp = (req.headers['x-forwarded-for'] as string || req.ip || req.socket.remoteAddress || '').split(',')[0].trim();
+    const userAgentHeader = req.headers['user-agent'] || '';
+    logAudit('BOOKING_REFUNDED', 'Admin Finance', `Fully refunded booking ${booking.id} and updated CRM ledger.`, clientIp, userAgentHeader);
     res.json(booking);
   });
 
@@ -580,7 +584,9 @@ MAS Agency Royal Concierge Division`;
     const customerEmail = db.bookings[index].customerEmail;
     db.bookings.splice(index, 1);
     saveDB(db);
-    logAudit('BOOKING_DELETED', 'Admin Operations', `Permanently deleted booking record: ${id} (Customer: ${customerEmail})`);
+    const clientIp = (req.headers['x-forwarded-for'] as string || req.ip || req.socket.remoteAddress || '').split(',')[0].trim();
+    const userAgentHeader = req.headers['user-agent'] || '';
+    logAudit('BOOKING_DELETED', 'Admin Operations', `Permanently deleted booking record: ${id} (Customer: ${customerEmail})`, clientIp, userAgentHeader);
     res.json({ success: true, message: `Booking ${id} deleted successfully.` });
   });
 
@@ -896,7 +902,9 @@ JSON Schema:
     }
 
     saveDB(db);
-    logAudit('BOOKING_UPGRADED', 'Guest Client / Recommendation Engine', `Upgraded booking ${booking.id} with ${enTitle} (+$${priceUSD})`);
+    const clientIp = (req.headers['x-forwarded-for'] as string || req.ip || req.socket.remoteAddress || '').split(',')[0].trim();
+    const userAgentHeader = req.headers['user-agent'] || '';
+    logAudit('BOOKING_UPGRADED', 'Guest Client / Recommendation Engine', `Upgraded booking ${booking.id} with ${enTitle} (+$${priceUSD})`, clientIp, userAgentHeader);
 
     res.json(booking);
   });
@@ -2600,7 +2608,9 @@ JSON Schema:
     if (!action || !details) {
       return res.status(400).json({ error: 'Missing action or details' });
     }
-    logAudit(action, user || 'Admin Manager', details);
+    const clientIp = (req.headers['x-forwarded-for'] as string || req.ip || req.socket.remoteAddress || '').split(',')[0].trim();
+    const userAgentHeader = req.headers['user-agent'] || '';
+    logAudit(action, user || 'Admin Manager', details, clientIp, userAgentHeader);
     res.json({ success: true });
   });
 

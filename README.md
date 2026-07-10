@@ -12,6 +12,27 @@ The MAS platform is designed around two core experiences:
 
 ---
 
+## 💎 Recent Sovereign Upgrades
+
+We have recently integrated several high-performance upgrades to enhance the visual fidelity and loading speeds of the platform:
+
+### 1. Unified Bespoke Brand Identity
+To establish a distinctive, high-end visual presence, we generated a professional minimalist golden diamond logo to serve as the unified brand identifier. This replaces the generic icon placeholders with polished, high-contrast assets across all crucial customer-facing and operational portals:
+- **Luxury Brand Navigation**: Features a soft-bordered card wrapping the golden diamond logo at the core of the sticky navbar.
+- **Sovereign VIP Gate**: Enhances the premium luxury login screen with a centered golden-emblem preview container.
+- **Official Print Voucher**: Adorns the digital dispatch boarding passes and printed itineraries.
+- **Operations Console & CRM**: Grounds the executive admin control header with official luxury agency markings.
+- **Customer Account Suite**: Polishes the user profile panel with high-contrast, professional brand positioning.
+
+### 2. High-Performance Responsive Itinerary Image Engine
+We built a responsive, mobile-first dynamic image loading system specifically optimized for modern cellular networks and desktop viewport transitions:
+- **Real-Time MediaQuery Synchronization**: Uses match-media queries inside a dedicated React component (`ResponsiveItineraryImage.tsx`) to dynamically detect device changes and re-target layout configurations.
+- **Bandwidth-Optimized Image Pipeline**: Parses Unsplash photo requests on-the-fly, stripping legacy parameters to inject precise widths, heights, and compression ratios (**640x480 at `q=75`** for mobile cellular conservation; **1200x675 at `q=85`** for high-pixel-density desktop retina displays).
+- **Cumulative Layout Shift (CLS) Mitigation**: Pre-allocates perfect responsive aspect boxes (**`aspect-[4/3]`** on mobile; **`aspect-[16/9]`** on desktop) to completely eliminate shifting layouts during lazy load phases.
+- **Contextual Timeline Previews**: Integrates this image loading framework directly inside both the Tour Detail Itinerary tabs and the public-facing Shared Digital Itinerary screens.
+
+---
+
 ## 🛠️ Technology Stack
 
 The application is built on a modern, high-performance full-stack TypeScript architecture:

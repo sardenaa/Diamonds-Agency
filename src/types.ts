@@ -194,6 +194,8 @@ export interface AuditLog {
   user: string;
   timestamp: string;
   details: string;
+  ip?: string;
+  userAgent?: string;
 }
 
 export interface CurrencyConfig {
