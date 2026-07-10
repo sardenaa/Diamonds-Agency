@@ -1721,6 +1721,21 @@ export default function AdminDashboard({
     }
   };
 
+  const handleUpdateTicketPriority = async (ticketId: string, priority: 'low' | 'medium' | 'high' | 'royal') => {
+    try {
+      const res = await fetch(`/api/tickets/${ticketId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ priority })
+      });
+      if (res.ok) {
+        fetchAdminData();
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   // Delete a support ticket
   const handleDeleteTicket = async (ticketId: string) => {
     if (!confirm(`Are you sure you want to permanently delete support ticket "${ticketId}"?`)) return;
@@ -3153,20 +3168,19 @@ export default function AdminDashboard({
                         <span className="font-extrabold text-slate-200">Support Tickets Queue</span>
                         <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded text-[10px] font-bold">{tickets.length} Active</span>
                       </div>
-                      <div className="flex gap-1.5">
-                        {(['all', 'open', 'in_progress', 'resolved'] as const).map(f => (
-                          <button
-                            key={f}
-                            onClick={() => setTicketStatusFilter(f)}
-                            className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-all cursor-pointer ${
-                              ticketStatusFilter === f
-                                ? 'bg-emerald-600 border-emerald-500 text-white font-black'
-                                : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200'
-                            }`}
-                          >
-                            {f.toUpperCase().replace('_', ' ')}
-                          </button>
-                        ))}
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] uppercase tracking-widest text-slate-500 font-extrabold font-mono">Filter Status:</span>
+                        <select
+                          value={ticketStatusFilter}
+                          onChange={(e) => setTicketStatusFilter(e.target.value as any)}
+                          className="bg-slate-900 border border-slate-700 text-slate-200 text-xs font-bold rounded-xl px-3 py-1.5 focus:outline-none cursor-pointer focus:border-emerald-500"
+                          id="admin-ticket-status-filter-dropdown"
+                        >
+                          <option value="all">ALL STATUSES</option>
+                          <option value="open">🟢 OPEN</option>
+                          <option value="in_progress">🔵 IN PROGRESS</option>
+                          <option value="resolved">⚫ RESOLVED</option>
+                        </select>
                       </div>
                     </div>
 
@@ -3175,9 +3189,10 @@ export default function AdminDashboard({
                         .filter(t => ticketStatusFilter === 'all' || t.status === ticketStatusFilter)
                         .map(t => {
                           const isSelected = selectedTicketId === t.id;
+                          const isHighOrRoyal = t.priority === 'high' || t.priority === 'royal';
                           const priorityColor = 
-                            t.priority === 'royal' ? 'bg-purple-500/10 text-purple-400 border-purple-500/20' :
-                            t.priority === 'high' ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' :
+                            t.priority === 'royal' ? 'bg-purple-500/10 text-purple-400 border-purple-500/20 font-black' :
+                            t.priority === 'high' ? 'bg-rose-500/10 text-rose-400 border-rose-500/20 font-black' :
                             t.priority === 'medium' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
                             'bg-slate-700/30 text-slate-400 border-slate-700/50';
                           
@@ -3193,16 +3208,26 @@ export default function AdminDashboard({
                                 setSelectedTicketId(t.id);
                                 setAdminTicketReply('');
                               }}
-                              className={`p-3 rounded-xl border transition-all cursor-pointer flex flex-col justify-between gap-2 text-left ${
+                              className={`p-3 rounded-xl border transition-all cursor-pointer flex flex-col justify-between gap-2 text-left relative overflow-hidden ${
                                 isSelected 
                                   ? 'bg-slate-850 border-emerald-500 shadow-md shadow-emerald-500/5' 
+                                  : isHighOrRoyal
+                                  ? 'bg-rose-950/5 border-rose-500/20 hover:bg-rose-950/10'
                                   : 'bg-slate-900/40 border-slate-800 hover:bg-slate-800/40'
-                              }`}
+                              } ${isHighOrRoyal ? 'border-l-4 border-l-rose-500' : ''}`}
                             >
+                              {isHighOrRoyal && (
+                                <div className="absolute top-0 right-0 h-1 w-12 bg-gradient-to-r from-rose-500 to-amber-500 animate-pulse" />
+                              )}
                               <div>
                                 <div className="flex justify-between items-start gap-2">
                                   <span className="font-mono text-[9px] text-slate-400 font-extrabold">{t.id}</span>
-                                  <div className="flex gap-1">
+                                  <div className="flex items-center gap-1">
+                                    {isHighOrRoyal && (
+                                      <span className="bg-rose-500 text-white text-[7px] font-black px-1 py-0.2 rounded animate-pulse">
+                                        🚨 ESCALATED
+                                      </span>
+                                    )}
                                     <span className={`text-[8px] font-black uppercase px-1.5 py-0.5 rounded border ${priorityColor}`}>{t.priority}</span>
                                     <span className={`text-[8px] font-black uppercase px-1.5 py-0.5 rounded border ${statusColor}`}>{t.status.replace('_', ' ')}</span>
                                   </div>
@@ -3234,11 +3259,24 @@ export default function AdminDashboard({
                             <h4 className="text-base font-black text-slate-200 mt-1">{ticket.subject}</h4>
                             <p className="text-[10px] text-slate-400 font-medium mt-0.5">Guest: {ticket.customerName} ({ticket.customerEmail})</p>
                           </div>
-                          <div className="flex gap-2">
+                          <div className="flex gap-2 items-center">
+                            <span className="text-[9px] font-bold text-slate-500 uppercase font-mono">Priority:</span>
+                            <select
+                              value={ticket.priority || 'medium'}
+                              onChange={(e) => handleUpdateTicketPriority(ticket.id, e.target.value as any)}
+                              className="bg-slate-900 border border-slate-755 text-amber-400 font-black text-[10px] rounded-lg px-2.5 py-1 focus:outline-none cursor-pointer"
+                            >
+                              <option value="low">Low</option>
+                              <option value="medium">Medium</option>
+                              <option value="high">🚨 High Priority</option>
+                              <option value="royal">👑 Royal Priority</option>
+                            </select>
+
+                            <span className="text-[9px] font-bold text-slate-500 uppercase font-mono ml-1">Status:</span>
                             <select
                               value={ticket.status}
                               onChange={(e) => handleUpdateTicketStatus(ticket.id, e.target.value as any)}
-                              className="bg-slate-900 border border-slate-700 text-slate-200 text-[10px] font-bold rounded-lg px-2.5 py-1 focus:outline-none cursor-pointer"
+                              className="bg-slate-900 border border-slate-755 text-emerald-400 font-bold text-[10px] rounded-lg px-2.5 py-1 focus:outline-none cursor-pointer"
                             >
                               <option value="open">Open</option>
                               <option value="in_progress">In Progress</option>
@@ -5216,36 +5254,62 @@ export default function AdminDashboard({
 
         {/* Real-time Toast Notifications Portal */}
         <div className="fixed bottom-6 right-6 z-[999] flex flex-col gap-3 max-w-sm w-full pointer-events-none">
-          {toasts.map((toast) => (
-            <div
-              key={toast.id}
-              className="pointer-events-auto bg-slate-900/95 border border-slate-850 text-white p-4 rounded-2xl shadow-2xl backdrop-blur-md flex items-start gap-3 animate-slide-in hover:border-emerald-500/40 transition-all group"
-            >
-              <div className="bg-emerald-500/10 text-emerald-400 p-2 rounded-xl mt-0.5">
-                <Sparkles className="w-5 h-5 text-emerald-400 animate-pulse" />
-              </div>
-              <div className="flex-1 space-y-1 text-left">
-                <div className="flex justify-between items-start gap-2">
-                  <span className="font-extrabold text-[10px] uppercase tracking-wider text-emerald-400">
-                    Luxury Booking Confirmed
-                  </span>
-                  <button
-                    onClick={() => setToasts(prev => prev.filter(t => t.id !== toast.id))}
-                    className="text-slate-500 hover:text-white p-0.5 rounded-full transition-colors cursor-pointer"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
+          {toasts.map((toast) => {
+            const isTicket = toast.type === 'NEW_SUPPORT_TICKET';
+            const isReply = toast.type === 'SUPPORT_TICKET_REPLY';
+            const title = isTicket 
+              ? '🎫 New Support Ticket Opened' 
+              : isReply 
+              ? '💬 Support Ticket Reply' 
+              : 'Luxury Booking Confirmed';
+            const badgeColor = isTicket 
+              ? 'text-rose-400 font-black' 
+              : isReply 
+              ? 'text-sky-400 font-black' 
+              : 'text-emerald-400';
+            const iconBg = isTicket
+              ? 'bg-rose-500/10 text-rose-400 border border-rose-500/25'
+              : isReply
+              ? 'bg-sky-500/10 text-sky-400 border border-sky-500/25'
+              : 'bg-emerald-500/10 text-emerald-400';
+
+            return (
+              <div
+                key={toast.id}
+                className={`pointer-events-auto bg-slate-900/95 border text-white p-4 rounded-2xl shadow-2xl backdrop-blur-md flex items-start gap-3 animate-slide-in transition-all group ${
+                  isTicket ? 'border-rose-500/30 hover:border-rose-500/60' : 'border-slate-850 hover:border-emerald-500/40'
+                }`}
+              >
+                <div className={`p-2 rounded-xl mt-0.5 ${iconBg}`}>
+                  {isTicket ? (
+                    <MessageSquare className="w-5 h-5 animate-bounce" />
+                  ) : (
+                    <Sparkles className="w-5 h-5 animate-pulse" />
+                  )}
                 </div>
-                <p className="text-xs text-slate-200 leading-relaxed font-sans font-medium">{toast.message}</p>
-                {toast.data?.totalAmountUSD && (
-                  <div className="flex justify-between items-center text-[10px] text-slate-400 font-mono mt-2 pt-2 border-t border-slate-800">
-                    <span>Amount: ${toast.data.totalAmountUSD.toLocaleString()} USD</span>
-                    <span className="bg-emerald-500/10 text-emerald-400 px-1.5 py-0.5 rounded font-bold uppercase">Paid</span>
+                <div className="flex-1 space-y-1 text-left">
+                  <div className="flex justify-between items-start gap-2">
+                    <span className={`font-extrabold text-[10px] uppercase tracking-wider ${badgeColor}`}>
+                      {title}
+                    </span>
+                    <button
+                      onClick={() => setToasts(prev => prev.filter(t => t.id !== toast.id))}
+                      className="text-slate-500 hover:text-white p-0.5 rounded-full transition-colors cursor-pointer"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
                   </div>
-                )}
+                  <p className="text-xs text-slate-200 leading-relaxed font-sans font-medium">{toast.message}</p>
+                  {toast.data?.totalAmountUSD && (
+                    <div className="flex justify-between items-center text-[10px] text-slate-400 font-mono mt-2 pt-2 border-t border-slate-800">
+                      <span>Amount: ${toast.data.totalAmountUSD.toLocaleString()} USD</span>
+                      <span className="bg-emerald-500/10 text-emerald-400 px-1.5 py-0.5 rounded font-bold uppercase">Paid</span>
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
       </div>

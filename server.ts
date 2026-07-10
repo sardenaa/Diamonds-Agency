@@ -1603,6 +1603,14 @@ JSON Schema:
     db.tickets.unshift(newTicket);
     saveDB(db);
     logAudit('SUPPORT_TICKET_CREATED', 'System CRM / Guest', `Created ticket ${ticketId} for ${customerName}`);
+    
+    // Broadcast real-time admin notification
+    sendAdminNotification(
+      'NEW_SUPPORT_TICKET',
+      `🎫 New support ticket opened: "${subject}" by ${customerName}`,
+      { ticketId, customerName, customerEmail, subject, category, priority }
+    );
+
     res.status(201).json(newTicket);
   });
 
@@ -1632,6 +1640,14 @@ JSON Schema:
     ticket.messages.push(newMessage);
     saveDB(db);
     logAudit('SUPPORT_TICKET_REPLY', 'Guest Client', `Added guest reply to ticket ${ticket.id}`);
+
+    // Broadcast real-time admin notification for replies
+    sendAdminNotification(
+      'SUPPORT_TICKET_REPLY',
+      `💬 New message on ticket ${ticket.id} by ${ticket.customerName}: "${message.substring(0, 45)}${message.length > 45 ? '...' : ''}"`,
+      { ticketId: ticket.id, customerName: ticket.customerName, subject: ticket.subject }
+    );
+
     res.json(ticket);
   });
 
@@ -2565,6 +2581,106 @@ JSON Schema:
     } catch (err: any) {
       console.error('Gemini error during ticket AI reply:', err);
       res.status(500).json({ error: 'AI generation failed', details: err.message });
+    }
+  });
+
+  // AI suggested answers generator for Customers based on initial ticket message using Gemini
+  app.get('/api/tickets/:id/suggested-answers', async (req, res) => {
+    const db = getDB();
+    const ticket = db.tickets?.find(t => t.id === req.params.id);
+    if (!ticket) {
+      return res.status(404).json({ error: 'Ticket not found' });
+    }
+
+    const firstMessage = ticket.messages?.find(m => m.sender === 'customer')?.message || ticket.subject;
+
+    // Custom fallback suggestions depending on the category of the ticket
+    const fallbackSuggestions = {
+      Chauffeur: [
+        {
+          title: "Verify My Chauffeur Details",
+          content: "Your premium Maybach or Mercedes-Benz V-Class chauffeur assignment is confirmed 24 hours prior to arrival. Our sovereign drivers hold absolute security clearances, carry personal guest luggage, and offer cold refreshments."
+        },
+        {
+          title: "Flight Delays & Tracking",
+          content: "Your professional butler tracks your private jet or commercial flight number in real-time. Even if delayed, your luxury vehicle and personal coordinator will be waiting at the VIP arrival lounge without exception."
+        }
+      ],
+      Itinerary: [
+        {
+          title: "Customizing Tour Stops",
+          content: "All curated excursions are fully customizable. You can communicate with your elite Egyptologist guide on-site to alter route timings, spend more time at private monuments, or add bespoke Nile sunset sailings."
+        },
+        {
+          title: "Monuments Private Access",
+          content: "For premium tours, private out-of-hours permissions for Giza or the Luxor Temple are secured through our direct relations with the Ministry of Antiquities. Contact us for private viewing configurations."
+        }
+      ],
+      Payment: [
+        {
+          title: "Secure Wire & Crypto Settlement",
+          content: "We support secure international bank wires, major credit cards via our secure merchant portal, and premium cryptocurrency settlement (BTC, USDT) for sovereign clients who require absolute financial discretion."
+        },
+        {
+          title: "Invoicing and VAT Refund",
+          content: "Corporate invoicing and detailed luxury expenditure ledgers are compiled on demand. Our terminal concierge can assist with premium VAT refund verification upon departure."
+        }
+      ],
+      Dietary: [
+        {
+          title: "Halal & Michelin Catering Requirements",
+          content: "Our private chefs and luxury caterers prepare 100% halal culinary experiences customized around your preferences. Organic, gluten-free, or specific allergen exemptions are cataloged with royal attention."
+        }
+      ],
+      Other: [
+        {
+          title: "Private Nile Yacht & Helicopter Charters",
+          content: "Bespoke extensions like securing our private 5-cabin Nile Dahabiya yacht or chartering private AW139 VIP helicopters across Sinai are arranged upon request by the Chief Operations Officer."
+        }
+      ]
+    };
+
+    const defaultFallbacks = fallbackSuggestions[ticket.category as keyof typeof fallbackSuggestions] || fallbackSuggestions['Other'];
+
+    const ai = getAI();
+    if (!ai) {
+      return res.json({ suggestions: defaultFallbacks });
+    }
+
+    try {
+      const systemInstruction = 
+        "You are the MAS Sovereign Travel AI concierge. " +
+        "Your task is to analyze the customer's initial support ticket message, " +
+        "and suggest exactly 2 to 3 common, specific, helpful, and highly elite answers/solutions " +
+        "that might instantly resolve their inquiry. " +
+        "Format the output as a valid JSON array of objects, where each object has: " +
+        "1. 'title': a short action-oriented title (no longer than 6 words) " +
+        "2. 'content': a detailed, premium, and elite solution/answer matching our ultra-luxury service standard (no longer than 3-4 sentences) " +
+        "Return ONLY a valid JSON array. Do NOT wrap inside any markdown codeblocks or output any text other than raw JSON.";
+
+      const prompt = `Ticket Subject: "${ticket.subject}"\n` +
+        `Ticket Category: "${ticket.category}"\n` +
+        `Customer Message: "${firstMessage}"\n\n` +
+        `Generate 2 or 3 elite suggested answers in JSON format.`;
+
+      const response = await ai.models.generateContent({
+        model: 'gemini-3.5-flash',
+        contents: prompt,
+        config: { systemInstruction }
+      });
+
+      const responseText = response.text.trim();
+      // Safely parse JSON
+      const cleanedText = responseText.replace(/^```json\s*/, '').replace(/\s*```$/, '').trim();
+      const parsed = JSON.parse(cleanedText);
+      
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return res.json({ suggestions: parsed });
+      }
+      res.json({ suggestions: defaultFallbacks });
+    } catch (err: any) {
+      console.error('Gemini suggested answers error:', err);
+      res.json({ suggestions: defaultFallbacks });
     }
   });
 

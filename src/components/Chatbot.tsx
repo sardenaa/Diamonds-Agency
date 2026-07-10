@@ -93,6 +93,11 @@ export default function Chatbot({ lang, onSelectTour, onOpenPackingAssistant }: 
   const [newTicketSubject, setNewTicketSubject] = useState('');
   const [creatingTicket, setCreatingTicket] = useState(false);
   
+  // Suggested solutions using Gemini
+  const [suggestedAnswers, setSuggestedAnswers] = useState<{ title: string; content: string }[]>([]);
+  const [loadingSuggestions, setLoadingSuggestions] = useState(false);
+  const [expandedSuggestionIdx, setExpandedSuggestionIdx] = useState<number | null>(null);
+  
   // Custom states for widget interactions
   const [converterAmount, setConverterAmount] = useState('100');
   const [converterDirection, setConverterDirection] = useState<'USD_EGP' | 'EGP_USD'>('USD_EGP');
@@ -424,6 +429,84 @@ export default function Chatbot({ lang, onSelectTour, onOpenPackingAssistant }: 
 
     return () => unsubscribe();
   }, [selectedTicketId]);
+
+  // Fetch Gemini-powered suggested answers when a customer selects a ticket
+  useEffect(() => {
+    if (!selectedTicketId) {
+      setSuggestedAnswers([]);
+      setExpandedSuggestionIdx(null);
+      return;
+    }
+
+    setSuggestedAnswers([]);
+    setExpandedSuggestionIdx(null);
+    setLoadingSuggestions(true);
+
+    fetch(`/api/tickets/${selectedTicketId}/suggested-answers`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.suggestions) {
+          setSuggestedAnswers(data.suggestions);
+        }
+      })
+      .catch(err => {
+        console.error('Error fetching suggested answers:', err);
+      })
+      .finally(() => {
+        setLoadingSuggestions(false);
+      });
+  }, [selectedTicketId]);
+
+  const handleSendSuggestedAnswer = async (text: string) => {
+    if (!selectedTicketId || !activeUser?.email) return;
+    try {
+      // 1. Write reply to local REST API (mirrors to local JSON DB so Admin is notified)
+      await fetch(`/api/tickets/${selectedTicketId}/customer-message`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: text })
+      });
+
+      // 2. Write turn to Firestore subcollection (updates onSnapshot instantly)
+      const msgId = `msg-${Date.now()}`;
+      await setDoc(doc(db, 'tickets', selectedTicketId, 'messages', msgId), {
+        id: msgId,
+        sender: 'user',
+        senderName: activeUser.name || 'Sovereign Traveler',
+        text: text,
+        timestamp: serverTimestamp()
+      });
+    } catch (err) {
+      console.error('Error sending suggested answer:', err);
+    }
+  };
+
+  const handleSolveTicket = async (suggestionTitle: string) => {
+    if (!selectedTicketId || !activeUser?.email) return;
+    try {
+      const closingMsg = `✅ This inquiry was successfully resolved using Sovereign AI suggestion: "${suggestionTitle}". Thank you!`;
+      
+      // Send the resolving message
+      await handleSendSuggestedAnswer(closingMsg);
+
+      // Update status of ticket to resolved via local API
+      await fetch(`/api/tickets/${selectedTicketId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'resolved' })
+      });
+
+      // Also update Firestore ticket status if active
+      await setDoc(doc(db, 'tickets', selectedTicketId), { status: 'resolved' }, { merge: true });
+
+      // Reset suggestions states and go back to channels view
+      setSuggestedAnswers([]);
+      setSelectedTicketId(null);
+      fetchCustomerTickets();
+    } catch (err) {
+      console.error('Error resolving ticket:', err);
+    }
+  };
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -1449,6 +1532,66 @@ How may I coordinate your private Egypt tour requirements today, Sir? I have als
                       </div>
                     );
                   })()}
+
+                  {/* Sovereign AI Auto-Suggestions Panel */}
+                  {suggestedAnswers.length > 0 && (
+                    <div className="bg-amber-500/5 border-b border-amber-500/10 p-3 shrink-0 space-y-2">
+                      <div className="flex items-center gap-1.5 text-[10px] font-mono font-black text-amber-400 uppercase tracking-wider">
+                        <Sparkles className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
+                        <span>{lang === 'ar' ? '💡 حلول مقترحة فورية من الذكاء الاصطناعي' : '💡 Instant AI-Suggested Answers'}</span>
+                      </div>
+                      <div className="flex flex-col gap-1.5 max-h-[120px] overflow-y-auto">
+                        {suggestedAnswers.map((s, idx) => {
+                          const isExpanded = expandedSuggestionIdx === idx;
+                          return (
+                            <div 
+                              key={idx}
+                              className="bg-slate-900/80 border border-slate-800/80 hover:border-amber-500/20 rounded-xl p-2.5 transition-all text-left"
+                            >
+                              <div 
+                                className="flex justify-between items-center cursor-pointer select-none"
+                                onClick={() => setExpandedSuggestionIdx(isExpanded ? null : idx)}
+                              >
+                                <span className="text-xs font-bold text-slate-200 flex items-center gap-1">
+                                  <span className="text-amber-500 text-[10px] font-extrabold font-mono">#{idx + 1}</span>
+                                  {s.title}
+                                </span>
+                                <span className="text-[10px] text-slate-500 hover:text-slate-300 font-mono font-bold">
+                                  {isExpanded ? (lang === 'ar' ? 'إغلاق -' : 'COLLAPSE -') : (lang === 'ar' ? 'عرض +' : 'EXPAND +')}
+                                </span>
+                              </div>
+                              {isExpanded && (
+                                <div className="mt-2 text-[11px] text-slate-300 font-medium leading-relaxed font-sans border-t border-slate-850 pt-2 space-y-2">
+                                  <p>{s.content}</p>
+                                  <div className="flex justify-end gap-1.5 pt-1">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        handleSendSuggestedAnswer(s.content);
+                                        setExpandedSuggestionIdx(null);
+                                      }}
+                                      className="text-[9px] bg-slate-950 hover:bg-slate-800 border border-slate-800 hover:border-amber-500/30 text-amber-400 font-bold px-2 py-1 rounded-lg transition-all cursor-pointer flex items-center gap-1"
+                                    >
+                                      <span>✍️</span>
+                                      <span>{lang === 'ar' ? 'إرسال للمحادثة' : 'Send to Chat'}</span>
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleSolveTicket(s.title)}
+                                      className="text-[9px] bg-amber-500 hover:bg-amber-600 border border-amber-600 text-slate-950 font-black px-2.5 py-1 rounded-lg transition-all cursor-pointer flex items-center gap-1 shadow-md shadow-amber-500/5"
+                                    >
+                                      <span>✅</span>
+                                      <span>{lang === 'ar' ? 'تم حل المشكلة' : 'Solved My Issue'}</span>
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Live Ticket Message List */}
                   <div
